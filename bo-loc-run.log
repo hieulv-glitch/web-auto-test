@@ -1,0 +1,702 @@
+◇ injected env (9) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+Running 48 tests using 1 worker
+
+◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+  ok  1 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:37:7 › Bộ lọc cổ phiếu / Nhóm A — Truy cập & tổng quan › TC_BOLOC_01: Truy cập /bo-loc khi chưa đăng nhập (7.8s)
+  ok  2 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:44:7 › Bộ lọc cổ phiếu / Nhóm A — Truy cập & tổng quan › TC_BOLOC_02: Đăng nhập từ redirect quay lại đúng /bo-loc (6.7s)
+  x   3 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:55:7 › Bộ lọc cổ phiếu / Nhóm A — Truy cập & tổng quan › TC_BOLOC_03: Overview màn hình khi đã đăng nhập (38.8s)
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+  ok  4 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:76:7 › Bộ lọc cổ phiếu / Nhóm A — Truy cập & tổng quan › TC_BOLOC_04: Panel phải "IBD" — 6 tab dọc, không có "Bài viết"/"Chatbot" (29.2s)
+  ok  5 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:90:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_05: Hiển thị & cuộn ngang thanh mẫu KFSP (17.2s)
+  x   6 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:98:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_06: Click mẫu Free áp dụng đúng tiêu chí (32.0s)
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+  x   7 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:109:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_07: Mẫu áp dụng có thể trả về 0 kết quả — trạng thái rỗng (16.1s)
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+  ok  8 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:123:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_08: Click mẫu Pro với tài khoản Free → popup nâng cấp (16.9s)
+  -   9 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:134:8 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_09: "Khám phá hơn N kết quả bộ lọc khác" mở modal đầy đủ mẫu
+  ok 10 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:141:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_10: Dropdown mẫu đã lưu hiển thị đúng danh sách cá nhân (7.6s)
+  ok 11 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:151:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_11: Chọn 1 mẫu đã lưu khác cập nhật tiêu chí & kết quả (8.1s)
+  ok 12 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:165:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_12: Nút "Lưu" chỉ active khi có thay đổi chưa lưu trên mẫu cá nhân (9.7s)
+  x  13 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:182:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_13: "Tạo bản sao" — mở modal, Huỷ không tạo gì (30.9s)
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+  ok 14 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:201:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_14: "Quản lý" mẫu lọc đã lưu (7.3s)
+  ok 15 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:216:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_15: Input "Mã CK" — giới hạn ký tự & autocomplete (7.2s)
+  x  16 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:232:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_16: Dropdown "Watchlist" lọc theo watchlist đã chọn (10.8s)
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+  x  17 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:248:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_17: Dropdown "Sàn" lọc theo sàn (6.4s)
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+  x  18 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:267:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_18: Dropdown "Ngành" lọc theo ngành (30.7s)
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+  x  19 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:283:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_19: "Vốn hoá TT" — đổi toán tử đổi số lượng input (30.7s)
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+  x  20 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:294:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_20: "Vốn hoá TT" — nhập giá trị hợp lệ cập nhật kết quả (30.8s)
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+  x  21 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:307:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_21: "Vốn hoá TT" — chặn ký tự không phải số (30.8s)
+◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+  x  22 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:318:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_22: "Vốn hoá TT" ở chế độ "Khoảng" — min > max KHÔNG bị chặn (30.9s)
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+  ok 23 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:335:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_23: Badge số tiêu chí mỗi nhóm hiển thị đúng (5.7s)
+  x  24 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:349:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_24: Nhóm "Cơ bản" — input range hoạt động đúng (30.7s)
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+  x  25 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:362:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_25: Nhóm "Kỹ thuật" — tiêu chí dạng select hoạt động đúng (7.1s)
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+  x  26 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:375:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_26: Nhóm "KFSP" — input range hoạt động đúng (30.8s)
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+  ok 27 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:390:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_27: Mở modal — đúng cấu trúc (6.3s)
+  ok 28 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:404:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_28: Chuyển tab trong modal (6.5s)
+  x  29 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:414:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_29: Tick thêm 1 tiêu chí mới (30.6s)
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+  x  30 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:429:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_30: Bỏ tick 1 tiêu chí đang chọn (30.8s)
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+  ok 31 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:443:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_31: Xoá 1 tiêu chí qua icon thùng rác trên chip (7.9s)
+  ok 32 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:462:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_32: Nút "Bỏ chọn tất cả" / "Chọn tất cả" (9.6s)
+  x  33 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:475:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_33: Huỷ modal không áp dụng thay đổi (30.8s)
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+  x  34 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:491:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_34: Lưu modal áp dụng đúng tiêu chí mới (30.9s)
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+  x  35 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:510:7 › Bộ lọc cổ phiếu / Nhóm G — Reset giá trị › TC_BOLOC_35: "Reset giá trị" xoá giá trị nhưng giữ nguyên tiêu chí đã chọn (30.9s)
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+  ok 36 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:528:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_36: 9 tab nhóm cột hiển thị đúng, đổi tab không load lại từ server (7.3s)
+  ok 37 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:541:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_37: Sort theo cột (8.2s)
+  ok 38 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:557:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_38: Phân trang (12.9s)
+  ok 39 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:571:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_39: Checkbox chọn nhiều dòng hiện thanh hành động thêm vào watchlist (9.2s)
+  -  40 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:585:8 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_40: Giới hạn chọn tối đa 100 mã
+  ok 41 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:591:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_41: Click vào 1 mã mở modal chi tiết tại chỗ, đóng modal (11.9s)
+  ok 42 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:608:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_42: Màu sắc giá trị % theo chiều tăng/giảm/đứng giá (9.1s)
+  ok 43 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:632:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_43: Nút refresh cạnh "Kết quả lọc" (8.5s)
+  ok 44 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:646:7 › Bộ lọc cổ phiếu / Nhóm H — Bảng kết quả › TC_BOLOC_44: Nút "Xuất File Excel" (9.3s)
+  ok 45 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:658:7 › Bộ lọc cổ phiếu / Nhóm I — Tài khoản Free › TC_BOLOC_45: Tab cột nâng cao — ghi nhận thực tế cho tài khoản Free (16.3s)
+  ok 46 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:672:7 › Bộ lọc cổ phiếu / Nhóm I — Tài khoản Free › TC_BOLOC_46: Checkbox Quý/Năm trong tab "Cơ bản" của modal bị khoá cho Free (17.9s)
+  x  47 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:688:7 › Bộ lọc cổ phiếu / Nhóm J — Hành vi chung / lỗi mạng / điều hướng › TC_BOLOC_47: Lỗi mạng khi gọi API kết quả lọc — bảng không cập nhật, không crash (31.1s)
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+  ok 48 [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:706:7 › Bộ lọc cổ phiếu / Nhóm J — Hành vi chung / lỗi mạng / điều hướng › TC_BOLOC_48: Nút Back trình duyệt (11.4s)
+
+
+  1) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:55:7 › Bộ lọc cổ phiếu / Nhóm A — Truy cập & tổng quan › TC_BOLOC_03: Overview màn hình khi đã đăng nhập 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.card-wrapper').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.collapse_header').filter({ hasText: 'Thông tin chung' }) })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.card-wrapper').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.collapse_header').filter({ hasText: 'Thông tin chung' }) })
+
+
+      64 |     await expect(boLoc.resetValuesButton).toBeVisible();
+      65 |
+    > 66 |     await expect(boLoc.criteriaGroupCard('Thông tin chung')).toBeVisible();
+         |                                                              ^
+      67 |     await expect(boLoc.resultCountText).toContainText('Kết quả lọc:');
+      68 |     await expect(boLoc.exportExcelButton).toBeVisible();
+      69 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:66:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-40553-w-màn-hình-khi-đã-đăng-nhập-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-40553-w-màn-hình-khi-đã-đăng-nhập-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-40553-w-màn-hình-khi-đã-đăng-nhập-chromium\error-context.md
+
+  2) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:98:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_06: Click mẫu Free áp dụng đúng tiêu chí 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.waitForTimeout: Test timeout of 30000ms exceeded.
+
+      101 |
+      102 |     await boLoc.templateChip('Golden Cross').click();
+    > 103 |     await page.waitForTimeout(800);
+          |                ^
+      104 |
+      105 |     await expect(boLoc.presetDropdownToggle).toContainText('Golden Cross');
+      106 |     await expect(boLoc.criteriaItem('SMA50 vs SMA200')).toBeVisible();
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:103:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-68256--Free-áp-dụng-đúng-tiêu-chí-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-68256--Free-áp-dụng-đúng-tiêu-chí-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-68256--Free-áp-dụng-đúng-tiêu-chí-chromium\error-context.md
+
+  3) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:109:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_07: Mẫu áp dụng có thể trả về 0 kết quả — trạng thái rỗng 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.res-filter p')
+    Expected substring: "0 mã"
+    Received string:    "Kết quả lọc: 563 mã"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.res-filter p')
+        13 × locator resolved to <p data-v-37ec1494="">Kết quả lọc: 563 mã</p>
+           - unexpected value "Kết quả lọc: 563 mã"
+
+
+      117 |     await page.waitForTimeout(1200);
+      118 |
+    > 119 |     await expect(boLoc.resultCountText).toContainText('0 mã');
+          |                                         ^
+      120 |     await expect(boLoc.emptyDataMessage).toBeVisible();
+      121 |   });
+      122 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:119:41
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-90bf8-0-kết-quả-—-trạng-thái-rỗng-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-90bf8-0-kết-quả-—-trạng-thái-rỗng-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-90bf8-0-kết-quả-—-trạng-thái-rỗng-chromium\error-context.md
+
+  4) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:182:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_13: "Tạo bản sao" — mở modal, Huỷ không tạo gì 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter-container .filter')
+        - locator resolved to <div data-v-e632314e="" class="filter radius">…</div>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div tabindex="-1" role="dialog" class="modal overflow-auto fade show d-block">…</div> from <div data-v-52cfa454="" data-v-37ec1494="">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div tabindex="-1" role="dialog" class="modal overflow-auto fade show d-block">…</div> from <div data-v-52cfa454="" data-v-37ec1494="">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        41 × waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div tabindex="-1" role="dialog" class="modal overflow-auto fade show d-block">…</div> from <div data-v-52cfa454="" data-v-37ec1494="">…</div> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+
+
+      188 |     await expect(boLoc.duplicateModalNameInput).toHaveValue(/bản sao/);
+      189 |
+    > 190 |     await boLoc.presetDropdownToggle.click();
+          |                                      ^
+      191 |     const countBefore = await boLoc.presetDropdownItems.count();
+      192 |     await boLoc.presetDropdownToggle.click(); // đóng lại trước khi thao tác modal
+      193 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:190:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-2e369-—-mở-modal-Huỷ-không-tạo-gì-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-2e369-—-mở-modal-Huỷ-không-tạo-gì-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-2e369-—-mở-modal-Huỷ-không-tạo-gì-chromium\error-context.md
+
+  5) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:232:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_16: Dropdown "Watchlist" lọc theo watchlist đã chọn 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Watchlist' }) }).locator('select.custom_field:not(.comparison_select)')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Watchlist' }) }).locator('select.custom_field:not(.comparison_select)')
+
+
+      235 |
+      236 |     const watchlistSelect = boLoc.criteriaSelect('Watchlist');
+    > 237 |     await expect(watchlistSelect).toBeVisible();
+          |                                   ^
+      238 |     const options = await watchlistSelect.locator('option').allTextContents();
+      239 |     expect(options.length).toBeGreaterThan(1);
+      240 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:237:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-4ea61--lọc-theo-watchlist-đã-chọn-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-4ea61--lọc-theo-watchlist-đã-chọn-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-4ea61--lọc-theo-watchlist-đã-chọn-chromium\error-context.md
+
+  6) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:248:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_17: Dropdown "Sàn" lọc theo sàn 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    Expected: ArrayContaining ["Tất cả", "HOSE", "HNX", "UPCOM"]
+    Received: []
+
+      252 |     const boardSelect = boLoc.criteriaSelect('Sàn');
+      253 |     const options = await boardSelect.locator('option').allTextContents();
+    > 254 |     expect(options.map((o) => o.trim())).toEqual(expect.arrayContaining(['Tất cả', 'HOSE', 'HNX', 'UPCOM']));
+          |                                          ^
+      255 |
+      256 |     await boardSelect.selectOption({ label: 'HOSE' });
+      257 |     await page.waitForTimeout(1000);
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:254:42
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-93c85-7-Dropdown-Sàn-lọc-theo-sàn-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-93c85-7-Dropdown-Sàn-lọc-theo-sàn-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-93c85-7-Dropdown-Sàn-lọc-theo-sàn-chromium\error-context.md
+
+  7) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:267:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_18: Dropdown "Ngành" lọc theo ngành 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Ngành' }) }).locator('select.custom_field:not(.comparison_select)')
+
+
+      270 |
+      271 |     const industrySelect = boLoc.criteriaSelect('Ngành');
+    > 272 |     await industrySelect.selectOption({ label: 'NGÂN HÀNG' });
+          |                          ^
+      273 |     await page.waitForTimeout(1000);
+      274 |
+      275 |     const industryCells = boLoc.mainContent.locator('table.table-row-all tbody tr td.nganh');
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:272:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-830bf-opdown-Ngành-lọc-theo-ngành-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-830bf-opdown-Ngành-lọc-theo-ngành-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-830bf-opdown-Ngành-lọc-theo-ngành-chromium\error-context.md
+
+  8) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:283:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_19: "Vốn hoá TT" — đổi toán tử đổi số lượng input 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Vốn hoá TT' }) }).locator('select.comparison_select')
+
+
+      285 |     const boLoc = await gotoBoLocReady(page);
+      286 |
+    > 287 |     await boLoc.criteriaComparisonSelect('Vốn hoá TT').selectOption({ label: 'Khoảng' });
+          |                                                        ^
+      288 |     await expect(boLoc.criteriaRangeInputs('Vốn hoá TT')).toHaveCount(2);
+      289 |
+      290 |     await boLoc.criteriaComparisonSelect('Vốn hoá TT').selectOption({ label: 'Bé hơn' });
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:287:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-d2173--toán-tử-đổi-số-lượng-input-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-d2173--toán-tử-đổi-số-lượng-input-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-d2173--toán-tử-đổi-số-lượng-input-chromium\error-context.md
+
+  9) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:294:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_20: "Vốn hoá TT" — nhập giá trị hợp lệ cập nhật kết quả 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Vốn hoá TT' }) }).locator('select.comparison_select')
+
+
+      297 |
+      298 |     const before = await boLoc.resultCountText.textContent();
+    > 299 |     await boLoc.criteriaComparisonSelect('Vốn hoá TT').selectOption({ label: 'Lớn hơn' });
+          |                                                        ^
+      300 |     await boLoc.criteriaValueInput('Vốn hoá TT').fill('50000');
+      301 |     await page.waitForTimeout(1500);
+      302 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:299:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-35200-trị-hợp-lệ-cập-nhật-kết-quả-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-35200-trị-hợp-lệ-cập-nhật-kết-quả-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-35200-trị-hợp-lệ-cập-nhật-kết-quả-chromium\error-context.md
+
+  10) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:307:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_21: "Vốn hoá TT" — chặn ký tự không phải số 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Vốn hoá TT' }) }).locator('select.comparison_select')
+
+
+      309 |     const boLoc = await gotoBoLocReady(page);
+      310 |
+    > 311 |     await boLoc.criteriaComparisonSelect('Vốn hoá TT').selectOption({ label: 'Lớn hơn' });
+          |                                                        ^
+      312 |     const input = boLoc.criteriaValueInput('Vốn hoá TT');
+      313 |     await input.click();
+      314 |     await page.keyboard.type('abc');
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:311:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-5f4b4--—-chặn-ký-tự-không-phải-số-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-5f4b4--—-chặn-ký-tự-không-phải-số-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-5f4b4--—-chặn-ký-tự-không-phải-số-chromium\error-context.md
+
+  11) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:318:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_22: "Vốn hoá TT" ở chế độ "Khoảng" — min > max KHÔNG bị chặn 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Vốn hoá TT' }) }).locator('select.comparison_select')
+
+
+      320 |     const boLoc = await gotoBoLocReady(page);
+      321 |
+    > 322 |     await boLoc.criteriaComparisonSelect('Vốn hoá TT').selectOption({ label: 'Khoảng' });
+          |                                                        ^
+      323 |     const inputs = boLoc.criteriaRangeInputs('Vốn hoá TT');
+      324 |     await inputs.nth(0).fill('1000');
+      325 |     await inputs.nth(1).fill('100');
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:322:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-121a1-ảng-—-min-max-KHÔNG-bị-chặn-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-121a1-ảng-—-min-max-KHÔNG-bị-chặn-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-121a1-ảng-—-min-max-KHÔNG-bị-chặn-chromium\error-context.md
+
+  12) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:349:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_24: Nhóm "Cơ bản" — input range hoạt động đúng 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Tăng trưởng DTT' }) }).locator('select.comparison_select')
+
+
+      352 |
+      353 |     const before = await boLoc.resultCountText.textContent();
+    > 354 |     await boLoc.criteriaComparisonSelect('Tăng trưởng DTT').selectOption({ label: 'Lớn hơn' });
+          |                                                             ^
+      355 |     await boLoc.criteriaValueInput('Tăng trưởng DTT').fill('30');
+      356 |     await page.waitForTimeout(1500);
+      357 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:354:61
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-47adf--input-range-hoạt-động-đúng-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-47adf--input-range-hoạt-động-đúng-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-47adf--input-range-hoạt-động-đúng-chromium\error-context.md
+
+  13) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:362:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_25: Nhóm "Kỹ thuật" — tiêu chí dạng select hoạt động đúng 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 7
+    + Received  + 1
+
+    - Array [
+    -   "Tất cả",
+    -   "Trên",
+    -   "Dưới",
+    -   "Cắt lên gần đây",
+    -   "Cắt xuống gần đây",
+    - ]
+    + Array []
+
+      366 |     const select = boLoc.criteriaSelect('SMA20 vs SMA100');
+      367 |     const options = (await select.locator('option').allTextContents()).map((o) => o.trim());
+    > 368 |     expect(options).toEqual(['Tất cả', 'Trên', 'Dưới', 'Cắt lên gần đây', 'Cắt xuống gần đây']);
+          |                     ^
+      369 |
+      370 |     await select.selectOption({ label: 'Cắt lên gần đây' });
+      371 |     await page.waitForTimeout(1000);
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:368:21
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-27ea9--dạng-select-hoạt-động-đúng-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-27ea9--dạng-select-hoạt-động-đúng-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-27ea9--dạng-select-hoạt-động-đúng-chromium\error-context.md
+
+  14) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:375:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_26: Nhóm "KFSP" — input range hoạt động đúng 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Điểm 4M' }) }).locator('select.comparison_select')
+
+
+      378 |
+      379 |     const before = await boLoc.resultCountText.textContent();
+    > 380 |     await boLoc.criteriaComparisonSelect('Điểm 4M').selectOption({ label: 'Lớn hơn' });
+          |                                                     ^
+      381 |     await boLoc.criteriaValueInput('Điểm 4M').fill('70');
+      382 |     await page.waitForTimeout(1500);
+      383 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:380:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-758d7--input-range-hoạt-động-đúng-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-758d7--input-range-hoạt-động-đúng-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-758d7--input-range-hoạt-động-đúng-chromium\error-context.md
+
+  15) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:414:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_29: Tick thêm 1 tiêu chí mới 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.isChecked: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog').filter({ hasText: 'Thêm điều kiện vào bộ lọc' }).locator('.checkbox_table_item').filter({ has: getByRole('dialog').filter({ hasText: 'Thêm điều kiện vào bộ lọc' }).locator('.checkbox_table_item-label').filter({ hasText: 'SLCP freefloat' }) }).locator('input[type="checkbox"]')
+
+
+      420 |
+      421 |     const cb = boLoc.customModalCheckboxByLabel('SLCP freefloat');
+    > 422 |     if (!(await cb.isChecked())) {
+          |                    ^
+      423 |       await cb.check({ force: true });
+      424 |       await page.waitForTimeout(300);
+      425 |       await expect(boLoc.customModalSelectedChips).toHaveCount(chipsBefore + 1);
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:422:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-8654e-29-Tick-thêm-1-tiêu-chí-mới-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-8654e-29-Tick-thêm-1-tiêu-chí-mới-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-8654e-29-Tick-thêm-1-tiêu-chí-mới-chromium\error-context.md
+
+  16) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:429:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_30: Bỏ tick 1 tiêu chí đang chọn 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.isChecked: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog').filter({ hasText: 'Thêm điều kiện vào bộ lọc' }).locator('.checkbox_table_item').filter({ has: getByRole('dialog').filter({ hasText: 'Thêm điều kiện vào bộ lọc' }).locator('.checkbox_table_item-label').filter({ hasText: 'Vốn hoá TT' }) }).locator('input[type="checkbox"]')
+
+
+      433 |     await boLoc.customizeCriteriaButton.click();
+      434 |     const cb = boLoc.customModalCheckboxByLabel('Vốn hoá TT');
+    > 435 |     if (await cb.isChecked()) {
+          |                  ^
+      436 |       const chipsBefore = await boLoc.customModalSelectedChips.count();
+      437 |       await cb.uncheck({ force: true });
+      438 |       await page.waitForTimeout(300);
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:435:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-45b91-ỏ-tick-1-tiêu-chí-đang-chọn-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-45b91-ỏ-tick-1-tiêu-chí-đang-chọn-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-45b91-ỏ-tick-1-tiêu-chí-đang-chọn-chromium\error-context.md
+
+  17) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:475:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_33: Huỷ modal không áp dụng thay đổi 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.textContent: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.card-wrapper').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.collapse_header').filter({ hasText: 'Thông tin chung' }) }).locator('.tag')
+
+
+      477 |     const boLoc = await gotoBoLocReady(page);
+      478 |
+    > 479 |     const badgeBefore = await boLoc.criteriaGroupBadge('Thông tin chung').textContent();
+          |                                                                           ^
+      480 |
+      481 |     await boLoc.customizeCriteriaButton.click();
+      482 |     const cb = boLoc.customModalCheckboxByLabel('SLCP freefloat');
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:479:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-1837d-odal-không-áp-dụng-thay-đổi-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-1837d-odal-không-áp-dụng-thay-đổi-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-1837d-odal-không-áp-dụng-thay-đổi-chromium\error-context.md
+
+  18) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:491:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_34: Lưu modal áp dụng đúng tiêu chí mới 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.isChecked: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog').filter({ hasText: 'Thêm điều kiện vào bộ lọc' }).locator('.checkbox_table_item').filter({ has: getByRole('dialog').filter({ hasText: 'Thêm điều kiện vào bộ lọc' }).locator('.checkbox_table_item-label').filter({ hasText: 'SLCP freefloat' }) }).locator('input[type="checkbox"]')
+
+
+      495 |     await boLoc.customizeCriteriaButton.click();
+      496 |     const cb = boLoc.customModalCheckboxByLabel('SLCP freefloat');
+    > 497 |     const wasChecked = await cb.isChecked();
+          |                                 ^
+      498 |     if (!wasChecked) await cb.check({ force: true });
+      499 |     await boLoc.customModalSaveButton.click();
+      500 |     await page.waitForTimeout(500);
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:497:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-b09be-l-áp-dụng-đúng-tiêu-chí-mới-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-b09be-l-áp-dụng-đúng-tiêu-chí-mới-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-b09be-l-áp-dụng-đúng-tiêu-chí-mới-chromium\error-context.md
+
+  19) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:510:7 › Bộ lọc cổ phiếu / Nhóm G — Reset giá trị › TC_BOLOC_35: "Reset giá trị" xoá giá trị nhưng giữ nguyên tiêu chí đã chọn 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Tăng trưởng DTT' }) }).locator('select.comparison_select')
+
+
+      512 |     const boLoc = await gotoBoLocReady(page);
+      513 |
+    > 514 |     await boLoc.criteriaComparisonSelect('Tăng trưởng DTT').selectOption({ label: 'Lớn hơn' });
+          |                                                             ^
+      515 |     await boLoc.criteriaValueInput('Tăng trưởng DTT').fill('15');
+      516 |     await page.waitForTimeout(500);
+      517 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:514:61
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-26164-giữ-nguyên-tiêu-chí-đã-chọn-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-26164-giữ-nguyên-tiêu-chí-đã-chọn-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-26164-giữ-nguyên-tiêu-chí-đã-chọn-chromium\error-context.md
+
+  20) [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:688:7 › Bộ lọc cổ phiếu / Nhóm J — Hành vi chung / lỗi mạng / điều hướng › TC_BOLOC_47: Lỗi mạng khi gọi API kết quả lọc — bảng không cập nhật, không crash 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.selectOption: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item').filter({ has: locator('.flexlayout__tab').filter({ has: getByPlaceholder('Nhập mã chứng khoán') }).locator('.filter_options_item_label').filter({ hasText: 'Vốn hoá TT' }) }).locator('select.comparison_select')
+
+
+      695 |     page.on('pageerror', (err) => consoleErrors.push(err.message));
+      696 |
+    > 697 |     await boLoc.criteriaComparisonSelect('Vốn hoá TT').selectOption({ label: 'Lớn hơn' });
+          |                                                        ^
+      698 |     await boLoc.criteriaValueInput('Vốn hoá TT').fill('999');
+      699 |     await page.waitForTimeout(1500);
+      700 |
+        at C:\Users\tranv\OneDrive\Máy tính\Hieu\web-auto-test\tests\toan-canh-thi-truong-bo-loc.spec.ts:697:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-f0dec--không-cập-nhật-không-crash-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\toan-canh-thi-truong-bo-lo-f0dec--không-cập-nhật-không-crash-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\toan-canh-thi-truong-bo-lo-f0dec--không-cập-nhật-không-crash-chromium\error-context.md
+
+  20 failed
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:55:7 › Bộ lọc cổ phiếu / Nhóm A — Truy cập & tổng quan › TC_BOLOC_03: Overview màn hình khi đã đăng nhập 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:98:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_06: Click mẫu Free áp dụng đúng tiêu chí 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:109:7 › Bộ lọc cổ phiếu / Nhóm B — Mẫu lọc KFSP (thanh mẫu công khai) › TC_BOLOC_07: Mẫu áp dụng có thể trả về 0 kết quả — trạng thái rỗng 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:182:7 › Bộ lọc cổ phiếu / Nhóm C — Bộ lọc đã lưu (mẫu lọc cá nhân) › TC_BOLOC_13: "Tạo bản sao" — mở modal, Huỷ không tạo gì 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:232:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_16: Dropdown "Watchlist" lọc theo watchlist đã chọn 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:248:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_17: Dropdown "Sàn" lọc theo sàn 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:267:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_18: Dropdown "Ngành" lọc theo ngành 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:283:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_19: "Vốn hoá TT" — đổi toán tử đổi số lượng input 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:294:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_20: "Vốn hoá TT" — nhập giá trị hợp lệ cập nhật kết quả 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:307:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_21: "Vốn hoá TT" — chặn ký tự không phải số 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:318:7 › Bộ lọc cổ phiếu / Nhóm D — Tiêu chí lọc: Thông tin chung › TC_BOLOC_22: "Vốn hoá TT" ở chế độ "Khoảng" — min > max KHÔNG bị chặn 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:349:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_24: Nhóm "Cơ bản" — input range hoạt động đúng 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:362:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_25: Nhóm "Kỹ thuật" — tiêu chí dạng select hoạt động đúng 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:375:7 › Bộ lọc cổ phiếu / Nhóm E — Tiêu chí lọc: Cơ bản / Kỹ thuật / KFSP › TC_BOLOC_26: Nhóm "KFSP" — input range hoạt động đúng 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:414:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_29: Tick thêm 1 tiêu chí mới 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:429:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_30: Bỏ tick 1 tiêu chí đang chọn 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:475:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_33: Huỷ modal không áp dụng thay đổi 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:491:7 › Bộ lọc cổ phiếu / Nhóm F — Modal "Tùy chỉnh tiêu chí" › TC_BOLOC_34: Lưu modal áp dụng đúng tiêu chí mới 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:510:7 › Bộ lọc cổ phiếu / Nhóm G — Reset giá trị › TC_BOLOC_35: "Reset giá trị" xoá giá trị nhưng giữ nguyên tiêu chí đã chọn 
+    [chromium] › tests\toan-canh-thi-truong-bo-loc.spec.ts:688:7 › Bộ lọc cổ phiếu / Nhóm J — Hành vi chung / lỗi mạng / điều hướng › TC_BOLOC_47: Lỗi mạng khi gọi API kết quả lọc — bảng không cập nhật, không crash 
+  2 skipped
+  26 passed (14.6m)
