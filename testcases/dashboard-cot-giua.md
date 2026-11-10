@@ -6,13 +6,18 @@
   thu nhỏ — chế độ mở rộng toàn màn hình đã có ở [dashboard.md](dashboard.md) TC_DASHBOARD_08-10) +
   [psychoAndRisk/PsychoIndex.vue](../../stocks/src/views/dashboard/psychoAndRisk/PsychoIndex.vue) +
   [psychoAndRisk/RiskIndex.vue](../../stocks/src/views/dashboard/psychoAndRisk/RiskIndex.vue).
-- **Domain test:** https://kfsp.vn/dashboard
+- **Domain test:** https://kfsp.vn/dashboard (qua `PREV2_BASE_URL` + `Prev2Session`; production = preprod mới nhất từ 06/11/2026)
+- **Cập nhật 09/11/2026 (nhánh B):** đối chiếu `origin/preprod` — bản đồ nhiệt, Chỉ số tâm lý/rủi ro không đổi giao
+  diện (chỉ đổi API Laravel → NestJS); 13 TC giữ nguyên, chạy lại pass trên prev2.
 - **Nguồn testcase gốc (app):** Không áp dụng — Sheet "Dashboard" của app không có khái niệm bản đồ nhiệt hay
   gauge chỉ số tâm lý/rủi ro (đây là tính năng chỉ web mới có). Toàn bộ testcase dưới đây là 🆕.
 - **Phương pháp sinh:** Đọc source code + kiểm kê độc lập bằng Playwright thật (click từng dropdown, đổi giá
   trị lọc, mở/đóng modal, reset).
 - **Quy ước trạng thái:** 🆕 Testcase mới · ⚠️ Cần xác nhận thêm.
 
+- **Xác minh trên UI thật (09/11/2026):** chạy trên **https://kfsp.vn** (biến `PREV2_BASE_URL` trong `.env`; production đã là
+  bản preprod mới nhất, deploy 06/11/2026 10:30 GMT) — 4 spec Dashboard pass 2 lần liên tiếp (`--workers=2`). Trước đó prev2
+  bị deploy đè bằng nhánh `feat/ibd_tobao` lúc 07:40 GMT nên không dùng làm môi trường xác nhận.
 ---
 
 ## Nhóm: Bản đồ nhiệt — Bộ lọc (chế độ thu nhỏ)

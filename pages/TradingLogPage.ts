@@ -1,528 +1,484 @@
-import { Page, Locator } from '@playwright/test';
+import { Page, Locator, Route, expect } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { Prev2Session, Prev2Account } from './Prev2Session';
 
 /**
- * Trang "Nhật ký giao dịch" (`/nhat-ky-giao-dich`, component `TradingLog` — stocks/src/views/tradingLog/index.vue).
- * 4 tab chính dùng `<CTabs>` (CoreUI): "Tài sản" · "Nhật ký giao dịch" · "Quản lý danh mục" · "Phân bổ vốn".
+ * Trang "Nhật ký giao dịch" (`/nhat-ky-giao-dich`, `stocks/src/views/tradingLog/index.vue`) — giao diện làm lại trên
+ * `preprod` (commit 187608c20 ngày 03/11/2026 "đổi giao diện cả năm tab", cùng loạt commit 07/10–05/11).
+ * 5 tab (`<CTabs>` CoreUI, mỗi tab là `<a href="#" class="nav-link">` → role `link`):
+ *   0 "Tài sản" (estate.vue) · 1 "Giao dịch" (tabTradingHistory/tradingHistory.vue) · 2 "Phân tích giao dịch"
+ *   (analysis.vue) · 3 "Phân bổ vốn" (CapitalAllocation.vue) · 4 "Danh mục" (ManageCategory.vue).
+ * Tab đang chọn được NHỚ trong localStorage `trading_log_view_state` (tradingLogViewState.js); deep-link
+ * `?tab=nhat-ky-giao-dich` thắng bản nhớ và mở tab "Giao dịch".
  *
- * 1 Page Object DÙNG CHUNG cho cả 4 tab (giống pattern `DashboardPage`) — locator/method nhóm theo comment
- * cho từng tab để dễ tra cứu, thay vì tách 4 class riêng.
+ * Môi trường: `PREV2_BASE_URL` (từ 09/11/2026 = https://kfsp.vn, đã ngang preprod mới nhất) — gọi **backend production**, tài khoản kfsp.vn thật (TEST_USER_* /
+ * FREE_USER_*), xem `Prev2Session`.
  *
- * Ghi chú cấu trúc DOM quan trọng (đọc từ source + xác nhận qua `.dom-inspect/*.aria.txt`):
- * - CTabs top-level render `<ul class="nav nav-tabs"><a href="#" class="nav-link">` (CoreUI `CTab`) → mỗi tab
- *   chính có role thật là `link` (có href="#"), luôn là `.nav-tabs` ĐẦU TIÊN trong DOM (CTabs render nav trước
- *   nội dung, không phụ thuộc tab con nào đang active).
- * - Sub-tab tự viết tay (Lịch sử giao dịch/Thống kê phân tích trong `tabTradingHistory.vue`; Danh mục hiện có/
- *   Danh mục đã xóa trong `ManageCategory.vue`) dùng `<a class="nav-link" @click=...>` KHÔNG có `href` → KHÔNG
- *   có role `link`, chỉ là text thường trong `.nav-tabs` — phải phân biệt bằng class/text, không dùng
- *   `getByRole('link', ...)`.
- * - Mọi modal CoreUI (`CModal`/`CModalBase`) dùng chung class `.modal.show.d-block`, không unmount khi đóng
- *   (chỉ ẩn bằng CSS) — luôn lọc `:visible` (pattern đã dùng ở Dashboard/Watchlist) rồi phân biệt bằng tiêu đề
- *   (`hasText`).
- * - Chỉ 1 trong 4 tab được mount tại 1 thời điểm (`v-else-if`) nên không lo đụng độ locator giữa các tab, kể
- *   cả khi 2 tab dùng chung tên modal (VD "Xem giao dịch" xuất hiện cả ở tab Tài sản lẫn tab Nhật ký giao dịch,
- *   nhưng là 2 component/modal độc lập, không bao giờ cùng tồn tại trong DOM).
+ * ⚠️ AN TOÀN DỮ LIỆU — tài khoản test có nhật ký giao dịch THẬT:
+ * - Toàn bộ API đọc/ghi của NKGD được thay bằng `NkgdFakeServer` (dữ liệu giả cố định trong bộ nhớ): mọi test chạy
+ *   trên cùng một bộ danh mục/giao dịch giả, không đọc cũng không ghi nhật ký thật.
+ * - Lưới an toàn: MỌI request không phải GET tới `*.kfsp.vn` (trừ đăng nhập, socket.io) mà máy chủ giả không xử lý
+ *   đều bị huỷ và ghi vào `blocked` — kể cả endpoint chưa biết. Spec kiểm tra `blocked` rỗng sau mỗi test.
+ * - Ghi setting (`capital_allocation_data_save`, `tradingview.tradinglog_setting`…) bị `Prev2Session` chặn; body ghi
+ *   lại ở `settingWrites`.
  */
+
+// ===================================================================================================================
+// Dữ liệu giả
+// ===================================================================================================================
+export type NkType = 'mua' | 'ban' | 'tien_mat' | 'co_phieu' | 'phat_hanh';
+export type NkLog = {
+  id: number; mack: string; ngay_giao_dich: string; loai_giao_dich: NkType; khoi_luong: number; gia_thuc_hien: number;
+  phi: number; danh_muc: number; lai_lo_da_thuc_hien: number;
+  target_price_1: number; target_price_2: number; target_price_3: number;
+  stop_loss_price_1: number; stop_loss_price_2: number; stop_loss_price_3: number;
+  setup: string; mistake: string; chu_thich: string; so_ngay_nam_giu: number; percent_cutloss: number;
+};
+export type NkCategory = { id: number; name: string };
+
+/** Ngày giao dịch cách hôm nay `daysAgo` ngày, lùi về thứ 6 gần nhất nếu rơi vào cuối tuần — "YYYY-MM-DD 00:00:00". */
+export function nkDate(daysAgo: number): string {
+  const d = new Date(Date.now() + 7 * 3600_000 - daysAgo * 86400_000);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10) + ' 00:00:00';
+}
+/** Ngày làm việc gần nhất trước hôm nay `daysAgo` ngày, dạng "YYYY-MM-DD" (cho ô `type=date`). */
+export const nkDay = (daysAgo = 1) => nkDate(daysAgo).slice(0, 10);
+/** Thứ 7 gần nhất trong quá khứ, "YYYY-MM-DD". */
+export function lastSaturday(): string {
+  const d = new Date(Date.now() + 7 * 3600_000 - 86400_000);
+  while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+let seq = 980000;
+export function nkLog(p: Partial<NkLog> & Pick<NkLog, 'mack' | 'loai_giao_dich' | 'danh_muc'>): NkLog {
+  return {
+    id: seq++, ngay_giao_dich: nkDate(10), khoi_luong: 1000, gia_thuc_hien: 50, phi: 0.15, lai_lo_da_thuc_hien: 0,
+    target_price_1: 0, target_price_2: 0, target_price_3: 0, stop_loss_price_1: 0, stop_loss_price_2: 0, stop_loss_price_3: 0,
+    setup: '[]', mistake: '[]', chu_thich: '', so_ngay_nam_giu: 0, percent_cutloss: 0, ...p,
+  };
+}
+
+/** 3 danh mục giả. "Dài hạn" tự nhập vốn 500 triệu; 2 danh mục còn lại chạy vốn tự động. */
+export const CAT = { DAI_HAN: 970001, LUOT_SONG: 970002, CO_TUC: 970003 } as const;
+export const CAT_NAME: Record<number, string> = { [CAT.DAI_HAN]: 'Dài hạn', [CAT.LUOT_SONG]: 'Lướt sóng', [CAT.CO_TUC]: 'Cổ tức' };
+export const DAI_HAN_VON = 500_000_000;
+
+export type NkData = { categories: NkCategory[]; logs: NkLog[]; softDeleted: NkCategory[]; riskIndex: number;
+  tradingStyle: { stock_trader: number; stock_businessman: number; value_investor: number };
+  /** `capital_allocation_data_save`: vốn tự nhập (đồng, chuỗi) + cấu hình Phân bổ vốn theo id danh mục. */
+  capital: Record<string, { tong_tai_san: string; phan_tram_cutloss_toi_da: string; phan_tram_muc_giam_gia_tu_mua: string }> };
+
+/** Bộ dữ liệu chuẩn: Dài hạn (FPT mua 2 lần + bán 1 phần, VNM mua, cổ tức tiền VNM), Lướt sóng (HPG mua rồi bán hết có
+ * lãi, MBB mua, SSI mua), Cổ tức (thưởng cổ phiếu FPT + quyền mua). */
+export function defaultNkData(): NkData {
+  const D = CAT.DAI_HAN, L = CAT.LUOT_SONG, C = CAT.CO_TUC;
+  return {
+    categories: [{ id: D, name: CAT_NAME[D] }, { id: L, name: CAT_NAME[L] }, { id: C, name: CAT_NAME[C] }],
+    softDeleted: [{ id: 970009, name: 'Danh mục cũ' }],
+    riskIndex: 0.5,
+    tradingStyle: { stock_trader: 0.6, stock_businessman: 0.3, value_investor: 0.1 },
+    capital: { [D]: { tong_tai_san: String(DAI_HAN_VON), phan_tram_cutloss_toi_da: '2', phan_tram_muc_giam_gia_tu_mua: '10' } },
+    logs: [
+      nkLog({ mack: 'FPT', loai_giao_dich: 'mua', danh_muc: D, ngay_giao_dich: nkDate(120), khoi_luong: 1000, gia_thuc_hien: 48, chu_thich: 'Mua tích luỹ', target_price_1: 60, stop_loss_price_1: 44, setup: '["Breakout"]' }),
+      nkLog({ mack: 'FPT', loai_giao_dich: 'mua', danh_muc: D, ngay_giao_dich: nkDate(60), khoi_luong: 500, gia_thuc_hien: 52 }),
+      nkLog({ mack: 'FPT', loai_giao_dich: 'ban', danh_muc: D, ngay_giao_dich: nkDate(20), khoi_luong: 400, gia_thuc_hien: 56, lai_lo_da_thuc_hien: 2_600 }),
+      nkLog({ mack: 'VNM', loai_giao_dich: 'mua', danh_muc: D, ngay_giao_dich: nkDate(90), khoi_luong: 2000, gia_thuc_hien: 60 }),
+      nkLog({ mack: 'VNM', loai_giao_dich: 'tien_mat', danh_muc: D, ngay_giao_dich: nkDate(30), khoi_luong: 2000, gia_thuc_hien: 1, phi: 0.15, chu_thich: 'Trả cổ tức bằng tiền, 1,500 đồng/CP' }),
+      nkLog({ mack: 'HPG', loai_giao_dich: 'mua', danh_muc: L, ngay_giao_dich: nkDate(45), khoi_luong: 3000, gia_thuc_hien: 25 }),
+      nkLog({ mack: 'HPG', loai_giao_dich: 'ban', danh_muc: L, ngay_giao_dich: nkDate(15), khoi_luong: 3000, gia_thuc_hien: 28, lai_lo_da_thuc_hien: 8_800, mistake: '["Bán sớm"]' }),
+      nkLog({ mack: 'MBB', loai_giao_dich: 'mua', danh_muc: L, ngay_giao_dich: nkDate(12), khoi_luong: 1500, gia_thuc_hien: 20 }),
+      nkLog({ mack: 'SSI', loai_giao_dich: 'mua', danh_muc: L, ngay_giao_dich: nkDate(5), khoi_luong: 1000, gia_thuc_hien: 21 }),
+      nkLog({ mack: 'FPT', loai_giao_dich: 'mua', danh_muc: C, ngay_giao_dich: nkDate(200), khoi_luong: 500, gia_thuc_hien: 45 }),
+      nkLog({ mack: 'FPT', loai_giao_dich: 'co_phieu', danh_muc: C, ngay_giao_dich: nkDate(100), khoi_luong: 500, gia_thuc_hien: 0, phi: 0.2, chu_thich: 'Thưởng cổ phiếu, tỷ lệ 5:1' }),
+    ],
+  };
+}
+
+export type NkMode = 'ok' | 'slow' | '500' | '422' | 'abort';
+export type NkWrite = { method: string; path: string; body: any };
+type SyncResult = { groups: unknown[]; inserted: number; removed: number; has_pending: boolean };
+const EMPTY_SYNC: SyncResult = { groups: [], inserted: 0, removed: 0, has_pending: false };
+
+export class NkgdFakeServer {
+  data: NkData = defaultNkData();
+  /** Request ghi đã nhận (máy chủ giả xử lý, KHÔNG tới production). */
+  readonly writes: NkWrite[] = [];
+  /** Request ghi không ai xử lý → bị lưới an toàn huỷ. Phải rỗng ở cuối mỗi test. */
+  readonly blocked: string[] = [];
+  /** Số lần đọc từng endpoint (khoá: 'getAll', 'categories', 'softDeleted', 'mackList', 'risk'). */
+  readonly reads: Record<string, number> = {};
+  mode: Record<'store' | 'update' | 'delete' | 'bulk' | 'catStore' | 'catUpdate' | 'catDelete' | 'catRestore' | 'catForce' | 'sync', NkMode> =
+    { store: 'ok', update: 'ok', delete: 'ok', bulk: 'ok', catStore: 'ok', catUpdate: 'ok', catDelete: 'ok', catRestore: 'ok', catForce: 'ok', sync: 'ok' };
+  /** Endpoint đọc trả 500 (khoá như `reads`). */
+  readonly readFails = new Set<string>();
+  /** Kết quả đối soát cổ tức cho lượt `dry_run` (mở chi tiết mã ở tab Tài sản) và lượt ghi (sau thêm/sửa/xoá, "Cập nhật"). */
+  syncDryRun: SyncResult = { ...EMPTY_SYNC };
+  syncApply: SyncResult = { ...EMPTY_SYNC };
+  private nextId = 990000;
+
+  writesTo(re: RegExp) { return this.writes.filter((w) => re.test(w.path)); }
+
+  private listMack() { return [...new Set(this.data.logs.map((l) => l.mack))].map((mack) => ({ mack })); }
+  private allPayload() { return { list_data_item: this.data.logs, list_data_mack: this.listMack(), trading_style: this.data.tradingStyle }; }
+
+  async install(page: Page) {
+    // Lưới an toàn — đăng ký TRƯỚC (route đăng ký sau được ưu tiên): request ghi lọt qua mọi máy chủ giả rơi vào đây.
+    await page.route((u) => /(^|\.)(kfsp\.vn|vietpointer\.vn)$/.test(u.hostname), async (route) => {
+      const r = route.request();
+      if (r.method() === 'GET' || r.method() === 'OPTIONS' || /socket\.io|\/api\/login(\?|$)/.test(r.url())) return route.fallback();
+      this.blocked.push(`${r.method()} ${r.url().split('?')[0]}`);
+      return route.abort();
+    });
+    await page.route(/\/api\/(tradinglog|stocks\/trading_log|stocks\/category|dividend-auto-record)\//, (route) => this.handle(route));
+  }
+
+  private async reply(route: Route, mode: NkMode, json: unknown, status422: unknown = { message: 'invalid' }) {
+    if (mode === 'abort') return route.abort();
+    if (mode === '500') return route.fulfill({ status: 500, json: { message: 'Server Error' } });
+    if (mode === '422') return route.fulfill({ status: 422, json: status422 });
+    if (mode === 'slow') await new Promise((r) => setTimeout(r, 2500));
+    return route.fulfill({ json });
+  }
+
+  private async handle(route: Route) {
+    const req = route.request();
+    const method = req.method();
+    const url = new URL(req.url());
+    const p = url.pathname;
+    let body: any = {};
+    try { body = JSON.parse(req.postData() || '{}'); } catch { /* không phải JSON */ }
+    if (body && typeof body === 'object') delete body.token;
+    const read = async (key: string, json: unknown) => {
+      this.reads[key] = (this.reads[key] || 0) + 1;
+      if (this.readFails.has(key)) return route.fulfill({ status: 500, json: { message: 'Server Error' } });
+      return route.fulfill({ json });
+    };
+
+    if (method === 'GET') {
+      if (/\/tradinglog\/getAll$/.test(p)) return read('getAll', this.allPayload());
+      if (/\/(tradinglog|stocks)\/category\/get-all$/.test(p)) return read('categories', this.data.categories);
+      if (/\/stocks\/category\/all-soft-delete$/.test(p)) return read('softDeleted', this.data.softDeleted);
+      if (/get-list-mack-by-tradinglog$/.test(p)) {
+        const map: Record<string, string[]> = {};
+        for (const c of this.data.categories) {
+          const codes = [...new Set(this.data.logs.filter((l) => l.danh_muc === c.id).map((l) => l.mack))].sort();
+          if (codes.length) map[`${c.name}_${c.id}`] = codes;
+        }
+        return read('mackList', { list_data_mack: map });
+      }
+      if (/get-risk-aversion-index$/.test(p)) return read('risk', this.data.riskIndex);
+      // GET khác trong nhóm này: chưa giả lập → trả rỗng thay vì đọc dữ liệu thật.
+      return route.fulfill({ json: [] });
+    }
+
+    this.writes.push({ method, path: p, body });
+    if (/\/tradinglog\/store$/.test(p)) {
+      if (this.mode.store === 'ok' || this.mode.store === 'slow') {
+        this.data.logs.unshift(nkLog({ id: this.nextId++, mack: String(body.mack), loai_giao_dich: body.loai_giao_dich,
+          danh_muc: Number(body.danh_muc), ngay_giao_dich: `${body.ngay_giao_dich} 00:00:00`,
+          khoi_luong: Number(String(body.khoi_luong).replace(/,/g, '')), gia_thuc_hien: Number(body.gia_thuc_hien),
+          phi: Number(body.phi), chu_thich: body.chu_thich || '' }));
+      }
+      return this.reply(route, this.mode.store, this.allPayload());
+    }
+    if (/\/tradinglog\/add-bulk$/.test(p)) return this.reply(route, this.mode.bulk, this.allPayload());
+    if (/\/stocks\/trading_log\/update$/.test(p)) {
+      if (this.mode.update === 'ok' || this.mode.update === 'slow') {
+        const log = this.data.logs.find((l) => l.id === Number(body.id));
+        if (log) Object.assign(log, { ngay_giao_dich: `${body.ngay_giao_dich} 00:00:00`, loai_giao_dich: body.loai_giao_dich,
+          khoi_luong: Number(String(body.khoi_luong).replace(/,/g, '')), gia_thuc_hien: Number(body.gia_thuc_hien),
+          phi: Number(body.phi), danh_muc: Number(body.danh_muc), chu_thich: body.chu_thich || '' });
+      }
+      return this.reply(route, this.mode.update, this.allPayload());
+    }
+    const delLog = p.match(/\/stocks\/trading_log\/(\d+)$/);
+    if (delLog && method === 'DELETE') {
+      if (this.mode.delete === 'ok') this.data.logs = this.data.logs.filter((l) => l.id !== Number(delLog[1]));
+      return this.reply(route, this.mode.delete, this.allPayload());
+    }
+    if (/\/dividend-auto-record\/sync-after-transactions$/.test(p)) {
+      return this.reply(route, this.mode.sync, body.dry_run ? this.syncDryRun : this.syncApply);
+    }
+    if (/\/stocks\/category\/store$/.test(p)) {
+      const cat = { id: this.nextId++, name: String(body.name) };
+      if (this.mode.catStore === 'ok') this.data.categories.push(cat);
+      return this.reply(route, this.mode.catStore, cat);
+    }
+    if (/\/stocks\/category\/update$/.test(p)) {
+      const cat = this.data.categories.find((c) => c.id === Number(body.id));
+      if (cat && this.mode.catUpdate === 'ok') cat.name = String(body.name);
+      return this.reply(route, this.mode.catUpdate, { id: Number(body.id), name: String(body.name) }, { error: 'Already name' });
+    }
+    if (/\/stocks\/category\/restore$/.test(p)) return this.reply(route, this.mode.catRestore, { success: true });
+    if (/\/stocks\/category\/force-delete\/\d+$/.test(p)) return this.reply(route, this.mode.catForce, { success: true });
+    if (/\/stocks\/category\/\d+$/.test(p) && method === 'DELETE') return this.reply(route, this.mode.catDelete, { success: true });
+    // Ghi chưa biết trong nhóm NKGD → huỷ, ghi vào blocked.
+    this.blocked.push(`${method} ${p}`);
+    return route.abort();
+  }
+}
+
+// ===================================================================================================================
+// Page Object
+// ===================================================================================================================
+/** Escape ký tự đặc biệt khi đưa tên (vd "Lướt sóng T+") vào RegExp. */
+export const reEsc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const NK_TABS = ['Tài sản', 'Giao dịch', 'Phân tích giao dịch', 'Phân bổ vốn', 'Danh mục'] as const;
+export type NkTab = typeof NK_TABS[number];
+
+export type NkOpenOptions = {
+  account?: Prev2Account;
+  /** Tab được nhớ sẵn trong `trading_log_view_state` trước khi mở trang (mặc định 0 = Tài sản). `null` = không đặt. */
+  tab?: number | null;
+  /** Query thêm vào URL (vd `tab=nhat-ky-giao-dich`). */
+  query?: string;
+  /** Sửa dữ liệu giả trước khi mở trang. */
+  data?: (d: NkData) => void;
+  /** Khoá localStorage đặt sẵn (1 lần mỗi phiên tab, F5 không đặt lại). */
+  local?: Record<string, string>;
+  /** Có chờ thanh tab hiện không (mặc định có). */
+  waitTabs?: boolean;
+};
+
 export class TradingLogPage extends BasePage {
-  // ================= Khung/shell dùng chung =================
-  readonly mainTabList: Locator;
-  readonly anyOpenModal: Locator;
+  readonly server = new NkgdFakeServer();
+  readonly session: Prev2Session;
+  readonly settingWrites: { key: string; value: unknown }[];
+  readonly pageErrors: string[] = [];
+  readonly root: Locator;
+  readonly tabBar: Locator;
+  readonly anyModal: Locator;
+  readonly toastSuccess: Locator;
+  readonly toastError: Locator;
 
   constructor(page: Page) {
     super(page);
-    // QUAN TRỌNG: KHÔNG dùng `.nav.nav-tabs` không scope — `TheHeaderDropdownNotify.vue` (dropdown chuông
-    // thông báo trên header, dùng chung MỌI trang) cũng render sẵn 1 `<ul class="... nav nav-tabs ...">` ẩn
-    // trong DOM (chỉ hiện khi mở dropdown), đứng TRƯỚC nội dung trang trong cây DOM → `.first()` không scope
-    // sẽ luôn khớp nhầm phần tử ẩn này thay vì thanh tab thật của trang (đã xác nhận qua chạy thật, timeout
-    // "resolved to hidden" liên tục). Luôn scope trong `.tradingLog-component` (class root của `index.vue`).
-    this.mainTabList = page.locator('.tradingLog-component .nav.nav-tabs').first();
-    this.anyOpenModal = page.locator('.modal.show.d-block:visible');
-  }
-
-  /** `tabQuery` map đúng giá trị query duy nhất được `index.vue` (mounted) hỗ trợ deep-link:
-   * `?tab=nhat-ky-giao-dich` → mở thẳng tab "Nhật ký giao dịch" (active_tab = 1). Không có query nào khác
-   * được xử lý cho 3 tab còn lại (đọc từ code, không phải đoán). Kiểu tham số để `string` (thay vì literal
-   * union) để tương thích chữ ký `goto(path: string, ...)` của `BasePage` khi override. */
-  async goto(tabQuery?: string) {
-    // KHÔNG chờ 'networkidle' — trang này có polling/socket nền liên tục (giá realtime, EOD...) nên
-    // 'networkidle' không bao giờ resolve trong timeout mặc định (đã xác nhận qua chạy thật, cùng lý do đã
-    // ghi chú ở watchlist.spec.ts). Chờ đúng phần tử chắc chắn xuất hiện khi trang tải xong: thanh 4 tab chính.
-    await super.goto(tabQuery ? `/nhat-ky-giao-dich?tab=${tabQuery}` : '/nhat-ky-giao-dich', { waitUntil: 'domcontentloaded' });
-    await this.mainTabList.waitFor({ state: 'visible' });
-  }
-
-  /** Tab chính: "Tài sản" | "Nhật ký giao dịch" | "Quản lý danh mục" | "Phân bổ vốn". */
-  mainTab(name: string): Locator {
-    return this.mainTabList.getByRole('link', { name, exact: true });
-  }
-
-  async gotoMainTab(name: string) {
-    await this.mainTab(name).click();
-  }
-
-  /** Modal đang mở (bất kỳ tab nào), lọc theo text xuất hiện trong tiêu đề/nội dung. */
-  modal(titleText: string): Locator {
-    return this.anyOpenModal.filter({ hasText: titleText });
-  }
-
-  get modalCloseButton(): Locator {
-    // CModalBase dùng icon "x" tự vẽ (không có accessible name); CModal thường dùng nút "Close"/"Hủy"/"Đóng".
-    return this.anyOpenModal.locator('.icon-close, button.close');
-  }
-
-  // ================= Tab "Tài sản" (estate.vue) =================
-  get assetCategoryFilter(): Locator {
-    // MultiSelectBox (vue-multiselect) — combobox với textbox tìm kiếm bên trong.
-    return this.page.getByRole('combobox').filter({ hasText: 'Nhấn để chọn' }).first();
-  }
-
-  /** Vùng thật sự cần click để MỞ dropdown vue-multiselect (`.multiselect__tags`) — click trực tiếp vào role
-   * combobox tổng đôi khi không trigger đúng handler mở dropdown của thư viện (`multiSelectBox.vue` bọc trong
-   * `.multi-select-box`). */
-  get assetCategoryFilterToggle(): Locator {
-    return this.page.locator('.multi-select-box .multiselect__tags').first();
-  }
-
-  get assetOverviewText(): Locator {
-    return this.page.getByText('Tổng giá trị danh mục ban đầu:', { exact: false });
-  }
-
-  get assetTypeSelect(): Locator {
-    // Dropdown "Cổ phiếu"/"Ngành".
-    return this.page.locator('select').filter({ has: this.page.locator('option', { hasText: 'Cổ phiếu' }) });
-  }
-
-  get assetValueTypeSelect(): Locator {
-    // Dropdown "Giá vốn DM"/"GT thị trường".
-    return this.page.locator('select').filter({ has: this.page.locator('option', { hasText: 'Giá vốn DM' }) });
-  }
-
-  get assetCashCheckbox(): Locator {
-    // Markup thật: `<span><input type="checkbox" v-model="record_money" /> Tiền mặt</span>` — checkbox là CON
-    // (không phải sibling) của `<span>` mà `getByText(exact)` khớp tới.
-    return this.page.getByText('Tiền mặt', { exact: true }).locator('input[type="checkbox"]');
-  }
-
-  /** Tab "Tháng"/"Quý" của khối "Hiệu suất danh mục" (nav-link tự viết, không có href). */
-  assetPerformancePeriodTab(label: 'Tháng' | 'Quý'): Locator {
-    return this.page.locator('.tradingLog-component .nav-tabs .nav-link', { hasText: label });
-  }
-
-  get assetExportExcelButton(): Locator {
-    return this.page.getByRole('button', { name: 'Xuất File Excel' });
-  }
-
-  get assetTable(): Locator {
-    return this.page.getByRole('table').filter({ has: this.page.getByRole('columnheader', { name: 'KL tồn' }) });
-  }
-
-  /** Dòng header 1 danh mục trong bảng "Thống kê lãi lỗ" (VD "Danh mục: Lướt Sóng ..."). */
-  assetCategoryHeaderRow(categoryName: string): Locator {
-    return this.assetTable.getByRole('row', { name: new RegExp(`^Danh mục: ${categoryName}\\b`) });
-  }
-
-  /** Icon "Sửa vốn ban đầu" cạnh tên danh mục — mở modal "Sửa danh mục" (thực chất chỉ sửa Vốn ban đầu). */
-  assetEditCategoryIcon(categoryName: string): Locator {
-    return this.assetCategoryHeaderRow(categoryName).locator('img, svg').first();
-  }
-
-  /** Link mã CK trong 1 dòng giao dịch (VD "1. BID*") — QUAN TRỌNG: click vào chính link/ô này KHÔNG mở modal
-   * "Xem giao dịch" — ô đầu tiên của dòng có `@click="showPopupChartTA($event, ...)"` riêng kèm
-   * `e.stopPropagation()` (xác nhận qua đọc `estate.vue` dòng ~479-489), chặn không cho sự kiện click nổi lên
-   * `<tr @click="showPopup(item)">` của cả dòng — nên click vào mã CK thay vào đó mở modal BIỂU ĐỒ/CHI TIẾT MÃ
-   * CK toàn site (`store.state.isShowModalTradingChart`), một tính năng HOÀN TOÀN KHÁC. Dùng locator này khi
-   * cố ý muốn test hành vi mở biểu đồ; dùng `assetTransactionRowOtherCell` khi muốn mở "Xem giao dịch". */
-  assetStockLink(mack: string): Locator {
-    return this.assetTable.getByRole('link', { name: new RegExp(`^\\d+\\.\\s*${mack}\\*?$`) });
-  }
-
-  /** 1 dòng giao dịch bất kỳ trong bảng (không phải dòng tiêu đề danh mục) — dùng regex số thứ tự đầu dòng để
-   * phân biệt (VD "1. BID*"). */
-  get assetFirstTransactionRow(): Locator {
-    return this.assetTable.getByRole('row', { name: /^\d+\.\s*[A-Z]{3}/ });
-  }
-
-  /** Ô "Ngành" của 1 dòng giao dịch — KHÔNG có handler `@click.stop` riêng (khác ô Mã CK/KL tồn), click vào
-   * đây sẽ nổi bọt lên `<tr>` và mở đúng modal "Xem giao dịch". */
-  get assetTransactionRowNganhCell(): Locator {
-    return this.assetFirstTransactionRow.first().getByRole('cell').nth(1);
-  }
-
-  get assetEditCategoryModal(): Locator {
-    return this.modal('Sửa danh mục');
-  }
-
-  get assetViewTransactionModal(): Locator {
-    return this.modal('Xem giao dịch');
-  }
-
-  /** Modal biểu đồ/chi tiết mã CK dùng chung toàn site (`store.state.isShowModalTradingChart`, khai báo ở
-   * `TheContainer.vue`) — mở khi click link mã CK trong bảng Tài sản (xem ghi chú ở `assetStockLink`). VẪN LÀ
-   * CoreUI `CModal` (`.modal.show.d-block`), chỉ ẩn header/footer mặc định (class `modal-hide-header-footer`).
-   * KHÔNG dùng text "Tải lại Biểu đồ" để nhận diện — phần biểu đồ nến (`TradingChart`) render trong 1
-   * `<iframe>` (`blob:` URL) TÁCH BIỆT khỏi document chính, `page.getByText()`/`hasText` không truy cập được
-   * nội dung bên trong iframe đó. Dùng text "Watchlist" (nút trong panel `TabInfo`, nằm ngoài iframe) để nhận
-   * diện thay thế — dùng "Hồ sơ" (heading cố định trong panel `TabInfo`) thay vì "Watchlist" vì nút
-   * "Watchlist" click ra 1 modal chọn watchlist CHỒNG lên (cũng chứa chữ "Watchlist"), gây strict-mode
-   * violation nếu lọc theo "Watchlist". */
-  get stockChartModal(): Locator {
-    return this.anyOpenModal.filter({ hasText: 'Hồ sơ' });
-  }
-
-  get assetQuickAddModal(): Locator {
-    // CModal title động: "Giao dịch Mua"/"Giao dịch Bán" (form_add.type).
-    // Không neo `^` — tiêu đề "Giao dịch Mua"/"Giao dịch Bán" không chắc luôn là ký tự ĐẦU TIÊN trong toàn bộ
-    // innerText của modal (có thể có text ẩn/icon đứng trước trong DOM).
-    return this.anyOpenModal.filter({ hasText: /Giao dịch (Mua|Bán)/ });
-  }
-
-  // ================= Tab "Nhật ký giao dịch" (tabTradingHistory.vue) =================
-  /** Sub-tab "Lịch sử giao dịch" | "Thống kê phân tích" (nav-link tự viết, không có href). */
-  historySubTab(label: 'Lịch sử giao dịch' | 'Thống kê phân tích'): Locator {
-    return this.page.locator('.tradingLog-component .nav-tabs .nav-link', { hasText: label });
-  }
-
-  get filterTransactionButton(): Locator {
-    return this.page.getByRole('button', { name: 'Lọc giao dịch' });
-  }
-
-  get addTransactionButton(): Locator {
-    return this.page.getByRole('button', { name: 'Thêm giao dịch' });
-  }
-
-  get historyExportExcelButton(): Locator {
-    return this.page.getByRole('button', { name: 'Xuất File Excel' });
-  }
-
-  get historyTable(): Locator {
-    // LƯU Ý: class `.trading-log`/`.table-wrapper` chỉ thuộc `MultiAddTransactionForm.vue` (bảng "Nhập hàng
-    // loạt" trong modal Thêm giao dịch) — bảng "Lịch sử giao dịch" thật dùng class riêng
-    // `.table-trading-history-body` (virtual-scroll-list, xác nhận qua đọc `tradingHistory.vue`).
-    return this.page.locator('.table-trading-history-body');
-  }
-
-  /** Dòng tiêu đề 1 danh mục trong bảng lịch sử GD (VD "Danh mục: NKGD - V70 ..."), click để mở/đóng collapse.
-   * QUAN TRỌNG: PHẢI dùng `historyRow()` (scope `.item-table-trading-history-wrapper`) chứ không phải
-   * `page.getByText()` trần — modal "Lọc giao dịch" (`tradingHistory.vue` dòng ~294) có field label
-   * `<div class="flex-1">Danh mục:</div>` TRÙNG PATTERN, luôn tồn tại ẩn trong DOM (CModal không unmount) và
-   * đứng TRƯỚC bảng trong document order → `page.getByText(/^Danh mục:/).first()` sẽ khớp NHẦM field label ẩn
-   * đó thay vì dòng danh mục thật đang hiển thị (đã xác nhận qua chạy thật, lỗi "element is not visible").
-   * Regex bắt đầu bằng `^\s*` (không phải `^`) vì `textContent()` thật của dòng có 1 khoảng trắng đứng đầu
-   * (text node trống giữa các `<div>` con) — neo `^` chặt sẽ không khớp gì cả (đã xác nhận qua chạy thật). */
-  historyCategoryRow(categoryName: string): Locator {
-    return this.historyRow(new RegExp(`^\\s*Danh mục: ${categoryName}\\b`)).first();
-  }
-
-  /** 1 dòng giao dịch (hoặc dòng tiêu đề danh mục) trong bảng lịch sử GD — QUAN TRỌNG: bảng KHÔNG dùng
-   * `<table>/<tr>` thật (virtual-scroll-list dạng div) — mọi dòng đều có chung class
-   * `.item-table-trading-history-wrapper` (xác nhận qua đọc `itemTableTradingHistory.vue`), tuyệt đối không
-   * dùng locator CSS `tr`/`td` cho bảng này. */
-  historyRow(matchText: string | RegExp): Locator {
-    return this.page.locator('.item-table-trading-history-wrapper').filter({ hasText: matchText });
-  }
-
-  /** Icon "..." (3 chấm dọc, `CIcon name="cilOptions"` class `.btn-action`) trên 1 dòng giao dịch — mở dropdown
-   * Sửa/Xóa. `index` (0-based) để phân biệt nhiều dòng cùng mã trong cùng danh mục. */
-  historyRowOptionsIcon(mack: string, index = 0): Locator {
-    return this.historyRow(mack).locator('.btn-action').nth(index);
-  }
-
-  get historyFilterModal(): Locator {
-    return this.modal('Lọc giao dịch');
-  }
-
-  get filterApplyButton(): Locator {
-    return this.historyFilterModal.getByRole('button', { name: 'Lọc', exact: true });
-  }
-
-  get filterCloseButton(): Locator {
-    return this.historyFilterModal.getByRole('button', { name: 'Đóng' });
-  }
-
-  /** Nhãn field trong modal Lọc giao dịch LUÔN có dấu `:` ở cuối (VD "Mã CK:", "Danh mục:", "Loại lệnh:") —
-   * xác nhận qua đọc `tradingHistory.vue` dòng ~234-331, không dùng `{ exact: true }` với text KHÔNG có dấu
-   * `:` (sẽ không khớp). */
-  filterFieldLabel(label: string): Locator {
-    return this.historyFilterModal.getByText(`${label}:`, { exact: true });
-  }
-
-  /** Vùng cần click để MỞ dropdown vue-multiselect (Mã CK/Danh mục) trong modal Lọc giao dịch — click trực
-   * tiếp vào combobox tổng đôi khi không trigger đúng handler mở, giống `assetCategoryFilterToggle`.
-   * `label`: "Mã CK" hoặc "Danh mục" (không có dấu `:`). */
-  filterMultiSelectToggle(label: string): Locator {
-    return this.filterFieldLabel(label).locator('xpath=following::div[contains(@class,"multiselect__tags")][1]');
-  }
-
-  /** Modal "Thêm giao dịch" (dùng `CModalBase`, size xl, 2 tab con "Giao dịch"/"Cổ tức & quyền"). */
-  get addModal(): Locator {
-    return this.modal('Thêm giao dịch');
-  }
-
-  addModalTab(label: 'Giao dịch' | 'Cổ tức & quyền'): Locator {
-    return this.addModal.locator('.nav-link', { hasText: label });
-  }
-
-  addModalEntryModeTab(label: 'Nhập đơn lẻ' | 'Nhập hàng loạt'): Locator {
-    return this.addModal.locator('.nav-link', { hasText: label });
-  }
-
-  /** Label text ở chế độ "Nhập đơn lẻ" (VD "Mã CK", "Khối lượng"...) BỊ TRÙNG với tên cột trong bảng
-   * `MultiAddTransactionForm` (chế độ "Nhập hàng loạt") — bảng đó luôn tồn tại trong DOM, chỉ ẩn bằng
-   * `v-show` khi không active, nên đứng TRƯỚC field thật trong document order và làm sai lệch mọi xpath
-   * `following::` nếu không lọc visibility trước. Luôn `.and(page.locator(':visible'))` trên phần TEXT trước
-   * khi tìm `following::`. */
-  private visibleText(container: Locator, text: string, exact = true): Locator {
-    return container.getByText(text, { exact }).and(this.page.locator(':visible'));
-  }
-
-  get addModalTypeSelect(): Locator {
-    return this.visibleText(this.addModal, 'Loại giao dịch').locator('xpath=following::select[1]').first();
-  }
-
-  get addModalCategorySelect(): Locator {
-    return this.visibleText(this.addModal, 'Danh mục').locator('xpath=following::select[1]').first();
-  }
-
-  get addModalDateInput(): Locator {
-    return this.addModal.locator('input[type="date"]:visible').first();
-  }
-
-  get addModalStockcodeInput(): Locator {
-    return this.addModal.locator('.btn-search-stockcode input:visible').first();
-  }
-
-  get addModalVolumeInput(): Locator {
-    return this.visibleText(this.addModal, 'Khối lượng').locator('xpath=following::input[1]').first();
-  }
-
-  get addModalPriceInput(): Locator {
-    return this.visibleText(this.addModal, 'Giá thực hiện', false).locator('xpath=following::input[1]').first();
-  }
-
-  get addModalFeeInput(): Locator {
-    return this.visibleText(this.addModal, 'Phí (%)').locator('xpath=following::input[1]').first();
-  }
-
-  get addModalNoteTextarea(): Locator {
-    // Field "Ghi chú" chế độ đơn lẻ dùng `<CTextarea label="Ghi chú">` (label, KHÔNG phải placeholder) —
-    // getByPlaceholder chỉ khớp placeholder="Ghi chú..." của cột Ghi chú trong bảng "Nhập hàng loạt" (ẩn).
-    return this.addModal.getByLabel('Ghi chú', { exact: true }).and(this.page.locator(':visible'));
-  }
-
-  addModalTagButton(label: 'Thiết lập' | 'Sai lầm'): Locator {
-    return this.visibleText(this.addModal, label).locator('xpath=following::button[1]').first();
-  }
-
-  get addModalSaveButton(): Locator {
-    return this.addModal.getByRole('button', { name: 'Lưu' });
-  }
-
-  get addModalCancelButton(): Locator {
-    return this.addModal.getByRole('button', { name: 'Hủy' });
-  }
-
-  /** Modal "Nhập hàng loạt" — component `MultiAddTransactionForm`. Cột "Mã CK" là cột thứ 5 (sau #, Loại GD,
-   * Danh mục, Ngày GD) và dùng `DropdownSearch` (class `.btn-search-stockcode`) — KHÔNG dùng
-   * `.locator('input').first()` (sẽ trúng ô input Ngày giao dịch đứng trước). */
-  get multiAddFirstRowMackInput(): Locator {
-    return this.addModal.locator('.trading-log tbody tr').first().locator('.btn-search-stockcode input');
-  }
-
-  get multiAddAddRowLink(): Locator {
-    return this.addModal.getByText('+ Thêm giao dịch khác');
-  }
-
-  get multiAddDeleteRowIcon(): Locator {
-    return this.addModal.locator('.trading-log tbody tr').first().locator('svg, .c-icon').last();
-  }
-
-  /** Popup chọn thẻ tags (setup/mistake) — `PopupSelectTag`, mở CHỒNG lên modal Thêm/Sửa giao dịch (2 modal
-   * `:visible` cùng lúc) — PHẢI dùng class CSS riêng `.custom-modal-select-tag` (gắn ở `index.vue` cho 4 CModal
-   * bọc `PopupSelectTag`) để phân biệt, không dùng `hasText`/`has` chung chung (dễ khớp nhầm modal bên dưới). */
-  get tagPopup(): Locator {
-    // Class `custom-modal-select-tag` (truyền qua prop `class` cho CModal) không gắn trực tiếp lên chính thẻ
-    // `.modal` (xác nhận qua chạy thật — DOM thật không khớp selector này dù popup đã hiển thị đúng). Nhận
-    // diện ổn định hơn qua text "Tín hiệu kỹ thuật" — tên tab đầu tiên riêng của `PopupSelectTag.vue`, không
-    // trùng với modal Thêm/Sửa giao dịch bên dưới.
-    return this.anyOpenModal.filter({ hasText: 'Tín hiệu kỹ thuật' });
-  }
-
-  tagPopupTab(label: 'Tín hiệu kỹ thuật' | 'Chỉ tiêu tài chính' | 'Sai lầm'): Locator {
-    return this.tagPopup.locator('.nav-link', { hasText: label });
-  }
-
-  get tagPopupSaveButton(): Locator {
-    return this.tagPopup.getByRole('button', { name: 'Lưu' });
-  }
-
-  get tagPopupCancelButton(): Locator {
-    return this.tagPopup.getByRole('button', { name: 'Hủy' });
-  }
-
-  /** Modal "Sửa giao dịch" (CModal trong index.vue — KHÁC với `UpdateNoteTradingLogModal.vue` dùng ở panel
-   * Ghi chú Dashboard, dù 2 file có nhiều đoạn code tương tự nhau). */
-  get editModal(): Locator {
-    return this.modal('Sửa giao dịch');
-  }
-
-  get editModalSaveButton(): Locator {
-    return this.page.locator('#editTradingLog');
-  }
-
-  get editModalNoteTextarea(): Locator {
-    return this.editModal.getByText('Ghi chú', { exact: true }).locator('xpath=following::textarea[1]').first();
-  }
-
-  /** Modal "Xem giao dịch" (read-only, bản của index.vue dùng cho tab Nhật ký giao dịch). */
-  get viewModal(): Locator {
-    return this.modal('Xem giao dịch');
-  }
-
-  get viewModalCloseButton(): Locator {
-    return this.viewModal.getByRole('button', { name: 'Đóng' });
-  }
-
-  /** Modal xác nhận xóa giao dịch — title "Xóa dữ liệu", nội dung "Bạn có chắc chắn không?". */
-  get deleteTransactionModal(): Locator {
-    return this.modal('Xóa dữ liệu').filter({ hasText: 'Bạn có chắc chắn không?' });
-  }
-
-  get deleteTransactionConfirmButton(): Locator {
-    return this.page.locator('#delteTradingLog');
-  }
-
-  /** Modal "Thông báo" tự động xuất hiện khi hệ thống phát hiện sự kiện cổ tức/quyền trong danh mục hôm nay
-   * ngay sau khi thêm 1 giao dịch mới (computed `stock_events_recorded`, khó tái tạo chủ động — xem ghi chú
-   * trong testcases/nhat-ky-giao-dich-nhat-ky.md). */
-  get dividendDetectedModal(): Locator {
-    return this.modal('Thông báo').filter({ hasText: 'ghi nhận các sự kiện' });
-  }
-
-  // ================= Tab "Quản lý danh mục" (ManageCategory.vue) =================
-  /** Sub-tab "Danh mục hiện có" | "Danh mục đã xóa" (nav-link tự viết, không có href). */
-  categorySubTab(label: 'Danh mục hiện có' | 'Danh mục đã xóa'): Locator {
-    return this.page.locator('.tradingLog-component .nav-tabs .nav-link', { hasText: label });
-  }
-
-  get addCategoryButton(): Locator {
-    return this.page.getByRole('button', { name: 'Thêm danh mục' });
-  }
-
-  get categoryTable(): Locator {
-    return this.page.getByRole('table');
-  }
-
-  categoryRow(name: string): Locator {
-    return this.categoryTable.getByRole('row', { name: new RegExp(`^${name}\\b`) });
-  }
-
-  categoryEditIcon(name: string): Locator {
-    return this.categoryRow(name).locator('img, svg').first();
-  }
-
-  categoryDeleteIcon(name: string): Locator {
-    return this.categoryRow(name).locator('img, svg').last();
-  }
-
-  /** Chỉ dùng ở tab "Danh mục đã xóa": icon Khôi phục (đầu) / Xóa vĩnh viễn (cuối). */
-  categoryRestoreIcon(name: string): Locator {
-    return this.categoryRow(name).locator('img, svg').first();
-  }
-
-  categoryForceDeleteIcon(name: string): Locator {
-    return this.categoryRow(name).locator('img, svg').last();
-  }
-
-  /** Modal "Thêm mới danh mục" / "Sửa danh mục" (cùng cấu trúc, khác tiêu đề). */
-  get categoryAddModal(): Locator {
-    return this.modal('Thêm mới danh mục');
-  }
-
-  get categoryEditModal(): Locator {
-    return this.modal('Cập nhật') /* fallback nếu tiêu đề khác */.or(this.modal('Sửa danh mục'));
-  }
-
-  get categoryNameInput(): Locator {
-    return this.anyOpenModal.getByRole('textbox').first();
-  }
-
-  get categoryInitialCapitalInput(): Locator {
-    return this.anyOpenModal.locator('input').nth(1);
-  }
-
-  get categorySaveButton(): Locator {
-    // "Thêm mới"/"Sửa" dùng 2 CModal riêng biệt cùng tồn tại trong DOM (không unmount khi ẩn) — luôn lọc
-    // `:visible` để chỉ khớp đúng 1 nút của modal đang thật sự mở, tránh strict-mode violation (2 phần tử).
-    return this.page.locator('#addManageCategory:visible, #saveEditCategory:visible');
-  }
-
-  get categoryCancelButton(): Locator {
-    return this.anyOpenModal.getByRole('button', { name: 'Hủy' });
-  }
-
-  get categorySoftDeleteModal(): Locator {
-    return this.modal('thùng rác');
-  }
-
-  get categorySoftDeleteConfirmButton(): Locator {
-    // BUG nguồn (ghi nhận trong testcases/nhat-ky-giao-dich-danh-muc.md): id="deleteCategory" bị dùng TRÙNG cho
-    // cả nút "Di chuyển vào thùng rác" (soft-delete) lẫn nút "Xóa vĩnh viễn" (force-delete) trong
-    // `ManageCategory.vue` — CSS id selector đơn thuần trả về 2 phần tử (strict-mode violation), phải scope
-    // theo đúng modal + text để phân biệt, không dùng `#deleteCategory` một mình.
-    return this.categorySoftDeleteModal.getByRole('button', { name: 'Di chuyển vào thùng rác' });
-  }
-
-  get categoryForceDeleteModal(): Locator {
-    return this.modal('vĩnh viễn');
-  }
-
-  get categoryForceDeleteConfirmButton(): Locator {
-    return this.categoryForceDeleteModal.getByRole('button', { name: 'Xóa vĩnh viễn' });
-  }
-
-  // ================= Tab "Phân bổ vốn" (CapitalAllocation.vue) =================
-  get allocationCategorySelect(): Locator {
-    return this.page.getByText('Danh mục', { exact: true }).locator('xpath=following::select[1]').first();
-  }
-
-  get allocationInitialCapitalInput(): Locator {
-    return this.page.getByText('Vốn ban đầu', { exact: true }).locator('xpath=following::input[1]').first();
-  }
-
-  get allocationRecordProfitLossCheckbox(): Locator {
-    return this.page.getByText('Ghi nhận lời lỗ của danh mục vào vốn khả dụng').locator('xpath=following::input[@type="checkbox"][1]').first();
-  }
-
-  get allocationMaxCutlossPercentInput(): Locator {
-    return this.page.getByText('% Cắt lỗ tối đa trên tổng tài sản', { exact: false }).locator('xpath=following::input[1]').first();
-  }
-
-  get allocationDealCutlossPercentInput(): Locator {
-    return this.page.getByText('% Cắt lỗ trên deal tiếp theo', { exact: false }).locator('xpath=following::input[1]').first();
-  }
-
-  get allocationMaxCutlossValue(): Locator {
-    return this.page.getByText('Giá trị cắt lỗ tối đa trên tổng tài sản', { exact: false }).locator('xpath=following::input[1]').first();
-  }
-
-  get allocationResultValue(): Locator {
-    return this.page.getByText('Phân bổ vốn cho deal tiếp theo', { exact: false }).locator('xpath=following::input[1]').first();
-  }
-
-  get allocationCurrentStatusBlock(): Locator {
-    return this.page.getByText('Trạng thái danh mục hiện tại').locator('xpath=ancestor::*[self::div][1]');
-  }
-
-  get allocationNextDealBlock(): Locator {
-    return this.page.getByText('Deal tiếp theo', { exact: true }).locator('xpath=ancestor::*[self::div][1]');
-  }
-
-  get allocationStatusAfterDealBlock(): Locator {
-    return this.page.getByText('Trạng thái danh mục khi có deal tiếp theo').locator('xpath=ancestor::*[self::div][1]');
-  }
-
-  /** 3 icon toggle collapse (mũi tên lên/xuống) trong khối Deal tiếp theo / Trạng thái sau deal. */
-  allocationCollapseToggle(label: string): Locator {
-    return this.page.getByText(label, { exact: false }).first();
-  }
+    this.session = new Prev2Session(page);
+    this.settingWrites = this.session.settingWrites;
+    page.on('pageerror', (e) => this.pageErrors.push(e.message));
+    this.root = page.locator('.tradingLog-component');
+    // Không dùng `.nav-tabs` trần: dropdown chuông header cũng có 1 `.nav-tabs` ẩn đứng trước trong DOM.
+    this.tabBar = this.root.locator('ul.nkgd-tabs').first();
+    this.anyModal = page.locator('.modal.show:visible');
+    this.toastSuccess = page.locator('.Vue-Toastification__toast--success');
+    this.toastError = page.locator('.Vue-Toastification__toast--error');
+  }
+
+  async open(opts: NkOpenOptions = {}) {
+    const { account = 'paid', tab = 0, query, data, local = {}, waitTabs = true } = opts;
+    if (data) data(this.server.data);
+    await this.server.install(this.page);
+    const capital = JSON.stringify(this.server.data.capital);
+    const seed: Record<string, string> = { capital_allocation_data_save: capital, ...local };
+    if (tab !== null) seed.trading_log_view_state = JSON.stringify({ active_tab: tab });
+    // Đặt 1 lần mỗi phiên tab: F5 trong test phải thấy đúng thứ app tự ghi.
+    await this.page.addInitScript((items) => {
+      try {
+        if (sessionStorage.getItem('__nkgd_seeded')) return;
+        ['field_table_trading_history_more_v2', 'estate_mo_muc_gop', 'estate_kieu_co_cau', 'estate_co_cau_tien_mat_lai_lo',
+          'estate_chart_range_days', 'trading_log_last_fee_percent', 'capital_allocation_input'].forEach((k) => localStorage.removeItem(k));
+        Object.entries(items).forEach(([k, v]) => localStorage.setItem(k, v as string));
+        sessionStorage.setItem('__nkgd_seeded', '1');
+      } catch { /* */ }
+    }, seed);
+    const own = ['capital_allocation_data_save', 'capital_allocation_input', 'field_table_trading_history_more_v2'];
+    await this.session.open({
+      account,
+      path: '/nhat-ky-giao-dich' + (query ? `?${query}` : ''),
+      patchSettings: (items) => [...items.filter((i) => !own.includes(i.key)), { key: 'capital_allocation_data_save', value: capital }],
+      clearKeysAfterLogin: Object.keys(seed),
+    });
+    if (waitTabs) await this.waitTabsOrRetry();
+  }
+
+  /** Chờ thanh tab; prev2 thỉnh thoảng trả trang lỗi nginx 5xx khi quá tải → tải lại tối đa 3 lần. */
+  async waitTabsOrRetry() {
+    for (let i = 0; ; i++) {
+      try { await expect(this.tabBar).toBeVisible({ timeout: 30000 }); return; } catch (e) {
+        const body = await this.page.locator('body').innerText().catch(() => '');
+        if (i >= 3 || !/(500|502|503|504) .*(Error|Gateway|Unavailable)|nginx/i.test(body)) throw e;
+        await this.page.waitForTimeout(3000);
+        await this.page.reload({ waitUntil: 'domcontentloaded' });
+      }
+    }
+  }
+
+  /** App tắt mọi toast thành công (`main.js`: `$toast.success = () => {}`, 12/10/2026) → thao tác thành công không
+   * hiện toast nào. Gọi SAU khi đã chờ kết quả thao tác. */
+  async expectSilentSuccess() {
+    await this.page.waitForTimeout(300);
+    await expect(this.page.locator('.Vue-Toastification__toast')).toHaveCount(0);
+  }
+
+  /** Nhập số vào ô tiền `TextMask` (directive v-money): v-money dời con trỏ về cuối khi focus nên `fill()` bị nối vào sau giá
+   * trị cũ → focus, chọn hết, xoá, gõ như người dùng. */
+  async fillMoney(input: Locator, value: string) {
+    await input.click();
+    await this.page.waitForTimeout(100);
+    await input.press('Control+A');
+    await input.press('Backspace');
+    await input.pressSequentially(value);
+  }
+
+  // ---------------- Khung ----------------
+  tab(name: NkTab): Locator { return this.tabBar.getByRole('link', { name, exact: true }); }
+  /** Tên tab đang active. */
+  async activeTab(): Promise<string> { return (await this.tabBar.locator('.nav-link.active').innerText()).trim(); }
+  async gotoTab(name: NkTab) { await this.tab(name).click(); await expect(this.tab(name)).toHaveClass(/active/); }
+  /** Pane đang hiện (CTabs giữ mọi pane trong DOM, chỉ pane active hiện). */
+  get pane(): Locator { return this.root.locator('.tab-pane.active'); }
+  get protectedView(): Locator { return this.pane.locator('.blurred-image'); }
+  modal(title: string | RegExp): Locator { return this.anyModal.filter({ has: this.page.locator('.modal-title, .nkgd-modal-tieu-de', { hasText: title }) }); }
+  /** Chờ dữ liệu giả đã nạp (getAll + danh mục). */
+  async waitData() { await expect.poll(() => (this.server.reads.getAll || 0) > 0 && (this.server.reads.categories || 0) > 0, { timeout: 20000 }).toBe(true); }
+  /** Chờ app tải xong setting người dùng (`store.state.is_getting_data_saved` = false, TheContainer.getDataSaveSettings). */
+  async waitSettingsLoaded() {
+    await expect.poll(() => this.page.evaluate(() => {
+      type V = Element & { __vue__?: { $store?: { state: { is_getting_data_saved: boolean } } } };
+      const el = Array.from(document.querySelectorAll('.c-app, body *')).find((e) => (e as V).__vue__?.$store) as V | undefined;
+      return el ? el.__vue__!.$store!.state.is_getting_data_saved : null;
+    }), { timeout: 30000 }).toBe(false);
+  }
+  /** localStorage của trang. */
+  ls(key: string) { return this.page.evaluate((k) => localStorage.getItem(k), key); }
+
+  // ---------------- Phiếu lệnh nhanh (Mua/Bán) — dùng chung tab Tài sản + Giao dịch ----------------
+  get ticket(): Locator { return this.page.locator('.order-ticket:visible'); }
+  ticketSide(side: 'Mua' | 'Bán'): Locator { return this.ticket.locator('.ot-side-btn', { hasText: side }); }
+  ticketField(label: 'Mã đầu tư' | 'Danh mục' | 'Ngày giao dịch' | 'Giá (nghìn đồng)' | 'Khối lượng' | 'Ghi chú (tuỳ chọn)'): Locator {
+    return this.ticket.locator(`xpath=.//div[contains(@class,"ot-label")][normalize-space()="${label}"]/following-sibling::*[1]`);
+  }
+  get ticketStockInput(): Locator { return this.ticketField('Mã đầu tư').locator('input'); }
+  get ticketStockText(): Locator { return this.ticket.locator('.ot-stock'); }
+  get ticketCategory(): Locator { return this.ticketField('Danh mục').locator('select'); }
+  get ticketDate(): Locator { return this.ticketField('Ngày giao dịch').locator('input'); }
+  get ticketPrice(): Locator { return this.ticketField('Giá (nghìn đồng)').locator('input'); }
+  get ticketVolume(): Locator { return this.ticketField('Khối lượng').locator('input'); }
+  get ticketNote(): Locator { return this.ticket.locator('textarea'); }
+  get ticketFee(): Locator { return this.ticket.locator('.ot-fee-input'); }
+  ticketSummary(label: 'Giá trị' | 'Tổng chi' | 'Tổng thu' | 'Phí'): Locator {
+    return this.ticket.locator('.ot-row', { hasText: label }).locator('b');
+  }
+  get ticketSubmit(): Locator { return this.ticket.locator('.ot-submit'); }
+  get ticketCancel(): Locator { return this.ticket.locator('.ot-cancel'); }
+  get ticketClose(): Locator { return this.page.locator('.ot-head:visible button'); }
+  get ticketAdvanced(): Locator { return this.ticket.getByText('Nhập nâng cao'); }
+  /** Đặt ngày giao dịch của phiếu (ô date + sự kiện change như người dùng chọn). */
+  async setTicketDate(day: string) {
+    await this.ticketDate.fill(day);
+    await this.ticketDate.dispatchEvent('change');
+  }
+  /** Chọn mã trong ô "Mã đầu tư" (DropdownSearch) của phiếu mở từ thanh công cụ. */
+  async pickTicketStock(code: string) {
+    // Danh sách gợi ý dựng từ danh sách mã của store (tải muộn) → gõ lại nếu gợi ý chưa hiện.
+    const item = this.ticket.locator('.search-stockcode_item', { hasText: new RegExp(`^\\s*${code}\\b`) }).first();
+    for (let i = 0; i < 4; i++) {
+      await this.ticketStockInput.fill('');
+      await this.ticketStockInput.pressSequentially(code, { delay: 50 });
+      if (await item.isVisible({ timeout: 5000 }).catch(() => false)) break;
+    }
+    await item.click();
+  }
+
+
+
+  // ---------------- Modal "Thêm giao dịch" (Nhập nâng cao) ----------------
+  get addModal(): Locator { return this.page.locator('.nkgd-add-modal').filter({ has: this.page.locator('.modal-title', { hasText: 'Thêm giao dịch' }) }).locator('.modal-content').first(); }
+  addModalField(label: string): Locator {
+    return this.addModal.locator(`xpath=.//div[contains(@class,"flex-1")][normalize-space()="${label}"]/following-sibling::*[1]`).first();
+  }
+
+  // ---------------- Tab "Giao dịch" ----------------
+  get thMua(): Locator { return this.pane.getByRole('button', { name: 'Mua', exact: true }); }
+  get thBan(): Locator { return this.pane.getByRole('button', { name: 'Bán', exact: true }); }
+  get thFilterBtn(): Locator { return this.pane.getByRole('button', { name: 'Lọc giao dịch' }); }
+  get thExportBtn(): Locator { return this.pane.getByRole('button', { name: 'Xuất Excel' }); }
+  get thHeader(): Locator { return this.pane.locator('.table-trading-history-header'); }
+  thHeaderCell(label: string | RegExp): Locator { return this.thHeader.locator('.bg-header', { hasText: label }).first(); }
+  get thCollapseAll(): Locator { return this.thHeader.locator('button').first(); }
+  get thRows(): Locator { return this.pane.locator('.item-table-trading-history-wrapper'); }
+  get thSummaryRow(): Locator { return this.thRows.filter({ hasText: 'Tổng kết toàn bộ' }); }
+  thCategoryRow(name: string): Locator { return this.pane.locator('.th-dong-tong-ket').filter({ has: this.page.locator('.th-ten-danh-muc', { hasText: new RegExp(`^\\s*Danh mục: ${reEsc(name)}\\s*$`) }) }); }
+  get thTradeRows(): Locator { return this.pane.locator('.th-dong-giao-dich'); }
+  thTradeRow(mack: string): Locator { return this.thTradeRows.filter({ has: this.page.locator('.th-cot-mack a, .th-cot-mack .c-link, .th-cot-mack', { hasText: new RegExp(`^\\s*${mack}\\s*$`) }) }); }
+  thRowMenu(row: Locator): Locator { return row.locator('.th-row-menu-btn'); }
+  get thMenuItems(): Locator { return this.pane.locator('.dropdown-menu.show .dropdown-item'); }
+  get thSettingsBtn(): Locator { return this.pane.locator('.th-col-settings'); }
+  get filterModal(): Locator { return this.modal('Lọc giao dịch'); }
+  filterField(label: string): Locator {
+    return this.filterModal.locator(`xpath=.//div[contains(@class,"flex-1")][normalize-space()="${label}:"]/following-sibling::*[1]`).first();
+  }
+  get editModal(): Locator { return this.modal('Sửa giao dịch'); }
+  editField(label: string): Locator {
+    return this.editModal.locator(`xpath=.//span[contains(@class,"nkgd-form-nhan")][normalize-space()="${label}"]/following-sibling::*[1]`);
+  }
+  get viewModal(): Locator { return this.modal('Chi tiết giao dịch'); }
+  get deleteModal(): Locator { return this.modal('Xóa dữ liệu').filter({ hasText: 'Bạn có chắc chắn không?' }); }
+  get dividendModal(): Locator { return this.modal('Đã cập nhật sự kiện quyền'); }
+
+  // ---------------- Tab "Tài sản" ----------------
+  get tsPickerBtn(): Locator { return this.pane.locator('.category-bar .category-picker-toggle'); }
+  get tsPickerMenu(): Locator { return this.pane.locator('.category-bar .category-picker-menu'); }
+  tsPickerItem(label: string): Locator { return this.tsPickerMenu.locator('label.category-picker-item', { hasText: new RegExp(`^\\s*${reEsc(label)}\\s*$`) }).locator('input'); }
+  get tsNavCard(): Locator { return this.pane.locator('.khung-tong-quan'); }
+  get tsNavValue(): Locator { return this.pane.locator('.nav-so'); }
+  get tsCountRealized(): Locator { return this.pane.getByRole('checkbox', { name: 'Tính lãi/lỗ đã thực hiện' }); }
+  tsStat(label: 'Vốn ban đầu' | 'Giá trị thị trường' | 'Giá trị margin'): Locator {
+    return this.pane.locator('.nav-can-doi-dong', { has: this.page.locator('dt', { hasText: label }) }).locator('dd');
+  }
+  tsSmall(label: 'Lãi/lỗ chưa thực hiện' | 'Lãi/lỗ đã thực hiện' | 'Tiền mặt còn lại'): Locator {
+    return this.pane.locator('.o-nho', { has: this.page.locator('.stat-label', { hasText: label }) });
+  }
+  tsGroup(name: string): Locator { return this.pane.getByRole('group', { name }); }
+  tsSeg(group: string, label: string): Locator { return this.tsGroup(group).getByRole('button', { name: label, exact: true }); }
+  get tsAnalysisToggle(): Locator { return this.pane.locator('.muc-nut-gap'); }
+  get tsAnalysisArea(): Locator { return this.pane.locator('#vung-co-cau-dong-gop'); }
+  get tsPortfolioTable(): Locator { return this.pane.getByRole('table').filter({ has: this.page.getByRole('columnheader', { name: 'Tỷ trọng' }) }); }
+  tsCategoryRow(name: string): Locator { return this.tsPortfolioTable.locator('tr', { has: this.page.locator('.category-name', { hasText: new RegExp(`^\\s*${reEsc(name)}\\s*$`) }) }); }
+  tsStockRow(mack: string): Locator { return this.tsPortfolioTable.locator('tbody tr', { has: this.page.locator('.stock-code', { hasText: new RegExp(`^\\s*${mack}\\b`) }) }); }
+  get tsExportBtn(): Locator { return this.pane.getByRole('button', { name: 'Xuất Excel' }); }
+  get tsDetailModal(): Locator { return this.page.locator('.modal.show:visible').filter({ has: this.page.locator('.xm, .xm-dau') }); }
+  get tsEditCapitalModal(): Locator { return this.modal('Sửa danh mục'); }
+
+  // ---------------- Tab "Phân tích giao dịch" ----------------
+  ptFilter(label: 'Xem theo' | 'Thời gian' | 'Từ ngày' | 'Đến ngày' | 'Danh mục'): Locator {
+    return this.pane.locator('.pcr-o-loc', { has: this.page.locator('.pcr-nhan', { hasText: new RegExp(`^${reEsc(label)}$`) }) });
+  }
+  get ptStyleToggle(): Locator { return this.pane.getByText('Phong cách và rủi ro'); }
+  get ptStyleArea(): Locator { return this.pane.locator('.pcr-area'); }
+  get ptProfitBy(): Locator { return this.pane.locator('select').filter({ has: this.page.locator('option', { hasText: 'Lợi nhuận theo cổ phiếu' }) }); }
+  get ptTable(): Locator { return this.pane.locator('table').filter({ has: this.page.locator('th', { hasText: 'Lợi nhuận' }) }); }
+  get ptExportBtn(): Locator { return this.pane.getByRole('button', { name: 'Xuất Excel' }); }
+  get ptHistoryModal(): Locator { return this.modal('Lịch sử giao dịch'); }
+
+  // ---------------- Tab "Phân bổ vốn" ----------------
+  get caPickerBtn(): Locator { return this.pane.locator('.ca-chon-danh-muc .category-picker-toggle'); }
+  caPickerItem(label: string): Locator { return this.pane.locator('.ca-chon-danh-muc .category-picker-item', { hasText: new RegExp(`^\\s*${reEsc(label)}\\s*$`) }); }
+  caSummary(label: 'Vốn ban đầu' | 'Lãi/lỗ đã thực hiện' | 'Vốn khả dụng'): Locator {
+    return this.pane.locator('.ca-tom-tat-o', { has: this.page.locator('.ca-tom-tat-nhan', { hasText: label }) });
+  }
+  get caCapitalText(): Locator { return this.caSummary('Vốn ban đầu').locator('.ca-o-von:not(.ca-an) .ca-tom-tat-so'); }
+  get caPencil(): Locator { return this.pane.locator('.ca-nut-but-chi'); }
+  get caCapitalInput(): Locator { return this.pane.locator('.ca-o-nhap-von'); }
+  caRow(label: string): Locator { return this.pane.locator('.ca-dong', { has: this.page.locator('.ca-nhan', { hasText: label }) }); }
+  caInput(label: '% Cắt lỗ tối đa trên tổng tài sản' | '% Cắt lỗ trên deal tiếp theo'): Locator { return this.caRow(label).locator('input'); }
+  caValue(label: string): Locator { return this.caRow(label).locator('.ca-gia-tri-tu-dong').first(); }
+  get caStatusTable(): Locator { return this.pane.locator('table.table-pbv'); }
+  caStatusRow(label: string): Locator { return this.caStatusTable.locator('tbody tr', { has: this.page.locator('td', { hasText: label }) }); }
+  get caChartToggle(): Locator { return this.pane.locator('.ca-nut-gap'); }
+
+  // ---------------- Tab "Danh mục" ----------------
+  get dmCount(): Locator { return this.pane.locator('.mc-dem'); }
+  get dmDeletedBtn(): Locator { return this.pane.getByRole('button', { name: /^Danh mục đã xóa/ }); }
+  get dmAddBtn(): Locator { return this.pane.locator('button.mc-nut-them'); }
+  get dmTable(): Locator { return this.pane.locator('table.table-danh-muc-hien-co'); }
+  dmRow(name: string): Locator { return this.dmTable.locator('tbody tr', { has: this.page.locator('td.mc-ten', { hasText: new RegExp(`^\\s*${reEsc(name)}\\s*$`) }) }); }
+  get dmAddModal(): Locator { return this.modal('Thêm mới danh mục'); }
+  get dmEditModal(): Locator { return this.modal('Sửa danh mục'); }
+  get dmDeletedModal(): Locator { return this.modal('Danh mục đã xóa'); }
+  get dmSoftDeleteModal(): Locator { return this.modal('Xóa dữ liệu').filter({ hasText: 'Di chuyển vào thùng rác' }); }
+  get dmForceDeleteModal(): Locator { return this.modal('Xóa dữ liệu').filter({ hasText: 'xóa vĩnh viễn' }); }
 }

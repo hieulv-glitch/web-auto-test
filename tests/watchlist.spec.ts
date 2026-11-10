@@ -1,697 +1,732 @@
-import { test, expect } from '@playwright/test';
-import { WatchlistPage } from '../pages/WatchlistPage';
-import { LoginPage } from '../pages/LoginPage';
+import { test, expect, Page } from '@playwright/test';
+import { WatchlistPage, DEFAULT_LISTS } from '../pages/WatchlistPage';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Watchlist — chạy trên prev2 (bản preprod mới nhất). Danh sách watchlist + mã do `FakeWatchlistServer` trả về
+ * (tài khoản test là tài khoản production thật) — mọi thao tác ghi chỉ sửa máy chủ giả; xem `pages/WatchlistPage.ts`.
+ * Bộ mặc định: "Auto A" (FPT, VNM, HPG), "Auto B" (ACB, MBB), "Auto Rỗng" (0 mã).
+ */
+test.use({ baseURL: PREV2_BASE_URL, viewport: { width: 1600, height: 900 } });
+test.setTimeout(120_000);
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+const MANY = ['FPT', 'VNM', 'HPG', 'ACB', 'MBB', 'SSI', 'VIC', 'VHM', 'TCB', 'MWG', 'GAS', 'VCB', 'BID', 'CTG', 'POW', 'DGC'];
+const toast = (page: Page, text: string | RegExp) => page.locator('.Vue-Toastification__toast').filter({ hasText: text });
+/** Từ 12/10/2026 web tắt mọi toast thành công (`Vue.prototype.$toast.success = () => {}` trong main.js) — thao tác
+ * thành công không hiện gì, chỉ kiểm tra trạng thái. */
+async function expectNoSuccessToast(page: Page) {
+  await page.waitForTimeout(500);
+  await expect(page.locator('.Vue-Toastification__toast--success')).toHaveCount(0);
 }
 
-// Dùng RegExp thay vì glob: endpoint thêm mã (`POST /api/watchlist`) và tạo watchlist
-// (`POST /api/my-watchlist/`) không có phần đuôi sau "watchlist" (hoặc chỉ có dấu `/` cuối, không thêm ký tự
-// nào) — glob dạng `**/api/watchlist/**` KHÔNG khớp trường hợp này (đã xác nhận qua debug thực tế: request
-// thật lọt qua route mock, gọi thẳng lên production). RegExp neo rõ ranh giới `/`, cuối chuỗi, hoặc `?`.
-const WATCHLIST_MACK_API = /\/api\/watchlist(\/|\?|$)/;
-const MY_WATCHLIST_API = /\/api\/my-watchlist(\/|\?|$)/;
-
-// An toàn: mọi API MUTATE (thêm/xóa mã, tạo/sửa/xóa watchlist, sắp xếp, đổi tín hiệu/thông báo) đều bị chặn
-// mặc định — tài khoản test có rất nhiều watchlist thật đang dùng, không được để lọt thao tác ghi thật ngoài
-// ý muốn. Test nào cần quan sát luồng thành công/lỗi sẽ tự `page.unroute()` rồi mock riêng; chỉ
-// TC_WATCHLIST_29 cho phép đi qua thật (có `finally` tự dọn dẹp), tương tự pattern đã dùng ở màn Cộng Đồng.
-async function blockMutations(page: any) {
-  const guardGetOnly = (route: any) => (route.request().method() === 'GET' ? route.continue() : route.abort());
-  await page.route(WATCHLIST_MACK_API, guardGetOnly);
-  await page.route(MY_WATCHLIST_API, guardGetOnly);
-  await page.route('**/api/sort-my-watchlist', (route: any) => route.abort());
-  await page.route('**/api/update-receive-notify', (route: any) => route.abort());
-}
-
-test.beforeEach(async ({ page }) => {
-  await blockMutations(page);
+let wl: WatchlistPage;
+test.afterEach(async () => {
+  // Lưới an toàn: không request ghi nào tới máy chủ thật ngoài các route đã giả lập.
+  expect(wl?.server.blockedWrites ?? [], 'Có request ghi bị chặn ngoài dự kiến').toEqual([]);
 });
 
-test.describe('Watchlist — Truy cập & layout', () => {
+test.describe('Watchlist — Truy cập & bố cục', () => {
   test('TC_WATCHLIST_01: Chặn truy cập khi chưa đăng nhập', async ({ page }) => {
+    wl = new WatchlistPage(page);
     await page.goto('/watchlist');
     await page.waitForURL(/\/login/);
   });
 
-  test('TC_WATCHLIST_02: Overview màn hình khi đã đăng nhập', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await expect(wl.watchlistSelectorToggler).toBeVisible();
-    await expect(wl.addMackInput).toBeVisible();
+  test('TC_WATCHLIST_02: Tổng quan màn hình khi đã đăng nhập', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await expect(wl.pickerLabel).toHaveText('Auto A');
+    await expect(wl.addButton).toBeVisible();
+    await expect(page.getByPlaceholder('Chọn mã CK')).toHaveCount(0);
     await expect(wl.tableTabs).toBeVisible();
-    await expect(wl.table).toBeVisible();
-    await expect(wl.rightPanelTabs.first()).toBeVisible();
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
+    await expect(wl.rightPanelTabs).toHaveText(['Ghi chú', 'Bài viết']);
+    await expect(wl.notesTab).toHaveClass(/active/);
+    await expect(wl.addNoteButton).toBeVisible();
+    expect(await wl.leftRatio()).toBeCloseTo(0.7, 2);
   });
 
-  test('TC_WATCHLIST_03: Kéo thanh resize đổi tỷ lệ 2 cột (desktop)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await page.setViewportSize({ width: 1440, height: 900 });
-
-    const before = await wl.table.boundingBox();
-    const handle = await wl.resizeHandle.boundingBox();
-    test.skip(!before || !handle, 'Không lấy được bounding box để kéo resize');
-
-    await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handle!.x + 200, handle!.y + handle!.height / 2, { steps: 10 });
-    await page.mouse.up();
-    await page.waitForTimeout(300);
-
-    const after = await wl.table.boundingBox();
-    expect(after?.width, 'Bề rộng bảng phải đổi sau khi kéo resize').not.toBeCloseTo(before!.width, 0);
+  test('TC_WATCHLIST_03: Kéo thanh chia cột đổi tỷ lệ trong giới hạn 50%–72%', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.dragResizeTo(0.6);
+    expect(await wl.leftRatio()).toBeCloseTo(0.6, 1);
+    await wl.dragResizeTo(0.3);
+    expect(await wl.leftRatio(), 'Kéo cột trái dưới 50% → giữ nguyên').toBeGreaterThanOrEqual(0.5);
+    await wl.dragResizeTo(0.95);
+    expect(await wl.leftRatio(), 'Kéo cột phải dưới 28% → giữ nguyên').toBeLessThanOrEqual(0.721);
   });
 
-  test('TC_WATCHLIST_04: Tỷ lệ layout KHÔNG lưu lại sau khi rời trang', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await page.setViewportSize({ width: 1440, height: 900 });
-
-    const handle = await wl.resizeHandle.boundingBox();
-    test.skip(!handle, 'Không lấy được bounding box để kéo resize');
-    await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handle!.x + 200, handle!.y + handle!.height / 2, { steps: 10 });
-    await page.mouse.up();
-    await page.waitForTimeout(300);
-    const draggedWidth = (await wl.table.boundingBox())?.width;
-
-    await page.goto('/dashboard');
-    await wl.goto();
-    const reloadedWidth = (await wl.table.boundingBox())?.width;
-
-    expect(reloadedWidth, 'Tỷ lệ phải reset về mặc định, không giữ tỷ lệ đã kéo trước đó').not.toBeCloseTo(draggedWidth!, 0);
+  test('TC_WATCHLIST_04: Tỷ lệ đã kéo KHÔNG được lưu khi rời trang rồi quay lại', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.dragResizeTo(0.55);
+    expect(await wl.leftRatio()).toBeCloseTo(0.55, 1);
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.goto('/watchlist', { waitUntil: 'domcontentloaded' });
+    await wl.waitReady();
+    expect(await wl.leftRatio()).toBeCloseTo(0.7, 2);
   });
 
-  test('TC_WATCHLIST_05: Nút "Đặt lại bố cục mặc định"', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(wl.resetLayoutButton).toBeVisible();
+  test('TC_WATCHLIST_05: Nút "Đặt lại bố cục mặc định" đưa 2 cột về 70/30', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.dragResizeTo(0.55);
     await wl.resetLayoutButton.click();
-    await page.waitForTimeout(300);
-    await expect(wl.table).toBeVisible();
+    await expect.poll(() => wl.leftRatio()).toBeCloseTo(0.7, 2);
+    await expect(wl.notesTab).toHaveClass(/active/);
   });
 
-  test('TC_WATCHLIST_06: Responsive mobile (< 768px)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
+  test('TC_WATCHLIST_06: Màn hình hẹp (< 768px) — 2 cột xếp dọc, ẩn thanh chia cột', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
     await page.setViewportSize({ width: 375, height: 812 });
     await expect(wl.resizeHandle).toBeHidden();
-    await expect(wl.table).toBeVisible();
+    const l = (await wl.leftColumn.boundingBox())!;
+    const r = (await wl.rightColumn.boundingBox())!;
+    expect(r.y, 'Cột phải nằm dưới cột trái').toBeGreaterThanOrEqual(l.y + l.height - 1);
+    expect(l.height).toBeLessThanOrEqual(812 * 0.4 + 1);
   });
 
-  test('TC_WATCHLIST_07: Nút Back trình duyệt điều hướng khỏi trang (không đóng modal tại chỗ)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
+  test('TC_WATCHLIST_07: Nút Back trình duyệt rời trang (không đóng modal tại chỗ)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.goto('/watchlist', { waitUntil: 'domcontentloaded' });
+    await wl.waitReady();
+    await wl.openManageModal();
     await page.goBack();
     await expect(page).not.toHaveURL(/\/watchlist/);
   });
 });
 
-test.describe('Watchlist — Chọn & chuyển đổi Watchlist', () => {
-  test('TC_WATCHLIST_08: Mở dropdown chọn watchlist', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openWatchlistDropdown();
-    await expect(wl.watchlistDropdownMenu).toBeVisible();
-    await expect(wl.manageWatchlistLink).toBeVisible();
+test.describe('Watchlist — Chọn & chuyển watchlist', () => {
+  test('TC_WATCHLIST_08: Dropdown chọn watchlist — 3 nhóm, danh sách, dấu ✓ ở mục đang chọn, "Quản lý watchlist"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openDropdown();
+    await expect(wl.dropdownMenu.locator('.option_tab-item')).toHaveText(['Watchlist', 'Nhật ký GD', 'Khác']);
+    await expect(wl.dropdownTab('Watchlist')).toHaveClass(/selected/);
+    await expect(wl.dropdownMenu.getByRole('menuitem')).toHaveText(DEFAULT_LISTS.map((l) => l.name));
+    await expect(wl.dropdownItem('Auto A').locator('svg')).toBeVisible();
+    await expect(wl.dropdownItem('Auto B').locator('svg')).toHaveCount(0);
+    await expect(wl.manageLink).toBeVisible();
   });
 
-  test.fixme('TC_WATCHLIST_09: Category "Nhật ký GD"/"Khác" ẩn với tài khoản Free (chờ tài khoản Free hợp lệ)', async () => {});
-
-  test('TC_WATCHLIST_10: Chuyển sang 1 watchlist khác trong danh sách', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const currentLabel = (await wl.watchlistSelectorToggler.textContent())?.trim();
-    await wl.openWatchlistDropdown();
-    // Mỗi mục trong danh sách watchlist render text label qua `.kfsp-text-color.ellipsis` (xác nhận qua
-    // source WatchListHeader.vue) — ổn định hơn dựa vào thẻ HTML thật của CDropdownItem (có thể là `<a>`).
-    const otherOption = wl.watchlistDropdownMenu.locator('.custom-scrollbar .kfsp-text-color.ellipsis').filter({ hasNotText: currentLabel || '' }).first();
-    await otherOption.waitFor({ state: 'visible' });
-    const newLabel = (await otherOption.textContent())?.trim();
-    await otherOption.click();
-    await page.waitForTimeout(500);
-    await expect(wl.watchlistSelectorToggler).not.toHaveText(currentLabel || '');
-    expect((await wl.watchlistSelectorToggler.textContent())?.trim()).toBe(newLabel);
+  test('TC_WATCHLIST_09: Tài khoản Free — chỉ có nhóm "Watchlist" (không có thanh nhóm), không có "Quản lý watchlist"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open({ account: 'free' });
+    await wl.openDropdown();
+    await expect(wl.dropdownMenu.locator('.option_tab-item')).toHaveCount(0);
+    await expect(wl.dropdownMenu.getByRole('menuitem')).toHaveText(DEFAULT_LISTS.map((l) => l.name));
+    await expect(wl.manageLink).toHaveCount(0);
   });
 
-  test('TC_WATCHLIST_11: Link "Quản lý watchlist" trong dropdown mở đúng modal', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
+  test('TC_WATCHLIST_10: Chọn watchlist khác → tên + bảng đổi theo, dropdown đóng', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.selectList('Auto B');
+    await expect(wl.dropdownMenu).toBeHidden();
+    await expect.poll(() => wl.macksInTable()).toEqual(['ACB', 'MBB']);
+  });
+
+  test('TC_WATCHLIST_11: "Quản lý watchlist" chỉ hiện ở nhóm Watchlist; bấm → mở modal Quản lý Watchlist', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openDropdown();
+    await wl.dropdownTab('Nhật ký GD').click();
+    await expect(wl.manageLink).toHaveCount(0);
+    await wl.dropdownTab('Khác').click();
+    await expect(wl.manageLink).toHaveCount(0);
+    await wl.dropdownTab('Watchlist').click();
+    await wl.manageLink.click();
     await expect(wl.manageModal).toBeVisible();
   });
 });
 
 test.describe('Watchlist — Bảng dữ liệu chính', () => {
-  test('TC_WATCHLIST_12: Hiển thị đủ 9 tab bảng', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    for (const label of ['Tổng quát', 'Thông tin chung', 'Định giá', 'Cơ bản', 'Biến động giá', 'Phạm vi giá', 'Thanh khoản', 'Chỉ báo kỹ thuật', 'KFSP']) {
-      await expect(wl.tableTab(label), `Tab "${label}" phải hiển thị`).toBeVisible();
+  test('TC_WATCHLIST_12: Hiển thị đủ 9 tab bảng, "Tổng quát" chọn sẵn', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await expect(wl.tableTabs.locator('.nav-tab-item')).toHaveText(['Tổng quát', 'Thông tin chung', 'Định giá', 'Cơ bản', 'Biến động giá',
+      'Phạm vi giá', 'Thanh khoản', 'Chỉ báo kỹ thuật', 'KFSP'].map((t) => new RegExp(`^\\s*${t}\\s*$`)));
+    await expect(wl.tableTab('Tổng quát')).toHaveClass(/active/);
+  });
+
+  test('TC_WATCHLIST_13: Chuyển tab đổi bộ cột, không đổi URL, giữ danh sách mã', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await expect(page.getByRole('columnheader', { name: 'Điểm Canslim' })).toBeVisible();
+    await wl.tableTab('Định giá').locator('.nav-tab-link').click();
+    await expect(wl.tableTab('Định giá')).toHaveClass(/active/);
+    await expect(page.getByRole('columnheader', { name: 'Điểm Canslim' })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/watchlist$/);
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
+  });
+
+  test('TC_WATCHLIST_14: Bấm tiêu đề "Mã CK" sắp xếp tăng, bấm lần 2 sắp xếp giảm', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    const header = page.getByRole('columnheader', { name: 'Mã CK' });
+    await header.click();
+    await expect.poll(() => wl.macksInTable()).toEqual(['FPT', 'HPG', 'VNM']);
+    await header.click();
+    await expect.poll(() => wl.macksInTable()).toEqual(['VNM', 'HPG', 'FPT']);
+  });
+
+  test('TC_WATCHLIST_15: Bấm mã CK mở modal biểu đồ của đúng mã', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.row('VNM').getByRole('link', { name: 'VNM', exact: true }).click();
+    await expect(page.locator('.modal.show.d-block').first()).toBeVisible({ timeout: 15000 });
+  });
+
+  test('TC_WATCHLIST_16: Cột "Website" (tab Thông tin chung) — link mở tab mới, tự thêm http:// khi thiếu giao thức', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    // Dữ liệu cố định cho 3 nhánh của checkURL(): thiếu giao thức / đã có giao thức / rỗng.
+    wl.server.filterOverrides = {
+      FPT: { website: 'fpt.com.vn' }, VNM: { website: 'https://www.vinamilk.com.vn' }, HPG: { website: null },
+    };
+    await wl.open();
+    await wl.tableTab('Thông tin chung').locator('.nav-tab-link').click();
+    await expect(page.getByRole('columnheader', { name: 'Website' })).toBeVisible();
+    const link = (m: string) => wl.row(m).getByRole('link', { name: 'Truy cập >' });
+    await expect(link('FPT')).toHaveAttribute('target', '_blank');
+    await expect(link('FPT')).toHaveAttribute('href', 'http://fpt.com.vn');
+    await expect(link('VNM')).toHaveAttribute('href', 'https://www.vinamilk.com.vn');
+    // Không có website: link "Truy cập >" vẫn hiện nhưng href rỗng (bấm vào mở lại chính trang trong tab mới).
+    await expect(link('HPG')).toBeVisible();
+    await expect(link('HPG')).toHaveAttribute('href', '');
+  });
+
+  test('TC_WATCHLIST_17: API bổ sung dữ liệu (/api/filter) lỗi → bảng vẫn hiện các mã + toast lỗi', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await page.route(/\/api\/filter(\?|$)/, (route) => route.fulfill({ status: 500, body: 'error' }));
+    wl.server.filterFails = true;
+    await wl.open();
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
+    await expect(toast(page, 'Có lỗi xảy ra. Vui lòng thử lại sau!').first()).toBeVisible();
+    expect(wl.pageErrors).toEqual([]);
+  });
+
+  test('TC_WATCHLIST_18: Lỗi tải danh mục watchlist → toast lỗi (🐞 chính tả "Vui loing")', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    wl.server.readFails.category = true;
+    wl.server.seed(DEFAULT_LISTS);
+    await wl.server.install(page);
+    await wl.session.open({ path: '/watchlist' });
+    await expect(toast(page, 'Có lỗi xảy ra. Vui loing thử lại sau!')).toBeVisible({ timeout: 20000 });
+    await expect(wl.pickerLabel).toHaveText('');
+    await expect(wl.addButton).toHaveCount(0);
+  });
+
+  test('TC_WATCHLIST_19: 🐞 Watchlist rỗng → bảng "No items" nhưng phát sinh lỗi JS (pagination null)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.selectList('Auto Rỗng');
+    await expect(wl.table.getByText('No items')).toBeVisible();
+    await expect.poll(() => wl.consoleErrors.some((e) => /reading 'classList'/.test(e)),
+      { message: 'Bug: watch itemsDataTable gọi document.querySelector(nav pagination).classList khi bảng 0 dòng' }).toBe(true);
+    // Trang vẫn dùng tiếp được: chuyển lại danh sách có mã.
+    await wl.selectList('Auto B');
+    await expect.poll(() => wl.macksInTable()).toEqual(['ACB', 'MBB']);
+  });
+
+  test('TC_WATCHLIST_20: Đang tải mã của watchlist (máy chủ chậm) — bảng không hiện trạng thái đang tải', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    wl.server.macksDelayMs = 4000;
+    await wl.openDropdown();
+    await wl.dropdownItem('Auto B').click();
+    await page.waitForTimeout(1000);
+    // Measured: bảng vẫn hiện mã của watchlist CŨ trong lúc chờ, không spinner/skeleton (isLoadingData không có UI).
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
+    await expect(wl.table.locator('.spinner-border, .c-loading, .skeleton')).toHaveCount(0);
+    await expect.poll(() => wl.macksInTable(), { timeout: 15000 }).toEqual(['ACB', 'MBB']);
+  });
+
+  test('TC_WATCHLIST_58: Watchlist > 14 mã — 14 dòng mỗi trang + thanh phân trang; trang 2 có phần còn lại', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open({ lists: [{ name: 'Auto Nhiều', macks: MANY }] });
+    await expect(wl.rows).toHaveCount(14);
+    const pag = page.locator('nav[aria-label="pagination"]');
+    await expect(pag).toHaveClass(/custom-pagination/);
+    await pag.locator('.page-item:not(.disabled) .page-link', { hasText: /^\s*2\s*$/ }).first().click();
+    await expect.poll(() => wl.macksInTable()).toEqual(MANY.slice(14));
+  });
+
+  test('TC_WATCHLIST_59: Dòng tiêu đề bảng dính trên cùng khi cuộn danh sách mã', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await page.setViewportSize({ width: 1600, height: 600 });
+    await wl.open({ lists: [{ name: 'Auto Nhiều', macks: MANY }] });
+    const th = page.getByRole('columnheader', { name: 'Mã CK' });
+    const before = (await th.boundingBox())!.y;
+    await wl.leftColumn.locator('.content').evaluate((el) => { el.scrollTop = 300; });
+    await page.waitForTimeout(300);
+    expect(await wl.leftColumn.locator('.content').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    expect(Math.abs((await th.boundingBox())!.y - before)).toBeLessThan(2);
+  });
+
+  test('TC_WATCHLIST_60: Điểm Canslim / 4M hiện dạng viên màu theo mức điểm (<40 đỏ, <60 cam, <80 xanh nhạt, ≥80 xanh đậm)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    const pills = wl.row('FPT').locator('.score-pill');
+    await expect(pills).toHaveCount(2);
+    for (const pill of await pills.all()) {
+      const score = Number(await pill.innerText());
+      const level = score < 40 ? 'weak' : score < 60 ? 'medium' : score < 80 ? 'good' : 'strong';
+      await expect(pill).toHaveClass(new RegExp(`score-pill--${level}`));
     }
   });
-
-  test('TC_WATCHLIST_13: Chuyển tab đổi bộ cột hiển thị, không reload trang', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await expect(page.getByRole('columnheader', { name: 'Điểm Canslim' })).toBeVisible();
-
-    await wl.tableTab('Định giá').click();
-    await page.waitForTimeout(300);
-    await expect(page).toHaveURL(/\/watchlist$/);
-    await expect(page.getByRole('columnheader', { name: 'Điểm Canslim' })).toHaveCount(0);
-  });
-
-  test('TC_WATCHLIST_14: Sắp xếp theo 1 cột (sorter)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const header = page.getByRole('columnheader', { name: 'Mã CK' });
-    const firstCellBefore = await wl.table.locator('tbody tr').first().locator('td').first().textContent();
-    await header.click();
-    await page.waitForTimeout(300);
-    const firstCellAfter = await wl.table.locator('tbody tr').first().locator('td').first().textContent();
-    // Chỉ verify thao tác sort không lỗi và bảng vẫn còn dữ liệu — không assert thứ tự cụ thể vì phụ thuộc
-    // dữ liệu thật hiện có trong watchlist.
-    expect(firstCellAfter).toBeTruthy();
-    void firstCellBefore;
-  });
-
-  test('TC_WATCHLIST_15: Click mã CK mở modal biểu đồ', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstMackLink = wl.table.locator('tbody tr').first().getByRole('link').first();
-    const mack = (await firstMackLink.textContent())?.trim();
-    await firstMackLink.click();
-    await expect(page.locator('.modal.show.d-block'), `Modal biểu đồ của mã ${mack} phải mở`).toBeVisible();
-  });
-
-  test.fixme('TC_WATCHLIST_16: Cột "Website" — link ngoài (chưa xác định chắc chắn nằm ở tab nào)', async () => {});
-
-  test('TC_WATCHLIST_17: Bảng vẫn hiển thị dữ liệu cơ bản khi 1 API enrichment lỗi', async ({ page }) => {
-    // '**' cuối để khớp cả query string (?token=...) — glob không có wildcard cuối chỉ khớp URL kết thúc
-    // đúng tại đó, còn request thật luôn có query string nên sẽ KHÔNG khớp nếu thiếu '**'.
-    await page.route('**/api/filter**', (route) => route.fulfill({ status: 500, body: 'error' }));
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await expect(wl.table.locator('tbody tr').first()).toBeVisible();
-  });
-
-  test('TC_WATCHLIST_18: Lỗi khi tải danh sách mã trong watchlist — toast đúng lỗi chính tả thật', async ({ page }) => {
-    await page.route('**/api/stocks/ta_watchlist/get-list-category**', (route) => route.fulfill({ status: 500, body: 'error' }));
-    await loginFirst(page);
-    // KHÔNG dùng wl.goto() (chờ networkidle đầy đủ) — toast chỉ hiện ~3-4s rồi tự ẩn, nếu chờ networkidle
-    // trước (trang này có polling/socket nền liên tục) thì toast đã biến mất trước khi kịp assert.
-    await page.goto('/watchlist', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText('Có lỗi xảy ra. Vui loing thử lại sau!')).toBeVisible({ timeout: 10000 });
-  });
-
-  test.fixme('TC_WATCHLIST_19: Watchlist rỗng (0 mã) không crash — cần mock GET mack-by-my-watchlist trả []', async () => {});
-  test.fixme('TC_WATCHLIST_20: Loading state khi tải dữ liệu bảng — cần xác nhận có UI loading hay không', async () => {});
 });
 
-test.describe('Watchlist — Xóa mã khỏi Watchlist', () => {
-  test('TC_WATCHLIST_21/22: Click icon Xóa mở modal xác nhận, Đóng không xóa', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstRow = wl.table.locator('tbody tr').first();
-    const mack = (await firstRow.locator('td').first().textContent())?.trim() || '';
-    await firstRow.locator('[data-title="Xóa"]').click();
+test.describe('Watchlist — Xoá mã khỏi watchlist', () => {
+  test('TC_WATCHLIST_21: Bấm icon Xoá → modal "Xóa dữ liệu" hỏi xác nhận, chưa xoá', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.row('VNM').locator('[data-title="Xóa"]').click();
     await expect(wl.deleteStockConfirmModal).toBeVisible();
     await expect(wl.deleteStockConfirmModal.getByText('Bạn có chắc chắn không?')).toBeVisible();
+    await expect(wl.deleteStockConfirmModal.getByRole('button', { name: 'Đóng' })).toBeVisible();
+    await expect(wl.deleteStockConfirmModal.getByRole('button', { name: 'Xóa', exact: true })).toBeVisible();
+    expect(wl.server.writesOf('DELETE', /\/api\/watchlist\//)).toHaveLength(0);
+  });
+
+  test('TC_WATCHLIST_22: "Đóng" ở modal xác nhận → không xoá, mã vẫn còn', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.row('VNM').locator('[data-title="Xóa"]').click();
     await wl.deleteStockConfirmModal.getByRole('button', { name: 'Đóng' }).click();
     await expect(wl.deleteStockConfirmModal).toBeHidden();
-    await expect(wl.tableRow(mack)).toBeVisible();
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
+    expect(wl.server.writesOf('DELETE', /\/api\/watchlist\//)).toHaveLength(0);
   });
 
-  test('TC_WATCHLIST_23: Xác nhận xóa mã khỏi watchlist (mock thành công)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstRow = wl.table.locator('tbody tr').first();
-    const mack = (await firstRow.locator('td').first().textContent())?.trim() || '';
-
-    let deleteCalled = false;
-    await page.unroute(WATCHLIST_MACK_API);
-    await page.route(WATCHLIST_MACK_API, (route) => {
-      if (route.request().method() === 'DELETE') {
-        deleteCalled = true;
-        return route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
-      }
-      return route.continue();
-    });
-
-    await firstRow.locator('[data-title="Xóa"]').click();
+  test('TC_WATCHLIST_23: Xác nhận xoá → DELETE /api/watchlist/:id, toast thành công, dòng biến mất', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.row('VNM').locator('[data-title="Xóa"]').click();
     await wl.deleteStockConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
-    await expect(page.getByText('Xóa dữ liệu thành công')).toBeVisible();
-    expect(deleteCalled).toBe(true);
-    void mack;
+    await expectNoSuccessToast(page); // 'Xóa dữ liệu thành công' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect(wl.deleteStockConfirmModal).toBeHidden();
+    await expect.poll(() => wl.macksInTable()).toEqual(['FPT', 'HPG']);
+    expect(wl.server.writesOf('DELETE', /\/api\/watchlist\/\d+/)).toHaveLength(1);
   });
 
-  test('TC_WATCHLIST_24: Xóa mã lỗi API', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstRow = wl.table.locator('tbody tr').first();
-
-    await page.unroute(WATCHLIST_MACK_API);
-    await page.route(WATCHLIST_MACK_API, (route) => {
-      if (route.request().method() === 'DELETE') return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
-    });
-
-    await firstRow.locator('[data-title="Xóa"]').click();
+  test('TC_WATCHLIST_24: Xoá mã lỗi máy chủ → toast lỗi, mã vẫn còn', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    wl.server.modes.deleteMack = '500';
+    await wl.row('VNM').locator('[data-title="Xóa"]').click();
     await wl.deleteStockConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
-    await expect(page.getByText('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+    await expect(toast(page, 'Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
   });
 });
 
-test.describe('Watchlist — Thêm mã CK vào Watchlist', () => {
-  test.fixme('TC_WATCHLIST_25: Ô "Chọn mã CK" validate mã không hợp lệ (không tái tạo được qua UI thật — xem ghi chú trong testcases/watchlist.md)', async () => {});
-
-  test('TC_WATCHLIST_26: Thêm mã hợp lệ vào watchlist (mock thành công)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-
-    let addCalled = false;
-    await page.unroute(WATCHLIST_MACK_API);
-    await page.route(WATCHLIST_MACK_API, (route) => {
-      if (route.request().method() === 'POST') {
-        addCalled = true;
-        return route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
-      }
-      return route.continue();
-    });
-
-    await wl.addMackInput.fill('ACB');
-    await page.waitForTimeout(400);
-    await wl.addMackInput.press('Enter');
-    await expect(page.getByText('Thêm vào watchlist thành công')).toBeVisible();
-    expect(addCalled).toBe(true);
+test.describe('Watchlist — Thêm mã (nút "Thêm mã")', () => {
+  test('TC_WATCHLIST_25: Gõ chuỗi không khớp mã nào → "Không có dữ liệu", Enter không gửi gì', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addButton.click();
+    await wl.addInput.fill('ZZZZQ');
+    await expect(wl.addPopover.getByText('Không có dữ liệu')).toBeVisible();
+    await wl.addInput.press('Enter');
+    await page.waitForTimeout(500);
+    expect(wl.server.writesOf('POST', /^\/api\/watchlist$/)).toHaveLength(0);
+    await expect(toast(page, /Mã CK không hợp lệ|Đã thêm/)).toHaveCount(0);
   });
 
-  test('TC_WATCHLIST_27: Thêm mã đã tồn tại sẵn trong watchlist', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-
-    await page.unroute(WATCHLIST_MACK_API);
-    await page.route(WATCHLIST_MACK_API, (route) => {
-      if (route.request().method() === 'POST') {
-        return route.fulfill({ status: 400, body: JSON.stringify({ error_code: 'watch_list_mack_exist' }) });
-      }
-      return route.continue();
-    });
-
-    await wl.addMackInput.fill('ACB');
-    await page.waitForTimeout(400);
-    await wl.addMackInput.press('Enter');
-    await expect(page.getByText('Mã CK đã tồn tại trong watchlist')).toBeVisible();
+  test('TC_WATCHLIST_26: Chọn mã hợp lệ → POST /api/watchlist, toast "Đã thêm ACB vào Auto A", mã xuất hiện trong bảng', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addMack('ACB');
+    await expectNoSuccessToast(page); // 'Đã thêm ACB vào Auto A' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect.poll(() => wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG', 'ACB']);
+    const posts = wl.server.writesOf('POST', /^\/api\/watchlist$/);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].body).toMatchObject({ mack: 'ACB', my_watchlist_id: String(wl.server.list('Auto A').id) });
   });
 
-  test('TC_WATCHLIST_28: Thêm mã lỗi API chung', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-
-    await page.unroute(WATCHLIST_MACK_API);
-    await page.route(WATCHLIST_MACK_API, (route) => {
-      if (route.request().method() === 'POST') return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
-    });
-
-    await wl.addMackInput.fill('ACB');
-    await page.waitForTimeout(400);
-    await wl.addMackInput.press('Enter');
-    await expect(page.getByText('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+  test('TC_WATCHLIST_27: Thêm mã đã có → toast "FPT đã có trong Auto A"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addMack('FPT');
+    await expect(toast(page, 'FPT đã có trong Auto A')).toBeVisible();
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
   });
 
-  test('TC_WATCHLIST_29: Vòng đời thêm/xóa mã thật trên 1 watchlist test riêng (tự dọn dẹp)', async ({ page }) => {
-    test.setTimeout(90000);
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    // Lấy token ngay từ đầu (trong khi page chắc chắn còn sống) để dùng cho API-delete dự phòng ở cuối —
-    // tránh gọi page.evaluate() muộn trong `finally` khi page có thể đã đóng nếu test timeout.
-    const apiToken = (await page.evaluate(() => localStorage.getItem('api_token'))) || '';
+  test('TC_WATCHLIST_28: Thêm mã lỗi máy chủ → toast lỗi chung, bảng không đổi', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    wl.server.modes.addMack = '500';
+    await wl.addMack('ACB');
+    await expect(toast(page, 'Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
+  });
 
-    const testListName = `[TEST-AUTOMATION] ${Date.now()}`;
-    let createdListId: string | null = null;
-    // API thật chạy trên domain riêng (VD api.kfsp.vn), KHÁC domain trang web (kfsp.vn) — không thể suy ra
-    // từ BASE_URL, phải lấy đúng origin từ chính response request thật đã thành công.
-    let apiOrigin: string | null = null;
+  test('TC_WATCHLIST_29: Vòng đời: tạo watchlist mới → chọn → thêm mã → xoá watchlist (máy chủ giả)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
+    await wl.addWatchlistButton.click();
+    await wl.nameInput.fill('Auto Mới');
+    await wl.saveButton.click();
+    await expectNoSuccessToast(page); // 'Thêm Watchlist thành công' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect(wl.manageItem('Auto Mới')).toBeVisible();
+    await wl.manageCloseButton.click();
+    await expect(wl.manageModal).toBeHidden();
 
-    try {
-      // Tạo watchlist test riêng — đi qua API thật để có ID thật dùng cho dọn dẹp.
-      await page.unroute(MY_WATCHLIST_API);
-      page.on('response', async (res) => {
-        if (res.url().includes('/api/my-watchlist/') && res.request().method() === 'POST' && res.ok()) {
-          apiOrigin = new URL(res.url()).origin;
-          const body = await res.json().catch(() => null);
-          if (body?.id || body?.data?.id) createdListId = String(body.id || body.data.id);
-        }
-      });
+    await wl.selectList('Auto Mới');
+    await expect(wl.table.getByText('No items')).toBeVisible();
+    await wl.addMack('ACB');
+    await expectNoSuccessToast(page); // 'Đã thêm ACB vào Auto Mới' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect.poll(() => wl.macksInTable()).toEqual(['ACB']);
 
-      await wl.openManageWatchlistModal();
-      await wl.addWatchlistButton.click();
-      await wl.createUpdateNameInput.fill(testListName);
-      await wl.createUpdateSaveButton.click();
-      await expect(page.getByText('Thêm Watchlist thành công')).toBeVisible();
-      await page.waitForTimeout(500);
-      // Modal Tạo/Sửa tự đóng khi thành công, nhưng modal "Quản lý Watchlist" bên dưới VẪN còn mở — phải
-      // đóng nó lại trước, nếu không nó sẽ chặn pointer-events của toggler dropdown watchlist bên dưới.
-      await wl.manageModalCloseButton.click();
-      await expect(wl.manageModal).toBeHidden();
+    await wl.openManageModal();
+    await wl.manageItem('Auto Mới').locator('[data-title="Xóa"]').click();
+    await wl.deleteWholeListConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
+    await expectNoSuccessToast(page); // 'Đã xóa Watchlist thành công' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect(wl.manageItem('Auto Mới')).toHaveCount(0);
+    expect(wl.server.lists.map((l) => l.name)).toEqual(DEFAULT_LISTS.map((l) => l.name));
+  });
 
-      // Chuyển sang watchlist vừa tạo, thêm 1 mã thật.
-      await wl.openWatchlistDropdown();
-      await wl.watchlistOptionInDropdown(testListName).click();
-      await page.waitForTimeout(500);
+  test('TC_WATCHLIST_50: Bấm "Thêm mã" → hộp "Thêm mã vào <watchlist>", ô nhập focus sẵn; bấm lại nút / bấm ra ngoài → đóng', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addButton.click();
+    await expect(wl.addPopover).toBeVisible();
+    await expect(wl.addPopoverTitle).toHaveText('Thêm mã vào Auto A');
+    await expect(wl.addInput).toBeFocused();
+    await expect(wl.addButton).toHaveAttribute('aria-expanded', 'true');
+    await wl.addButton.click();
+    await expect(wl.addPopover).toBeHidden();
+    await expect(wl.addButton).toHaveAttribute('aria-expanded', 'false');
+    await wl.addButton.click();
+    await expect(wl.addPopover).toBeVisible();
+    await page.mouse.click(800, 800);
+    await expect(wl.addPopover).toBeHidden();
+  });
 
-      await page.unroute(WATCHLIST_MACK_API);
-      await wl.addMackInput.fill('ACB');
-      await page.waitForTimeout(400);
-      await wl.addMackInput.press('Enter');
-      await expect(page.getByText('Thêm vào watchlist thành công')).toBeVisible();
-      await expect(wl.tableRow('ACB')).toBeVisible();
-    } finally {
-      // Dọn dẹp: xóa hẳn watchlist test (kèm mã vừa thêm) — ưu tiên qua UI, có API-delete dự phòng.
-      try {
-        await page.unroute(MY_WATCHLIST_API).catch(() => {});
-        await wl.openManageWatchlistModal();
-        const item = wl.manageModalItem(testListName);
-        if (await item.count()) {
-          await wl.deleteWatchlistIconOf(testListName).click();
-          await wl.deleteWholeListConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
-          await expect(page.getByText('Đã xóa Watchlist thành công')).toBeVisible({ timeout: 5000 });
-        } else if (createdListId && apiOrigin) {
-          await page.request.delete(`${apiOrigin}/api/my-watchlist/${createdListId}`, {
-            params: { token: apiToken },
-          }).catch(() => {});
-        }
-      } catch {
-        if (createdListId && apiOrigin) {
-          await page.request.delete(`${apiOrigin}/api/my-watchlist/${createdListId}`, {
-            params: { token: apiToken },
-          }).catch(() => {});
-        }
-      }
+  test('TC_WATCHLIST_51: Nhấn Esc trong ô nhập → đóng hộp "Thêm mã"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addButton.click();
+    await wl.addInput.fill('FP');
+    await wl.addInput.press('Escape');
+    await expect(wl.addPopover).toBeHidden();
+    // Mở lại → ô nhập trống.
+    await wl.addButton.click();
+    await expect(wl.addInput).toHaveValue('');
+  });
+
+  test('TC_WATCHLIST_52: Gợi ý tối đa 5 dòng dạng "MÃ - Tên công ty", lọc theo mã hoặc tên công ty', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addButton.click();
+    await wl.addInput.fill('ngân hàng');
+    await expect.poll(async () => (await wl.addOptions.allInnerTexts()).every((t) => /^[A-Z0-9]{3,} - .*ngân hàng/i.test(t.trim())),
+      { message: 'Sau 300ms (debounce) chỉ còn gợi ý có "ngân hàng" trong tên' }).toBe(true);
+    await expect(wl.addOptions).toHaveCount(5);
+    await wl.addInput.fill('VNM');
+    await expect(wl.addOption('VNM')).toBeVisible();
+  });
+
+  test('TC_WATCHLIST_53: Thêm xong hộp vẫn mở, ô nhập trống để thêm tiếp mã khác', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addMack('ACB');
+    await expectNoSuccessToast(page); // 'Đã thêm ACB vào Auto A' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect(wl.addPopover).toBeVisible();
+    await expect(wl.addInput).toHaveValue('');
+    await wl.addMack('MBB');
+    await expectNoSuccessToast(page); // 'Đã thêm MBB vào Auto A' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect.poll(() => wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG', 'ACB', 'MBB']);
+  });
+
+  test('TC_WATCHLIST_54: Đang mở hộp "Thêm mã" mà chọn watchlist khác → hộp đóng, tiêu đề đổi theo khi mở lại', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.addButton.click();
+    await expect(wl.addPopover).toBeVisible();
+    await wl.selectList('Auto B');
+    await expect(wl.addPopover).toBeHidden();
+    await wl.addButton.click();
+    await expect(wl.addPopoverTitle).toHaveText('Thêm mã vào Auto B');
+  });
+
+  test('TC_WATCHLIST_55: Danh mục chỉ-đọc (Nhật ký GD / Khác) — không có nút "Thêm mã", không có icon Xoá', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    for (const tab of ['Nhật ký GD', 'Khác'] as const) {
+      await wl.openDropdown();
+      await wl.dropdownTab(tab).click();
+      const first = wl.dropdownMenu.getByRole('menuitem').first();
+      const name = (await first.innerText()).trim();
+      await first.click();
+      await expect(wl.pickerLabel).toHaveText(name);
+      await expect(wl.addButton, tab).toHaveCount(0);
+      await expect(wl.rows.first()).toBeVisible({ timeout: 20000 });
+      await expect(wl.table.locator('[data-title="Xóa"]'), tab).toHaveCount(0);
     }
   });
 });
 
-test.describe('Watchlist — Quản lý nhiều Watchlist', () => {
-  test('TC_WATCHLIST_30: Hiển thị modal Quản lý Watchlist', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
-    await expect(wl.manageModal.getByText('Quản lý Watchlist')).toBeVisible();
+test.describe('Watchlist — Modal "Quản lý Watchlist"', () => {
+  test('TC_WATCHLIST_30: Modal Quản lý — tiêu đề, "Thêm watchlist", ×, mỗi dòng có ☰ + Sửa + Xoá', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
     await expect(wl.addWatchlistButton).toBeVisible();
-    await expect(wl.manageModal.locator('.watchlist-item').first()).toBeVisible();
+    await expect(wl.manageCloseButton).toBeVisible();
+    await expect(wl.manageItems).toHaveCount(DEFAULT_LISTS.length);
+    for (const l of DEFAULT_LISTS) {
+      const item = wl.manageItem(l.name);
+      await expect(item.locator('.drag-handle').first()).toBeVisible();
+      await expect(item.locator('[data-title="Sửa"]')).toBeVisible();
+      await expect(item.locator('[data-title="Xóa"]')).toBeVisible();
+    }
+    await expect(wl.manageModal.getByRole('checkbox'), 'Checkbox Moderator đã bỏ').toHaveCount(0);
   });
 
-  test.fixme('TC_WATCHLIST_31: Checkbox "Nhận tất cả thông báo (Dành cho Moderator)"', async () => {});
-
-  test('TC_WATCHLIST_32: Kéo-thả sắp xếp lại thứ tự watchlist (mock)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
-
-    let sortCallCount = 0;
-    await page.route('**/api/sort-my-watchlist', (route) => {
-      sortCallCount++;
-      return route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
-    });
-
-    const items = wl.manageModal.locator('.watchlist-item');
-    const count = await items.count();
-    test.skip(count < 2, 'Cần ít nhất 2 watchlist để test kéo-thả');
-
-    const first = items.nth(0);
-    const second = items.nth(1);
-    const firstBox = await first.boundingBox();
-    const secondBox = await second.boundingBox();
-    test.skip(!firstBox || !secondBox, 'Không lấy được vị trí để kéo-thả');
-
-    await page.mouse.move(firstBox!.x + 10, firstBox!.y + firstBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(secondBox!.x + 10, secondBox!.y + secondBox!.height + 5, { steps: 10 });
-    await page.mouse.up();
-    await page.waitForTimeout(500);
-
-    expect(sortCallCount, 'Kéo-thả phải gọi đúng API sort ít nhất 1 lần').toBeGreaterThanOrEqual(1);
+  test('TC_WATCHLIST_32: Kéo-thả đổi thứ tự → POST /api/sort-my-watchlist đúng 1 lần với thứ tự mới', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
+    // vuedraggable (Sortable.js) dùng HTML5 drag & drop → kéo bằng dragTo.
+    const target = wl.manageItem('Auto B');
+    const box = (await target.boundingBox())!;
+    await wl.manageItem('Auto A').locator('.name').dragTo(target, { targetPosition: { x: 20, y: box.height - 3 } });
+    await expect.poll(() => wl.server.writesOf('POST', /sort-my-watchlist/).length).toBe(1);
+    await page.waitForTimeout(600);
+    expect(wl.server.writesOf('POST', /sort-my-watchlist/)).toHaveLength(1);
+    const sorted = wl.server.writesOf('POST', /sort-my-watchlist/)[0].body.my_watchlist_sorted as { name: string }[];
+    expect(sorted.map((x) => x.name)).toEqual(['Auto B', 'Auto A', 'Auto Rỗng']);
   });
 
-  test('TC_WATCHLIST_33: Sửa tên 1 watchlist từ modal quản lý (mock)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
-    const firstItem = wl.manageModal.locator('.watchlist-item').first();
-    const originalName = (await firstItem.locator('.name').textContent())?.replace('☰', '').trim() || '';
-
-    await page.unroute(MY_WATCHLIST_API);
-    await page.route(MY_WATCHLIST_API, (route) => {
-      if (route.request().method() === 'PUT') return route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
-      return route.continue();
-    });
-
-    await wl.editIconOf(originalName).click();
-    await expect(wl.createUpdateHeading).toHaveText('Cập nhật Watchlist');
-    await expect(wl.createUpdateNameInput).toHaveValue(originalName);
-    await wl.createUpdateSaveButton.click();
-    await expect(page.getByText('Cập nhật Watchlist thành công')).toBeVisible();
+  test('TC_WATCHLIST_33: Sửa tên watchlist → PUT, toast "Cập nhật Watchlist thành công", tên mới ở modal + dropdown', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
+    await wl.manageItem('Auto B').locator('[data-title="Sửa"]').click();
+    await expect(wl.nameInput).toHaveValue('Auto B');
+    await wl.nameInput.fill('Auto B2');
+    await wl.saveButton.click();
+    await expectNoSuccessToast(page); // 'Cập nhật Watchlist thành công' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect(wl.manageItem('Auto B2')).toBeVisible();
+    const put = wl.server.writesOf('PUT', /\/api\/my-watchlist\/\d+/);
+    expect(put).toHaveLength(1);
+    expect(put[0].body).toMatchObject({ name: 'Auto B2' });
   });
 
-  test('TC_WATCHLIST_34: Xóa 1 watchlist từ modal quản lý (mock)', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
-    const firstItem = wl.manageModal.locator('.watchlist-item').first();
-    const name = (await firstItem.locator('.name').textContent())?.replace('☰', '').trim() || '';
-
-    await page.unroute(MY_WATCHLIST_API);
-    await page.route(MY_WATCHLIST_API, (route) => {
-      if (route.request().method() === 'DELETE') return route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
-      return route.continue();
-    });
-
-    await wl.deleteWatchlistIconOf(name).click();
+  test('TC_WATCHLIST_34: Xoá watchlist → modal cảnh báo "Những mã thuộc Watchlist này sẽ bị xóa hết", xoá xong biến mất', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
+    await wl.manageItem('Auto B').locator('[data-title="Xóa"]').click();
+    await expect(wl.deleteWholeListConfirmModal).toBeVisible();
     await wl.deleteWholeListConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
-    await expect(page.getByText('Đã xóa Watchlist thành công')).toBeVisible();
+    await expectNoSuccessToast(page); // 'Đã xóa Watchlist thành công' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
+    await expect(wl.manageItem('Auto B')).toHaveCount(0);
+    expect(wl.server.writesOf('DELETE', /\/api\/my-watchlist\/\d+/)).toHaveLength(1);
   });
 
-  test('TC_WATCHLIST_35: Lỗi khi sửa/xóa watchlist', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
-    const firstItem = wl.manageModal.locator('.watchlist-item').first();
-    const name = (await firstItem.locator('.name').textContent())?.replace('☰', '').trim() || '';
-
-    await page.unroute(MY_WATCHLIST_API);
-    await page.route(MY_WATCHLIST_API, (route) => {
-      if (['PUT', 'DELETE'].includes(route.request().method())) return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
-    });
-
-    await wl.deleteWatchlistIconOf(name).click();
+  test('TC_WATCHLIST_35: Sửa / xoá watchlist lỗi máy chủ → toast lỗi, danh sách không đổi', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    wl.server.modes.update = '500';
+    wl.server.modes.deleteList = '500';
+    await wl.openManageModal();
+    await wl.manageItem('Auto B').locator('[data-title="Sửa"]').click();
+    await wl.nameInput.fill('Auto B2');
+    await wl.saveButton.click();
+    await expect(toast(page, 'Có lỗi xảy ra, vui lòng thử lại sau')).toBeVisible();
+    await expect(wl.createUpdateModal, 'Lỗi → modal Sửa vẫn mở').toBeVisible();
+    await wl.cancelButton.click();
+    await wl.manageItem('Auto B').locator('[data-title="Xóa"]').click();
     await wl.deleteWholeListConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
-    await expect(page.getByText('Đã có lỗi xảy ra, vui lòng thử lại sau')).toBeVisible();
+    await expect(toast(page, 'Đã có lỗi xảy ra, vui lòng thử lại sau')).toBeVisible();
+    await expect(wl.manageItem('Auto B')).toBeVisible();
   });
 });
 
-test.describe('Watchlist — Modal Tạo/Sửa Watchlist', () => {
-  test('TC_WATCHLIST_36: Mở modal "Thêm mới Watchlist"', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
+test.describe('Watchlist — Modal Tạo/Sửa watchlist', () => {
+  test('TC_WATCHLIST_36: "Thêm watchlist" → modal "Thêm mới Watchlist": ô tên trống, nút Hủy/Lưu, không còn checkbox tín hiệu', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
     await wl.addWatchlistButton.click();
-    await expect(wl.createUpdateHeading).toHaveText('Thêm mới Watchlist');
-    await expect(wl.createUpdateNameInput).toHaveValue('');
-    await expect(wl.createUpdateModal.getByRole('checkbox')).not.toBeChecked();
-    await expect(wl.createUpdateSaveButton).toBeVisible();
-    await expect(wl.createUpdateCancelButton).toBeVisible();
+    await expect(wl.createUpdateTitle).toHaveText('Thêm mới Watchlist');
+    await expect(wl.createUpdateModal.getByText('Tên Watchlist')).toBeVisible();
+    await expect(wl.nameInput).toHaveValue('');
+    await expect(wl.saveButton).toBeVisible();
+    await expect(wl.cancelButton).toBeVisible();
+    await expect(wl.createUpdateModal.getByRole('checkbox')).toHaveCount(0);
   });
 
-  test('TC_WATCHLIST_37: Submit tên rỗng', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
+  test('TC_WATCHLIST_37: Lưu khi tên trống → toast "Tên Watchlist không được để trống", ô đỏ, không gửi, modal giữ nguyên', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
     await wl.addWatchlistButton.click();
-    await wl.createUpdateSaveButton.click();
-    await expect(page.getByText('Tên Watchlist không được để trống')).toBeVisible();
+    await wl.saveButton.click();
+    await expect(toast(page, 'Tên Watchlist không được để trống')).toBeVisible();
+    await expect(wl.nameInput).toHaveClass(/is-invalid/);
     await expect(wl.createUpdateModal).toBeVisible();
+    expect(wl.server.writesOf('POST', /\/api\/my-watchlist/)).toHaveLength(0);
   });
 
-  test('TC_WATCHLIST_38: Tạo watchlist mới hợp lệ (mock) và lỗi khi tạo', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
+  test('TC_WATCHLIST_38: Tạo watchlist — lỗi máy chủ thì modal giữ nguyên; lưu lại thành công thì đóng + có trong danh sách', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
     await wl.addWatchlistButton.click();
-
-    await page.unroute(MY_WATCHLIST_API);
-    await page.route(MY_WATCHLIST_API, (route) => {
-      if (route.request().method() === 'POST') return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
-    });
-    await wl.createUpdateNameInput.fill('Test lỗi tạo watchlist');
-    await wl.createUpdateSaveButton.click();
-    await expect(page.getByText('Có lỗi xảy ra, vui lòng thử lại sau')).toBeVisible();
-    await expect(wl.createUpdateModal, 'Modal KHÔNG được tự đóng khi lỗi').toBeVisible();
-
-    await page.unroute(MY_WATCHLIST_API);
-    await page.route(MY_WATCHLIST_API, (route) => {
-      if (route.request().method() === 'POST') return route.fulfill({ status: 200, body: JSON.stringify({ success: true }) });
-      return route.continue();
-    });
-    await wl.createUpdateSaveButton.click();
-    await expect(page.getByText('Thêm Watchlist thành công')).toBeVisible();
+    wl.server.modes.create = '500';
+    await wl.nameInput.fill('Auto Tạo');
+    await wl.saveButton.click();
+    await expect(toast(page, 'Có lỗi xảy ra, vui lòng thử lại sau')).toBeVisible();
+    await expect(wl.createUpdateModal).toBeVisible();
+    wl.server.modes.create = 'ok';
+    await wl.saveButton.click();
+    await expectNoSuccessToast(page); // 'Thêm Watchlist thành công' — toast thành công đã tắt toàn app (main.js, 12/10/2026)
     await expect(wl.createUpdateModal).toBeHidden();
+    await expect(wl.manageItem('Auto Tạo')).toBeVisible();
+    expect(wl.server.writesOf('POST', /\/api\/my-watchlist/).at(-1)!.body).toMatchObject({ name: 'Auto Tạo', receive_signal: false });
   });
 
-  test('TC_WATCHLIST_39: Nút "Hủy" đóng modal không lưu', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
+  test('TC_WATCHLIST_39: "Hủy" đóng modal, không gửi gì', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
     await wl.addWatchlistButton.click();
-    await wl.createUpdateNameInput.fill('Test hủy không lưu');
-    await wl.createUpdateCancelButton.click();
+    await wl.nameInput.fill('Auto Hủy');
+    await wl.cancelButton.click();
     await expect(wl.createUpdateModal).toBeHidden();
-    await expect(page.getByText('Test hủy không lưu')).toHaveCount(0);
+    await expect(wl.manageItem('Auto Hủy')).toHaveCount(0);
+    expect(wl.server.writesOf('POST', /\/api\/my-watchlist/)).toHaveLength(0);
   });
 
-  test('TC_WATCHLIST_40: Mở modal ở chế độ Sửa — tiêu đề đổi thành "Cập nhật Watchlist"', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.openManageWatchlistModal();
-    const firstItem = wl.manageModal.locator('.watchlist-item').first();
-    const name = (await firstItem.locator('.name').textContent())?.replace('☰', '').trim() || '';
-    await wl.editIconOf(name).click();
-    await expect(wl.createUpdateHeading).toHaveText('Cập nhật Watchlist');
-    await expect(wl.createUpdateNameInput).toHaveValue(name);
+  test('TC_WATCHLIST_40: Mở từ icon Sửa → tiêu đề "Cập nhật Watchlist", tên điền sẵn', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
+    await wl.manageItem('Auto A').locator('[data-title="Sửa"]').click();
+    await expect(wl.createUpdateTitle).toHaveText('Cập nhật Watchlist');
+    await expect(wl.nameInput).toHaveValue('Auto A');
+  });
+
+  test('TC_WATCHLIST_48: ⚠️ Bấm đúp "Lưu" khi máy chủ chậm → gửi 2 lần tạo watchlist (không chặn bấm lặp)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.openManageModal();
+    await wl.addWatchlistButton.click();
+    wl.server.modes.create = 'slow';
+    await wl.nameInput.fill('Auto Đúp');
+    await wl.saveButton.dblclick();
+    await expect(wl.createUpdateModal).toBeHidden({ timeout: 10000 });
+    await page.waitForTimeout(3000);
+    expect(wl.server.writesOf('POST', /\/api\/my-watchlist/), 'Measured: handleSave không có cờ đang lưu').toHaveLength(2);
   });
 });
 
-test.describe('Watchlist — Panel phải: Ghi chú & Bài viết', () => {
-  test('TC_WATCHLIST_41: Click icon "Xem ghi chú" mở panel Ghi chú lọc theo mã', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstRow = wl.table.locator('tbody tr').first();
-    const mack = (await firstRow.locator('td').first().textContent())?.trim() || '';
-    const noteIcon = firstRow.locator('[data-title="Xem ghi chú"]');
-    await noteIcon.click();
-    await expect(wl.noteMackFilterLabel).toBeVisible();
-    await expect(page.getByText(mack, { exact: false }).first()).toBeVisible();
+test.describe('Watchlist — Cột phải: Ghi chú & Bài viết', () => {
+  test('TC_WATCHLIST_41: Icon "Xem ghi chú" trên 1 dòng → cột phải mở tab Ghi chú, bộ lọc mở sẵn với "Mã CK: VNM"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open({ storage: { watchlist_right_tab: 'closed' } });
+    await expect(wl.rightContent).toHaveCount(0);
+    const noteReq = page.waitForRequest((r) => /\/api\/user-note\?/.test(r.url()) && /macks(\[\])?=VNM/.test(decodeURIComponent(r.url())));
+    await wl.row('VNM').locator('[data-title="Xem ghi chú"]').click();
+    await expect(wl.notesTab).toHaveClass(/active/);
+    await expect(wl.noteMackFilter.locator('.ti-tag')).toHaveText(['VNM']);
+    await noteReq;
+    expect(await wl.leftRatio()).toBeCloseTo(0.7, 2);
   });
 
-  test('TC_WATCHLIST_42: Trạng thái không có ghi chú nào', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstRow = wl.table.locator('tbody tr').first();
-    await firstRow.locator('[data-title="Xem ghi chú"]').click();
-    // Không assert cứng luôn có 0 ghi chú (mã có thể đã có ghi chú thật) — chỉ verify không crash và có 1 trong 2
-    // trạng thái hợp lệ.
-    const emptyVisible = await wl.noEmptyNotesHeading.isVisible().catch(() => false);
-    expect(typeof emptyVisible).toBe('boolean');
+  test('TC_WATCHLIST_42: Không có ghi chú nào → "Không có ghi chú nào"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await page.route(/\/api\/user-note\?/, (route) => route.fulfill({ json: { success: true, data: { list: [], last_date: null } } }));
+    await wl.open();
+    await expect(wl.rightContent.getByRole('heading', { name: 'Không có ghi chú nào' })).toBeVisible();
   });
 
-  test('TC_WATCHLIST_43: Tab "Bài viết" — công bố thông tin theo mã trong watchlist', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.postsTabButton.click();
-    await page.waitForTimeout(500);
-    await expect(wl.postsTabButton).toHaveClass(/active/);
+  test('TC_WATCHLIST_43: Tab "Bài viết" — tin công bố của các mã trong watchlist đang chọn', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.postsTab.click();
+    await expect(wl.postsTab).toHaveClass(/active/);
+    await expect(wl.rightContent).toBeVisible();
+    await expect(wl.rightContent.locator('a').first()).toBeVisible({ timeout: 20000 });
   });
 
-  test('TC_WATCHLIST_44: Chuyển đổi qua lại 2 tab Ghi chú / Bài viết, click lại tab active để thu gọn', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    await wl.postsTabButton.click();
-    await page.waitForTimeout(300);
-    await expect(wl.postsTabButton).toHaveClass(/active/);
-
-    await wl.notesTabButton.click();
-    await page.waitForTimeout(300);
-    await expect(wl.notesTabButton).toHaveClass(/active/);
-
-    await wl.notesTabButton.click();
-    await page.waitForTimeout(300);
-    await expect(wl.notesTabButton).not.toHaveClass(/active/);
+  test('TC_WATCHLIST_44: Bấm lại thẻ đang mở → đóng cột phải (cột trái ~97,5%, ẩn thanh chia cột)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.postsTab.click();
+    await expect(wl.postsTab).toHaveClass(/active/);
+    await wl.notesTab.click();
+    await expect(wl.notesTab).toHaveClass(/active/);
+    await wl.notesTab.click();
+    await expect(wl.rightPanelTabs.and(page.locator('.active'))).toHaveCount(0);
+    await expect(wl.resizeHandle).toBeHidden();
+    await expect.poll(() => wl.leftRatio()).toBeGreaterThan(0.95);
   });
 
-  test('TC_WATCHLIST_45: Nút "Thêm ghi chú mới" hiển thị', async ({ page }) => {
-    await loginFirst(page);
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    // Tab "Ghi chú" active mặc định (activeTabIndex: 0) — click lại tab đang active sẽ THU GỌN panel
-    // (theo handleClickTab), nên phải đảm bảo đang ở trạng thái KHÁC trước, rồi mới click để mở panel Ghi chú.
-    await wl.postsTabButton.click();
-    await page.waitForTimeout(300);
-    await wl.notesTabButton.click();
+  test('TC_WATCHLIST_45: Nút "Thêm ghi chú mới" hiển thị ở tab Ghi chú', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
     await expect(wl.addNoteButton).toBeVisible();
+  });
+
+  test('TC_WATCHLIST_56: Vào lại trang → mở đúng watchlist đã chọn lần trước (nhớ theo tài khoản)', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.selectList('Auto B');
+    const key = await page.evaluate(() => `watchlist_selected_option_${localStorage.getItem('user_id')}`);
+    expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(`watchlist_${wl.server.list('Auto B').id}`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(wl.pickerLabel).toHaveText('Auto B', { timeout: 30000 });
+    await expect.poll(() => wl.macksInTable()).toEqual(['ACB', 'MBB']);
+  });
+
+  test('TC_WATCHLIST_57: Đóng cột phải rồi vào lại trang → vẫn đóng; "Đặt lại bố cục" mở lại tab Ghi chú', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open();
+    await wl.notesTab.click();
+    expect(await page.evaluate(() => localStorage.getItem('watchlist_right_tab'))).toBe('closed');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await wl.waitReady();
+    await expect(wl.rightContent).toHaveCount(0);
+    await expect(wl.resizeHandle).toBeHidden();
+    await wl.resetLayoutButton.click();
+    await expect(wl.notesTab).toHaveClass(/active/);
+    await expect.poll(() => wl.leftRatio()).toBeCloseTo(0.7, 2);
+    expect(await page.evaluate(() => localStorage.getItem('watchlist_right_tab'))).toBe('0');
   });
 });
 
 test.describe('Watchlist — Tài khoản Free', () => {
-  test('TC_WATCHLIST_46: Cột điểm/định giá ẩn với tài khoản Free', async ({ page }) => {
-    const loginFailed = await (async () => {
-      test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-      const loginPage = new LoginPage(page);
-      await loginPage.goto();
-      await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-      return loginPage.errorAlert.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
-    })();
-    test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
+  test('TC_WATCHLIST_46: Free — cột Điểm Canslim, Điểm 4M, Tiềm năng giá hiện "--", không có viên điểm', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open({ account: 'free' });
+    const headers = (await wl.table.locator('thead th').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
+    const cells = wl.row('FPT').locator('td');
+    for (const name of ['Điểm Canslim', 'Điểm 4M', 'Tiềm năng giá (KFSP AI)']) {
+      const i = headers.indexOf(name);
+      expect(i, name).toBeGreaterThan(-1);
+      await expect(cells.nth(i), name).toHaveText('--');
+    }
+    await expect(wl.table.locator('.score-pill')).toHaveCount(0);
+  });
 
-    const wl = new WatchlistPage(page);
-    await wl.goto();
-    const firstRow = wl.table.locator('tbody tr').first();
-    await expect(firstRow.locator('td').nth(3)).toHaveText('--');
+  test('TC_WATCHLIST_61: Free — tab Ghi chú hiện "Bạn cần nâng cấp gói hội viên…" + "Nâng cấp ngay"', async ({ page }) => {
+    wl = new WatchlistPage(page);
+    await wl.open({ account: 'free' });
+    await expect(wl.rightContent.getByText('Bạn cần nâng cấp gói hội viên để sử dụng chức năng này')).toBeVisible();
+    await expect(wl.rightContent.getByText('Nâng cấp ngay')).toBeVisible();
+    await expect(wl.addNoteButton).toHaveCount(0);
   });
 });
 
 test.describe('Watchlist — Hành vi chung khác', () => {
-  test.fixme('TC_WATCHLIST_48: Double-click nút "Lưu" trong modal Tạo/Sửa Watchlist — cần đo số request thật', async () => {});
-  test.fixme('TC_WATCHLIST_49: Giá/dữ liệu tự cập nhật qua socket — phụ thuộc thời điểm cập nhật thật, tốn thời gian chờ nếu test', async () => {});
+  test.fixme('TC_WATCHLIST_49: Giá tự cập nhật qua socket — phụ thuộc phiên giao dịch thật, không assert ổn định được', async () => {});
 });

@@ -1,347 +1,345 @@
-import { test, expect } from '@playwright/test';
-import { TradingLogPage } from '../pages/TradingLogPage';
-import { LoginPage } from '../pages/LoginPage';
+import { test, expect, Locator } from '@playwright/test';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
+import { TradingLogPage, CAT, NkOpenOptions } from '../pages/TradingLogPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
+/**
+ * NKGD — tab "Danh mục" (testcases/nhat-ky-giao-dich-danh-muc.md). prev2 + máy chủ giả: mọi API danh mục là giả,
+ * request ghi khác bị huỷ (`afterEach` kiểm tra `blocked` rỗng), ghi setting bị chặn.
+ */
+test.use({ baseURL: PREV2_BASE_URL, viewport: { width: 1600, height: 900 } });
+test.setTimeout(120_000);
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+let nk: TradingLogPage;
+test.beforeEach(async ({ page }) => { nk = new TradingLogPage(page); });
+test.afterEach(async () => { expect(nk.server.blocked, 'request ghi lọt tới máy chủ thật').toEqual([]); });
+
+async function openTab(opts: NkOpenOptions = {}) {
+  await nk.open({ tab: 4, ...opts });
+  await expect(nk.dmAddBtn).toBeVisible({ timeout: 30000 });
+  await nk.waitData();
+}
+const nameInput = (m: Locator) => m.locator('.mc-form input:not([type="checkbox"])').first();
+const capitalInput = (m: Locator) => m.locator('.mc-form input:not([type="checkbox"])').nth(1);
+const manualTick = (m: Locator) => m.getByRole('checkbox', { name: 'Nhập giá vốn' });
+const catWrites = () => nk.server.writesTo(/\/stocks\/category\//);
+/** Lần ghi setting `capital_allocation_data_save` gần nhất (đã bị chặn), dạng object. */
+const lastCapitalWrite = () => {
+  const w = nk.settingWrites.filter((s) => s.key === 'capital_allocation_data_save').pop();
+  return w ? JSON.parse(String(w.value)) : null;
+};
+async function openAdd(name?: string) {
+  await nk.dmAddBtn.click();
+  await expect(nk.dmAddModal).toBeVisible();
+  if (name !== undefined) await nameInput(nk.dmAddModal).fill(name);
 }
 
-const CATEGORY_MUTATE = /\/api\/stocks\/category(\/|\?|$)/;
-const CATEGORY_RESTORE = /\/api\/stocks\/category\/restore(\?|$)/;
-
-// An toàn: tài khoản test có 11 danh mục thật đang dùng cho hàng trăm giao dịch. Mọi API mutate của
-// ManageCategory.vue bị chặn mặc định.
-async function blockMutations(page: any) {
-  await page.route(CATEGORY_MUTATE, (route: any) =>
-    route.request().method() === 'GET' ? route.continue() : route.abort()
-  );
-}
-
-async function gotoCategoryTab(page: any) {
-  await loginFirst(page);
-  const nkgd = new TradingLogPage(page);
-  await nkgd.goto();
-  await nkgd.gotoMainTab('Quản lý danh mục');
-  return nkgd;
-}
-
-test.beforeEach(async ({ page }) => {
-  await blockMutations(page);
-});
-
-test.describe('Quản lý danh mục — Overview & sub-tab', () => {
-  test('TC_NKGD_DM_01: Overview — sub-tab "Danh mục hiện có" active mặc định', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await expect(nkgd.categorySubTab('Danh mục hiện có')).toHaveClass(/active/);
-    await expect(nkgd.addCategoryButton).toBeVisible();
-    await expect(nkgd.categoryTable).toBeVisible();
+test.describe('Tổng quan & bảng danh mục', () => {
+  test('TC_NKGD_DM_01: Hàng đầu (đếm + 2 nút), bảng xếp theo tên, mỗi dòng có Sửa/Xóa, có hàng Tổng', async () => {
+    await openTab();
+    await expect(nk.dmCount).toHaveText('3 danh mục');
+    await expect(nk.dmDeletedBtn).toHaveText(/Danh mục đã xóa \(1\)/);
+    await expect(nk.dmTable.locator('thead th')).toHaveText(['Tên danh mục', 'Vốn ban đầu', '']);
+    await expect(nk.dmTable.locator('tbody td.mc-ten')).toHaveText(['Cổ tức', 'Dài hạn', 'Lướt sóng']);
+    for (const name of ['Cổ tức', 'Dài hạn', 'Lướt sóng']) {
+      await expect(nk.dmRow(name).getByRole('button', { name: 'Sửa' })).toBeVisible();
+      await expect(nk.dmRow(name).getByRole('button', { name: 'Xóa' })).toBeVisible();
+    }
+    await expect(nk.dmTable.locator('tfoot td').first()).toHaveText('Tổng');
   });
 
-  test('TC_NKGD_DM_02: Chuyển sang sub-tab "Danh mục đã xóa"', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.categorySubTab('Danh mục đã xóa').click();
-    await page.waitForTimeout(300);
-    await expect(nkgd.categorySubTab('Danh mục đã xóa')).toHaveClass(/active/);
-    await expect(nkgd.addCategoryButton).toHaveCount(0);
+  test('TC_NKGD_DM_02: Vốn tự nhập, vốn tự động (có tooltip) và hàng Tổng = tổng các dòng', async () => {
+    await openTab();
+    const cell = (name: string) => nk.dmRow(name).locator('td.num');
+    await expect(cell('Dài hạn')).toHaveText('500,000,000');
+    await expect(cell('Dài hạn')).not.toHaveAttribute('title', /.+/);
+    const num = async (l: Locator) => Number((await l.innerText()).replace(/,/g, ''));
+    for (const name of ['Cổ tức', 'Lướt sóng']) {
+      await expect(cell(name)).toHaveAttribute('title', /^Giá vốn tự động: bằng tổng chi/);
+      await expect.poll(() => num(cell(name)), { timeout: 15000 }).toBeGreaterThan(0);
+    }
+    const sum = (await num(cell('Cổ tức'))) + (await num(cell('Dài hạn'))) + (await num(cell('Lướt sóng')));
+    expect(await num(nk.dmTable.locator('tfoot td.num'))).toBe(sum);
+  });
+
+  test('TC_NKGD_DM_03: Không có danh mục nào → "0 danh mục", "Chưa có danh mục nào", không có hàng Tổng', async () => {
+    await openTab({ data: (d) => { d.categories = []; d.logs = []; } });
+    await expect(nk.dmCount).toHaveText('0 danh mục');
+    await expect(nk.dmTable.locator('td.mc-trong')).toHaveText('Chưa có danh mục nào');
+    await expect(nk.dmTable.locator('tfoot')).toHaveCount(0);
   });
 });
 
-test.describe('Quản lý danh mục — Bảng "Danh mục hiện có"', () => {
-  test('TC_NKGD_DM_03: Hiển thị đúng danh sách danh mục + Vốn ban đầu', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await expect(nkgd.categoryTable.getByRole('columnheader', { name: /Tên danh mục/ })).toBeVisible();
-    await expect(nkgd.categoryTable.getByRole('columnheader', { name: 'Vốn ban đầu' })).toBeVisible();
-    await expect(nkgd.categoryTable.getByRole('row').nth(1)).toBeVisible();
+test.describe('Thêm danh mục', () => {
+  test('TC_NKGD_DM_04: Modal Thêm — ô tên rỗng, "Nhập giá vốn" chưa tích, tích thì hiện ô vốn + ghi chú', async () => {
+    await openTab();
+    await openAdd();
+    const m = nk.dmAddModal;
+    await expect(m.locator('.mc-label')).toHaveText('Tên danh mục');
+    await expect(nameInput(m)).toHaveValue('');
+    await expect(manualTick(m)).not.toBeChecked();
+    await expect(capitalInput(m)).toHaveCount(0);
+    await expect(m.getByRole('button', { name: 'Thêm danh mục' })).toBeVisible();
+    await expect(m.getByRole('button', { name: 'Hủy' })).toBeVisible();
+    await manualTick(m).check();
+    await expect(capitalInput(m)).toBeVisible();
+    await expect(m.locator('.mc-note')).toContainText('Vốn giữ nguyên số đã nhập');
+    await manualTick(m).uncheck();
+    await expect(capitalInput(m)).toHaveCount(0);
   });
 
-  test('TC_NKGD_DM_04: Lỗi tải danh sách danh mục — im lặng, không thông báo', async ({ page }) => {
-    await page.route(/\/api\/tradinglog\/category\/get-all/, (route: any) => route.fulfill({ status: 500, body: 'error' }));
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-    const nkgd = await gotoCategoryTab(page);
-    await page.waitForTimeout(500);
-    await expect(nkgd.categoryTable).toBeVisible();
-    expect(errors).toEqual([]);
-  });
-});
-
-test.describe('Quản lý danh mục — Thêm danh mục mới', () => {
-  test('TC_NKGD_DM_05: Mở modal "Thêm mới danh mục"', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.addCategoryButton.click();
-    await expect(nkgd.categoryAddModal).toBeVisible();
-    await expect(nkgd.categoryNameInput).toHaveValue('');
+  test('TC_NKGD_DM_05: Tên rỗng → toast lỗi + viền đỏ, không gọi API', async () => {
+    await openTab();
+    await openAdd('');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Tên danh mục không được để trống' })).toBeVisible();
+    await expect(nameInput(nk.dmAddModal)).toHaveClass(/is-invalid/);
+    await expect(nk.dmAddModal).toBeVisible();
+    expect(catWrites()).toEqual([]);
   });
 
-  test('TC_NKGD_DM_06: Validate tên danh mục rỗng', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.addCategoryButton.click();
-    await expect(nkgd.categoryAddModal).toBeVisible();
-    let storeCalled = false;
-    await page.route(/\/api\/stocks\/category\/store/, (route: any) => {
-      storeCalled = true;
-      return route.abort();
-    });
-    await nkgd.categorySaveButton.click();
-    await expect(page.getByText('Tên danh mục không được để trống')).toBeVisible();
-    expect(storeCalled).toBe(false);
+  test('TC_NKGD_DM_06: ⚠️ Tên toàn khoảng trắng vẫn được gửi lên máy chủ (không trim)', async () => {
+    await openTab();
+    await openAdd('   ');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect.poll(() => catWrites().length).toBe(1);
+    expect(catWrites()[0]).toMatchObject({ method: 'POST', path: expect.stringMatching(/category\/store$/), body: { name: '   ' } });
   });
 
-  test('TC_NKGD_DM_07: Tên danh mục chỉ chứa khoảng trắng — được chấp nhận (bug tiềm ẩn)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.addCategoryButton.click();
-    await expect(nkgd.categoryAddModal).toBeVisible();
-
-    let storeCalled = false;
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'POST') {
-        storeCalled = true;
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 999999, name: '   ' }) });
-      }
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryNameInput.fill('   ');
-    await nkgd.categorySaveButton.click();
-    await page.waitForTimeout(500);
-    // Hành vi thật đo được: KHÔNG có toast "không được để trống" — request được gửi (bug thiếu .trim()).
-    console.log(`[TC_NKGD_DM_07] Request POST /category/store được gửi với tên toàn khoảng trắng: ${storeCalled}`);
+  test('TC_NKGD_DM_07: Tích "Nhập giá vốn" mà vốn 0 → "Vốn ban đầu phải lớn hơn 0", không gọi API', async () => {
+    await openTab();
+    await openAdd('Tăng trưởng');
+    await manualTick(nk.dmAddModal).check();
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Vốn ban đầu phải lớn hơn 0' })).toBeVisible();
+    await expect(nk.dmAddModal).toBeVisible();
+    expect(catWrites()).toEqual([]);
   });
 
-  test('TC_NKGD_DM_08: Thêm danh mục thành công (mock)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.addCategoryButton.click();
-    await expect(nkgd.categoryAddModal).toBeVisible();
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'POST') {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 999999, name: '[TEST-AUTOMATION]' }) });
-      }
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryNameInput.fill('[TEST-AUTOMATION]');
-    await nkgd.categorySaveButton.click();
-    await expect(page.getByText('Đã thêm mới danh mục')).toBeVisible({ timeout: 10000 });
+  test('TC_NKGD_DM_08: Thêm danh mục vốn tự động thành công', async () => {
+    await openTab();
+    await openAdd('Tăng trưởng');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Đã thêm mới danh mục') nhưng không hiện gì
+    expect(catWrites()).toHaveLength(1);
+    expect(catWrites()[0]).toMatchObject({ method: 'POST', path: expect.stringMatching(/category\/store$/), body: { name: 'Tăng trưởng' } });
+    await expect(nk.dmAddModal).toBeHidden();
+    await expect(nk.dmCount).toHaveText('4 danh mục');
+    await expect(nk.dmRow('Tăng trưởng')).toBeVisible();
   });
 
-  test('TC_NKGD_DM_09: Thêm danh mục trùng tên (mock lỗi 422)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.addCategoryButton.click();
-    await expect(nkgd.categoryAddModal).toBeVisible();
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'POST') return route.fulfill({ status: 422, body: 'Unprocessable Entity' });
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryNameInput.fill('Lướt Sóng');
-    await nkgd.categorySaveButton.click();
-    await expect(page.getByText(/đã tồn tại/)).toBeVisible({ timeout: 10000 });
+  test('TC_NKGD_DM_09: Thêm danh mục có nhập giá vốn → dòng hiện vốn, web định ghi setting vốn', async () => {
+    await openTab();
+    await openAdd('Tăng trưởng');
+    await manualTick(nk.dmAddModal).check();
+    await nk.fillMoney(capitalInput(nk.dmAddModal), '300000000');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Đã thêm mới danh mục') nhưng không hiện gì
+    await expect(nk.dmRow('Tăng trưởng').locator('td.num')).toHaveText('300,000,000');
+    const created = nk.server.data.categories.find((c) => c.name === 'Tăng trưởng')!;
+    await expect.poll(() => lastCapitalWrite()?.[String(created.id)]?.tong_tai_san).toBe('300000000');
   });
 
-  test('TC_NKGD_DM_10: Thêm danh mục khi mất mạng — bug crash tiềm ẩn', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.addCategoryButton.click();
-    await expect(nkgd.categoryAddModal).toBeVisible();
-
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) =>
-      route.request().method() === 'GET' ? route.continue() : route.abort()
-    );
-
-    await nkgd.categoryNameInput.fill('[TEST-AUTOMATION-OFFLINE]');
-    await nkgd.categorySaveButton.click();
-    await page.waitForTimeout(1000);
-    console.log(`[TC_NKGD_DM_10] pageerror ghi nhận khi thêm danh mục lúc mất mạng: ${JSON.stringify(errors)}`);
-  });
-});
-
-test.describe('Quản lý danh mục — Sửa danh mục', () => {
-  async function openEditFirstCategory(page: any, nkgd: TradingLogPage) {
-    // Đợi bảng thật sự tải xong dữ liệu trước khi đọc tên — nếu đọc quá sớm có thể bắt phải dòng placeholder
-    // "Chưa có danh mục nào" (bảng hiện dòng này trong lúc chờ API get-all trả về), dù click (Playwright tự
-    // đợi actionability) vẫn luôn nhắm đúng dòng thật sau khi tải xong.
-    const firstRow = nkgd.categoryTable.getByRole('row').nth(1);
-    await expect(firstRow.getByRole('cell').first()).not.toHaveText('Chưa có danh mục nào', { timeout: 10000 });
-    const name = (await firstRow.getByRole('cell').first().textContent())?.trim() || '';
-    await firstRow.locator('img, svg, button').first().click();
-    return name;
-  }
-
-  test('TC_NKGD_DM_11: Mở modal "Sửa danh mục" — prefill đúng dữ liệu', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    const name = await openEditFirstCategory(page, nkgd);
-    await expect(nkgd.categoryNameInput).toHaveValue(name);
+  test('TC_NKGD_DM_10: Trùng tên (422) → toast "Danh mục của bạn đã tồn tại!…", modal đóng, danh sách không đổi', async () => {
+    await openTab();
+    nk.server.mode.catStore = '422';
+    await openAdd('Dài hạn');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Danh mục của bạn đã tồn tại! Vui lòng kiểm tra lại các danh mục hiện có và các danh mục đã xóa trong thùng rác.' })).toBeVisible();
+    await expect(nk.dmAddModal).toBeHidden();
+    await expect(nk.dmCount).toHaveText('3 danh mục');
   });
 
-  test('TC_NKGD_DM_12: Chỉ sửa "Vốn ban đầu" — KHÔNG gọi API update', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await openEditFirstCategory(page, nkgd);
-
-    let putCalled = false;
-    page.on('request', (req) => {
-      if (req.method() === 'PUT' && /\/api\/stocks\/category\/update/.test(req.url())) putCalled = true;
-    });
-
-    const capitalInput = nkgd.categoryInitialCapitalInput;
-    await capitalInput.fill('54321');
-    await nkgd.categorySaveButton.click();
-    await expect(page.getByText(/Đã cập nhật/)).toBeVisible({ timeout: 10000 });
-    expect(putCalled, 'Chỉ sửa Vốn ban đầu KHÔNG được gọi API PUT /category/update').toBe(false);
+  test('TC_NKGD_DM_11: Lỗi 500 → toast "Có lỗi xảy ra, vui lòng thử lại", modal đóng', async () => {
+    await openTab();
+    nk.server.mode.catStore = '500';
+    await openAdd('Tăng trưởng');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Có lỗi xảy ra, vui lòng thử lại' })).toBeVisible();
+    await expect(nk.dmAddModal).toBeHidden();
+    await expect(nk.dmCount).toHaveText('3 danh mục');
   });
 
-  test('TC_NKGD_DM_13: Đổi tên danh mục — có gọi API (mock thành công)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await openEditFirstCategory(page, nkgd);
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'PUT') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryNameInput.fill('[TEST-AUTOMATION] Đổi tên');
-    await nkgd.categorySaveButton.click();
-    await expect(page.getByText(/Đã cập nhật/)).toBeVisible({ timeout: 10000 });
-  });
-
-  test('TC_NKGD_DM_14: Đổi tên trùng với danh mục khác (mock lỗi)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await openEditFirstCategory(page, nkgd);
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'PUT') {
-        return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Already name' }) });
-      }
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryNameInput.fill('v70Release');
-    await nkgd.categorySaveButton.click();
-    await expect(page.getByText(/đã tồn tại/)).toBeVisible({ timeout: 10000 });
-  });
-
-  test('TC_NKGD_DM_21: Nút "Hủy" đóng modal không lưu', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await openEditFirstCategory(page, nkgd);
-    await nkgd.categoryCancelButton.click();
-    await expect(nkgd.categoryNameInput).toHaveCount(0);
-  });
-});
-
-test.describe('Quản lý danh mục — Xóa & Thùng rác', () => {
-  test('TC_NKGD_DM_15: Icon Xóa mở modal xác nhận "Di chuyển vào thùng rác"', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    const firstRow = nkgd.categoryTable.getByRole('row').nth(1);
-    await firstRow.locator('img, svg, button').last().click();
-    await expect(nkgd.categorySoftDeleteModal).toBeVisible();
-  });
-
-  test('TC_NKGD_DM_16: Xác nhận xóa (soft-delete) thành công (mock)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    const firstRow = nkgd.categoryTable.getByRole('row').nth(1);
-    await firstRow.locator('img, svg, button').last().click();
-    await expect(nkgd.categorySoftDeleteModal).toBeVisible();
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'DELETE') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categorySoftDeleteConfirmButton.click();
-    await expect(page.getByText('Di chuyển vào thùng rác thành công')).toBeVisible({ timeout: 10000 });
-  });
-
-  test('TC_NKGD_DM_17: Khôi phục danh mục từ thùng rác — chạy ngay, không có modal xác nhận (mock)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.categorySubTab('Danh mục đã xóa').click();
-    await page.waitForTimeout(300);
-    const rows = nkgd.categoryTable.getByRole('row');
-    const count = await rows.count();
-    test.skip(count < 2, 'Không có danh mục nào trong thùng rác để test khôi phục');
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'POST' && /restore/.test(route.request().url())) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
-      }
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    const firstDeletedRow = rows.nth(1);
-    await firstDeletedRow.locator('img, svg, button').first().click();
-    await expect(page.getByText(/Khôi phục thành công/)).toBeVisible({ timeout: 10000 });
-    await expect(nkgd.anyOpenModal).toHaveCount(0);
-  });
-
-  test('TC_NKGD_DM_18: Xóa vĩnh viễn — modal xác nhận riêng, chỉ 1 bước', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.categorySubTab('Danh mục đã xóa').click();
-    await page.waitForTimeout(300);
-    const rows = nkgd.categoryTable.getByRole('row');
-    const count = await rows.count();
-    test.skip(count < 2, 'Không có danh mục nào trong thùng rác để test xóa vĩnh viễn');
-
-    await rows.nth(1).locator('img, svg, button').last().click();
-    await expect(nkgd.categoryForceDeleteModal).toBeVisible();
-    await expect(nkgd.categoryForceDeleteModal.getByRole('textbox')).toHaveCount(0);
-  });
-
-  test('TC_NKGD_DM_19: Xác nhận xóa vĩnh viễn thành công (mock)', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.categorySubTab('Danh mục đã xóa').click();
-    await page.waitForTimeout(300);
-    const rows = nkgd.categoryTable.getByRole('row');
-    const count = await rows.count();
-    test.skip(count < 2, 'Không có danh mục nào trong thùng rác để test xóa vĩnh viễn');
-
-    await rows.nth(1).locator('img, svg, button').last().click();
-    await expect(nkgd.categoryForceDeleteModal).toBeVisible();
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'DELETE') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryForceDeleteConfirmButton.click();
-    await expect(page.getByText(/Xóa thành công/)).toBeVisible({ timeout: 10000 });
-  });
-
-  test('TC_NKGD_DM_20: Xóa vĩnh viễn lỗi — modal KHÔNG tự đóng', async ({ page }) => {
-    const nkgd = await gotoCategoryTab(page);
-    await nkgd.categorySubTab('Danh mục đã xóa').click();
-    await page.waitForTimeout(300);
-    const rows = nkgd.categoryTable.getByRole('row');
-    const count = await rows.count();
-    test.skip(count < 2, 'Không có danh mục nào trong thùng rác để test xóa vĩnh viễn lỗi');
-
-    await rows.nth(1).locator('img, svg, button').last().click();
-    await expect(nkgd.categoryForceDeleteModal).toBeVisible();
-
-    await page.unroute(CATEGORY_MUTATE);
-    await page.route(CATEGORY_MUTATE, (route: any) => {
-      if (route.request().method() === 'DELETE') return route.fulfill({ status: 500, body: 'error' });
-      return route.request().method() === 'GET' ? route.continue() : route.abort();
-    });
-
-    await nkgd.categoryForceDeleteConfirmButton.click();
+  test('TC_NKGD_DM_12: 🐞 Mất mạng → modal đóng, không toast nào, lỗi JS đọc error.response.status', async ({ page }) => {
+    await openTab();
+    nk.server.mode.catStore = 'abort';
+    await openAdd('Tăng trưởng');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect.poll(() => nk.pageErrors.join('\n')).toMatch(/reading 'status'/);
+    await expect(nk.dmAddModal).toBeHidden();
     await page.waitForTimeout(800);
-    await expect(nkgd.categoryForceDeleteModal, 'Modal Xóa vĩnh viễn KHÔNG tự đóng khi lỗi').toBeVisible();
+    await expect(nk.toastError).toHaveCount(0);
+    await expect(nk.dmCount).toHaveText('3 danh mục');
+  });
+
+  test('TC_NKGD_DM_13: 🐞 Nhấn Enter trong modal Thêm → lỗi JS null.click, không thêm được', async ({ page }) => {
+    await openTab();
+    await openAdd('Tăng trưởng');
+    await nameInput(nk.dmAddModal).press('Enter');
+    await expect.poll(() => nk.pageErrors.join('\n')).toMatch(/reading 'click'/);
+    await page.waitForTimeout(800);
+    expect(catWrites()).toEqual([]);
+    await expect(nk.dmAddModal).toBeVisible();
+  });
+
+  test('TC_NKGD_DM_14: "Hủy" và nút X đóng modal, không lưu; mở lại ô tên rỗng', async () => {
+    await openTab();
+    await openAdd('Tạm');
+    await nk.dmAddModal.getByRole('button', { name: 'Hủy' }).click();
+    await expect(nk.dmAddModal).toBeHidden();
+    await openAdd();
+    await expect(nameInput(nk.dmAddModal)).toHaveValue('');
+    await nameInput(nk.dmAddModal).fill('Tạm 2');
+    await nk.dmAddModal.getByRole('button', { name: 'Đóng cửa sổ' }).click();
+    await expect(nk.dmAddModal).toBeHidden();
+    expect(catWrites()).toEqual([]);
+    await expect(nk.dmCount).toHaveText('3 danh mục');
+  });
+
+  test('TC_NKGD_DM_15: Danh mục vừa thêm có trong ô "Danh mục" của phiếu lệnh tab Giao dịch', async () => {
+    await openTab();
+    await openAdd('Tăng trưởng');
+    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
+    await expect(nk.dmRow('Tăng trưởng')).toBeVisible();
+    await nk.gotoTab('Giao dịch');
+    await nk.thMua.click();
+    await expect(nk.ticketCategory.locator('option')).toContainText(['Tăng trưởng']);
+  });
+});
+
+test.describe('Sửa danh mục', () => {
+  test('TC_NKGD_DM_16: Modal Sửa điền sẵn — "Dài hạn" tích "Nhập giá vốn" 500,000,000; "Lướt sóng" không tích', async () => {
+    await openTab();
+    await nk.dmRow('Dài hạn').getByRole('button', { name: 'Sửa' }).click();
+    const m = nk.dmEditModal;
+    await expect(nameInput(m)).toHaveValue('Dài hạn');
+    await expect(manualTick(m)).toBeChecked();
+    await expect(capitalInput(m)).toHaveValue('500,000,000');
+    await expect(m.getByRole('button', { name: 'Lưu thay đổi' })).toBeVisible();
+    await m.getByRole('button', { name: 'Hủy' }).click();
+    await nk.dmRow('Lướt sóng').getByRole('button', { name: 'Sửa' }).click();
+    await expect(nameInput(m)).toHaveValue('Lướt sóng');
+    await expect(manualTick(m)).not.toBeChecked();
+    await expect(capitalInput(m)).toHaveCount(0);
+  });
+
+  test('TC_NKGD_DM_17: Chỉ đổi vốn → không gọi API, toast "Đã cập nhật giao dịch", dòng cập nhật, định ghi setting', async () => {
+    await openTab();
+    await nk.dmRow('Dài hạn').getByRole('button', { name: 'Sửa' }).click();
+    await nk.fillMoney(capitalInput(nk.dmEditModal), '600000000');
+    await nk.dmEditModal.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Đã cập nhật giao dịch') nhưng không hiện gì
+    await expect(nk.dmEditModal).toBeHidden();
+    await expect(nk.dmRow('Dài hạn').locator('td.num')).toHaveText('600,000,000');
+    expect(catWrites()).toEqual([]);
+    await expect.poll(() => lastCapitalWrite()?.[String(CAT.DAI_HAN)]?.tong_tai_san).toBe('600000000');
+  });
+
+  test('TC_NKGD_DM_18: Đổi tên thành công → PUT {id, name}, toast, dòng đổi tên', async () => {
+    await openTab();
+    await nk.dmRow('Lướt sóng').getByRole('button', { name: 'Sửa' }).click();
+    await nameInput(nk.dmEditModal).fill('Lướt sóng T+');
+    await nk.dmEditModal.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Đã cập nhật giao dịch') nhưng không hiện gì
+    expect(catWrites()).toHaveLength(1);
+    expect(catWrites()[0]).toMatchObject({ method: 'PUT', path: expect.stringMatching(/category\/update$/), body: { id: CAT.LUOT_SONG, name: 'Lướt sóng T+' } });
+    await expect(nk.dmRow('Lướt sóng T+')).toBeVisible();
+    await expect(nk.dmRow('Lướt sóng')).toHaveCount(0);
+  });
+
+  test('TC_NKGD_DM_19: Đổi tên trùng → "Tên danh mục đã tồn tại!…", modal đóng, tên cũ giữ nguyên', async () => {
+    await openTab();
+    nk.server.mode.catUpdate = '422';
+    await nk.dmRow('Lướt sóng').getByRole('button', { name: 'Sửa' }).click();
+    await nameInput(nk.dmEditModal).fill('Dài hạn');
+    await nk.dmEditModal.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Tên danh mục đã tồn tại! Vui lòng nhập tên danh mục mới' })).toBeVisible();
+    await expect(nk.dmEditModal).toBeHidden();
+    await expect(nk.dmRow('Lướt sóng')).toBeVisible();
+  });
+
+  test('TC_NKGD_DM_20: Sửa với tên rỗng → toast lỗi, modal vẫn mở, không gọi API', async () => {
+    await openTab();
+    await nk.dmRow('Lướt sóng').getByRole('button', { name: 'Sửa' }).click();
+    await nameInput(nk.dmEditModal).fill('');
+    await nk.dmEditModal.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Tên danh mục không được để trống' })).toBeVisible();
+    await expect(nk.dmEditModal).toBeVisible();
+    expect(catWrites()).toEqual([]);
+  });
+});
+
+test.describe('Thùng rác', () => {
+  test('TC_NKGD_DM_21: Xoá vào thùng rác → DELETE, toast, dòng biến mất, đếm cập nhật', async () => {
+    await openTab();
+    await nk.dmRow('Lướt sóng').getByRole('button', { name: 'Xóa' }).click();
+    await expect(nk.dmSoftDeleteModal).toContainText('Di chuyển vào thùng rác. Bạn có chắc chắn không?');
+    await nk.dmSoftDeleteModal.getByRole('button', { name: 'Di chuyển vào thùng rác' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Di chuyển vào thùng rác thành công') nhưng không hiện gì
+    expect(catWrites()).toEqual([expect.objectContaining({ method: 'DELETE', path: expect.stringMatching(new RegExp(`/api/stocks/category/${CAT.LUOT_SONG}$`)) })]);
+    await expect(nk.dmSoftDeleteModal).toBeHidden();
+    await expect(nk.dmRow('Lướt sóng')).toHaveCount(0);
+    await expect(nk.dmCount).toHaveText('2 danh mục');
+    await expect(nk.dmDeletedBtn).toHaveText(/Danh mục đã xóa \(2\)/);
+  });
+
+  test('TC_NKGD_DM_22: Xoá vào thùng rác lỗi 500 → toast lỗi, modal đóng, dòng còn', async () => {
+    await openTab();
+    nk.server.mode.catDelete = '500';
+    await nk.dmRow('Lướt sóng').getByRole('button', { name: 'Xóa' }).click();
+    await nk.dmSoftDeleteModal.getByRole('button', { name: 'Di chuyển vào thùng rác' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Có lỗi xảy ra, vui lòng thử lại' })).toBeVisible();
+    await expect(nk.dmSoftDeleteModal).toBeHidden();
+    await expect(nk.dmRow('Lướt sóng')).toBeVisible();
+  });
+
+  test('TC_NKGD_DM_23: Modal "Danh mục đã xóa" — có mục thì có Khôi phục/Xóa vĩnh viễn; rỗng thì thông báo trống', async ({ page }) => {
+    await openTab();
+    await nk.dmDeletedBtn.click();
+    const row = nk.dmDeletedModal.locator('.mc-dong', { hasText: 'Danh mục cũ' });
+    await expect(row).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Khôi phục' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Xóa vĩnh viễn' })).toBeVisible();
+    // Thùng rác rỗng (trang mới, dữ liệu giả khác)
+    const nk2 = new TradingLogPage(await page.context().newPage());
+    await nk2.open({ tab: 4, data: (d) => { d.softDeleted = []; } });
+    await expect(nk2.dmDeletedBtn).toHaveText(/^\s*Danh mục đã xóa\s*$/, { timeout: 30000 });
+    await nk2.dmDeletedBtn.click();
+    await expect(nk2.dmDeletedModal).toContainText('Chưa có danh mục nào bị xóa.');
+    expect(nk2.server.blocked).toEqual([]);
+  });
+
+  test('TC_NKGD_DM_24: Khôi phục chạy ngay (không hỏi lại) → POST restore, toast, dòng về bảng', async () => {
+    await openTab();
+    await nk.dmDeletedBtn.click();
+    await nk.dmDeletedModal.locator('.mc-dong', { hasText: 'Danh mục cũ' }).getByRole('button', { name: 'Khôi phục' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Khôi phục thành công danh mục Danh mục cũ') nhưng không hiện gì
+    expect(catWrites()).toEqual([expect.objectContaining({ method: 'POST', path: expect.stringMatching(/category\/restore$/), body: { id: 970009 } })]);
+    await expect(nk.dmDeletedModal).toContainText('Chưa có danh mục nào bị xóa.');
+    await expect(nk.dmRow('Danh mục cũ')).toBeAttached();
+    await expect(nk.dmCount).toHaveText('4 danh mục');
+  });
+
+  test('TC_NKGD_DM_25: Xoá vĩnh viễn → modal xác nhận → DELETE force-delete, toast, thùng rác rỗng', async () => {
+    await openTab();
+    await nk.dmDeletedBtn.click();
+    await nk.dmDeletedModal.locator('.mc-dong', { hasText: 'Danh mục cũ' }).getByRole('button', { name: 'Xóa vĩnh viễn' }).click();
+    await expect(nk.dmForceDeleteModal).toContainText('Danh mục sẽ bị xóa vĩnh viễn. Bạn có chắc chắn không?');
+    expect(catWrites()).toEqual([]);
+    await nk.dmForceDeleteModal.getByRole('button', { name: 'Xóa vĩnh viễn' }).click();
+    await nk.expectSilentSuccess(); // app tắt toast thành công (main.js 12/10/2026) — code gọi $toast.success('Xóa thành công Danh mục cũ') nhưng không hiện gì
+    expect(catWrites()).toEqual([expect.objectContaining({ method: 'DELETE', path: expect.stringMatching(/category\/force-delete\/970009$/) })]);
+    await expect(nk.dmForceDeleteModal).toBeHidden();
+    await expect(nk.dmDeletedModal).toContainText('Chưa có danh mục nào bị xóa.');
+  });
+
+  test('TC_NKGD_DM_26: Xoá vĩnh viễn lỗi → toast lỗi, modal xác nhận VẪN mở, mục vẫn trong thùng rác', async () => {
+    await openTab();
+    nk.server.mode.catForce = '500';
+    await nk.dmDeletedBtn.click();
+    await nk.dmDeletedModal.locator('.mc-dong', { hasText: 'Danh mục cũ' }).getByRole('button', { name: 'Xóa vĩnh viễn' }).click();
+    await nk.dmForceDeleteModal.getByRole('button', { name: 'Xóa vĩnh viễn' }).click();
+    await expect(nk.toastError.filter({ hasText: 'Có lỗi xảy ra, vui lòng thử lại' })).toBeVisible();
+    await expect(nk.dmForceDeleteModal).toBeVisible();
+    await expect(nk.dmDeletedModal.locator('.mc-dong', { hasText: 'Danh mục cũ' })).toBeAttached();
   });
 });

@@ -19,6 +19,8 @@
   - [phan-tich-ky-thuat-bieu-do.md](phan-tich-ky-thuat-bieu-do.md) — chi tiết khu vực biểu đồ: tìm/đổi mã,
     timeframe, style nến, chỉ báo (fx), toolbar vẽ trái, preset khoảng thời gian, 2 nút tự viết "Biểu đồ ▾"/
     "NKGD ▾", lưu cấu hình.
+  - [phan-tich-ky-thuat-replay-chia-khung.md](phan-tich-ky-thuat-replay-chia-khung.md) — tính năng mới (hiện chỉ
+    có trên prev2): Replay, nút Bố cục/chia khung, kéo thanh chia, Liên kết thẻ, Hướng dẫn lần đầu.
   - [phan-tich-ky-thuat-thong-tin.md](phan-tich-ky-thuat-thong-tin.md) — chi tiết tab "Thông tin" của panel phải,
     2 nhánh Stockcode (`Orderboard/Stockcode`) và Indexcode (`Orderboard/Indexcode`).
   - **KHÔNG** viết testcase chi tiết cho: tab "Sổ lệnh"/"Cung cầu"/"Bài viết" của panel phải, và toàn bộ nội dung

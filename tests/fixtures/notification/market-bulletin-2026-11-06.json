@@ -1,0 +1,193 @@
+{
+ "date": "2026-11-06",
+ "floor": 6,
+ "breadth": {
+  "base": 176,
+  "ma10": {
+   "above": 77,
+   "percent": 43.8,
+   "lowest_in": 2,
+   "highest_in": 1,
+   "prev_percent": 50.6
+  },
+  "ma20": {
+   "above": 74,
+   "percent": 42,
+   "lowest_in": 3,
+   "highest_in": 1,
+   "prev_percent": 49.4
+  },
+  "ma50": {
+   "above": 71,
+   "percent": 40.3,
+   "lowest_in": 2,
+   "highest_in": 1,
+   "prev_percent": 42.6
+  },
+  "sessions": 301
+ },
+ "ceiling": 2,
+ "foreign": {
+  "buy": [
+   {
+    "stockcode": "KDH",
+    "value_billion": 179.6
+   },
+   {
+    "stockcode": "VND",
+    "value_billion": 99.2
+   },
+   {
+    "stockcode": "VIX",
+    "value_billion": 95.8
+   }
+  ],
+  "sell": [
+   {
+    "stockcode": "FPT",
+    "value_billion": -151.2
+   },
+   {
+    "stockcode": "VCB",
+    "value_billion": -110.7
+   },
+   {
+    "stockcode": "MBB",
+    "value_billion": -43.8
+   }
+  ],
+  "streak": 1,
+  "sessions": 301,
+  "largest_in": 35,
+  "net_value_billion": 378.4
+ },
+ "indices": [
+  {
+   "name": "VN30",
+   "close": 1846.39,
+   "percent_change": -1.01
+  },
+  {
+   "name": "HNX",
+   "close": 256.73,
+   "percent_change": 0.05
+  },
+  {
+   "name": "UPCOM",
+   "close": 121.75,
+   "percent_change": -0.6
+  }
+ ],
+ "sectors": {
+  "up": [
+   {
+    "name": "CHỨNG KHOÁN",
+    "percent_change": 0.44
+   },
+   {
+    "name": "ĐẦU TƯ XÂY DỰNG",
+    "percent_change": 0.24
+   },
+   {
+    "name": "SẢN XUẤT KINH DOANH",
+    "percent_change": 0.11
+   }
+  ],
+  "down": [
+   {
+    "name": "CÔNG NGHỆ",
+    "percent_change": -3.8
+   },
+   {
+    "name": "DỊCH VỤ CÔNG ÍCH",
+    "percent_change": -3.39
+   },
+   {
+    "name": "VIỄN THÔNG",
+    "percent_change": -2.13
+   }
+  ],
+  "count": 29,
+  "count_up": 3,
+  "count_down": 26
+ },
+ "vnindex": {
+  "ma": {
+   "10": {
+    "above": false,
+    "value": 1739.88
+   },
+   "20": {
+    "above": false,
+    "value": 1730.18
+   },
+   "50": {
+    "above": false,
+    "value": 1769.06
+   }
+  },
+  "close": 1725.36,
+  "streak": 1,
+  "volume": 774444540,
+  "advances": 101,
+  "declines": 212,
+  "high_52w": 1933.11,
+  "unchanged": 55,
+  "point_change": -15.37,
+  "streak_points": -15.37,
+  "value_billion": 18557.94,
+  "percent_change": -0.88,
+  "from_high_percent": -10.7,
+  "prev_value_billion": 15829.78,
+  "value_change_percent": 17.23,
+  "volume_change_percent": 16.56,
+  "volume_vs_avg20_percent": 38
+ },
+ "contributors": {
+  "up": [
+   {
+    "points": 0.4,
+    "stockcode": "CTG"
+   },
+   {
+    "points": 0.44,
+    "stockcode": "MSN"
+   },
+   {
+    "points": 0.35,
+    "stockcode": "VPL"
+   }
+  ],
+  "down": [
+   {
+    "points": -5.61,
+    "stockcode": "VIC"
+   },
+   {
+    "points": -2.04,
+    "stockcode": "VHM"
+   },
+   {
+    "points": -0.86,
+    "stockcode": "MCH"
+   }
+  ]
+ },
+ "value_groups": [
+  {
+   "name": "BLUECHIP",
+   "value_billion": 14375.76,
+   "percent_change": 9.22
+  },
+  {
+   "name": "MIDCAP",
+   "value_billion": 1474.72,
+   "percent_change": 6.91
+  },
+  {
+   "name": "PENNY",
+   "value_billion": 439.4,
+   "percent_change": 14.4
+  }
+ ]
+}

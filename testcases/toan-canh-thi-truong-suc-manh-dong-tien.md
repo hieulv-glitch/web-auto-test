@@ -15,7 +15,11 @@
   mảng khi 2 route trùng path, nên route dòng ~682 (`RRGChart`) là **route chết, không bao giờ được kích hoạt**
   khi vào bằng URL `/suc-manh-dong-tien`. Tài liệu này viết theo đúng route thắng (IBD → `WrapperLayout` →
   `RRG.vue`).
-- **Domain test:** https://kfsp.vn/suc-manh-dong-tien
+- **Domain test:** https://kfsp.vn/suc-manh-dong-tien — từ 09/11/2026 spec chạy qua `PREV2_BASE_URL` (= kfsp.vn, bản preprod mới
+  nhất), đăng nhập bằng `Prev2Session`.
+- **⚠️ AN TOÀN DỮ LIỆU (cập nhật 09/11/2026):** backend production, tài khoản test dùng chung. Mọi request không phải GET tới
+  `*.kfsp.vn/api/` bị huỷ (`afterEach` kiểm tra không có lệnh ghi nào ngoài dự kiến); riêng `POST /api/watchlist` (thêm mã
+  vào watchlist) được giả lập. Trước đó TC_SMDT_15 xoá VNM khỏi watchlist THẬT qua màn /watchlist rồi thêm lại thật — đã bỏ.
 - **Nguồn testcase gốc (app):** tab Google Sheet "Toàn Cảnh Thị Trường(Sức Mạnh Dòng Tiền)" — chỉ dùng để học
   văn phong, KHÔNG phải checklist đủ. Sheet viết cho app mobile nên có nhiều mục đặc thù mobile (pinch zoom,
   long-press, vuốt back, xoay ngang, notch...) đã **xoá hẳn**, không áp dụng cho web.
@@ -34,19 +38,21 @@
 
 ## Nhóm: Điều hướng & tổng quan
 
-# [TC_SMDT_01] Điều hướng vào màn từ menu "Toàn cảnh thị trường"
+# [TC_SMDT_01] Điều hướng vào màn từ menu "Thị Trường"
 
 - **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass**
+- **Cập nhật 09/11/2026:** menu header "Toàn cảnh thị trường" đổi tên "Thị Trường", gồm Bảng giá chứng khoán, Bảng giá
+  crypto, Ngành, Sức mạnh dòng tiền, Thông tin và Sự Kiện (Bộ lọc cổ phiếu chuyển sang menu "Cơ hội").
 - **Kết quả đo được:** Hover/click menu header "Toàn cảnh thị trường" mở dropdown 3 mục: "Ngành" (`/nganh`),
   "Bộ lọc cổ phiếu" (`/bo-loc`), "Sức mạnh dòng tiền" (`/suc-manh-dong-tien`). Click "Sức mạnh dòng tiền" vào
   đúng URL `/suc-manh-dong-tien`.
 
 ## Các bước thực hiện
-1. Đăng nhập, hover/click menu "Toàn cảnh thị trường" trên header.
+1. Đăng nhập, rê chuột vào menu "Thị Trường" trên header.
 2. Click mục "Sức mạnh dòng tiền".
 
 ## Kết quả mong đợi
-- [ ] Dropdown hiện đủ 3 mục, click "Sức mạnh dòng tiền" điều hướng đúng `/suc-manh-dong-tien`.
+- [ ] Dropdown có mục "Sức mạnh dòng tiền", click điều hướng đúng `/suc-manh-dong-tien`.
 
 ---
 
@@ -249,13 +255,15 @@ nhầm lẫn 2 ngưỡng.
 
 - **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass**
 - **Kết quả đo được:** Gõ mã hợp lệ vào ô "Mã CK", click gợi ý hoặc Enter, click icon "+" → gọi
-  `POST /api/watchlist`, hiện toast "Thêm vào watchlist thành công", ô input reset trống.
+  `POST /api/watchlist`, ô input reset trống.
+- **Cập nhật 09/11/2026:** không còn toast "Thêm vào watchlist thành công" (app tắt mọi toast thành công từ 12/10/2026).
+  Lệnh thêm được giả lập (không ghi thật); test kiểm body `{ mack: "VNM", my_watchlist_id }` và không có toast lỗi.
 
 ## Các bước thực hiện
 1. Gõ 1 mã hợp lệ chưa có trong watchlist đang chọn, chọn gợi ý, click icon "+".
 
 ## Kết quả mong đợi
-- [ ] Hiện toast "Thêm vào watchlist thành công".
+- [ ] Gửi `POST /api/watchlist` đúng mã + watchlist đang chọn; không có toast lỗi; ô mã trống lại.
 
 ---
 
@@ -275,10 +283,10 @@ nhầm lẫn 2 ngưỡng.
 
 # [TC_SMDT_17] Thêm mã đã có sẵn trong watchlist
 
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Ghi chú:** Cần 1 mã đã chắc chắn có sẵn trong watchlist đang test để kích hoạt nhánh lỗi trùng từ server
-  (`catch` → toast "Mã chứng khoán đã có trong Watchlist, vui lòng thử lại"); phụ thuộc dữ liệu watchlist thật
-  của tài khoản test tại thời điểm chạy, chưa cố định được 1 mã chắc chắn luôn tồn tại.
+- **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass**
+- **Cập nhật 09/11/2026:** đã tự động hoá — máy chủ giả trả lỗi 400 cho `POST /api/watchlist` (giả lập mã trùng), không cần
+  mã có sẵn thật. Nhánh `catch` hiện toast "Mã chứng khoán đã có trong Watchlist, vui lòng thử lại" (mọi lỗi đều báo là
+  trùng mã, kể cả lỗi mạng/500).
 
 ## Các bước thực hiện
 1. Thêm 1 mã đã có sẵn trong watchlist đang chọn.
@@ -543,8 +551,10 @@ nhầm lẫn 2 ngưỡng.
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| 🆕 Mới (đã verify bằng automation hoặc quan sát thực tế) | 30 | |
-| ⚠️ Cần xác nhận thêm | 2 | TC_SMDT_11 (giới hạn 15 mã — tốn thời gian dựng dữ liệu), TC_SMDT_17 (mã trùng watchlist — phụ thuộc dữ liệu watchlist thật tại thời điểm chạy) |
+| 🆕 Mới (đã verify bằng automation hoặc quan sát thực tế) | 31 | |
+| ⚠️ Cần xác nhận thêm | 1 | TC_SMDT_11 (giới hạn 15 mã — tốn thời gian dựng dữ liệu) |
+
+Cập nhật 09/11/2026: chạy trên kfsp.vn; TC_SMDT_17 đã tự động hoá (giả lập mã trùng); TC_01, TC_15 sửa theo giao diện mới.
 
 **Phát hiện đáng chú ý:**
 

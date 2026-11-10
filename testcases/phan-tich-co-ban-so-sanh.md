@@ -4,7 +4,9 @@
 - **Component:** [stocks/src/views/faAnalysis/Compare/index.vue](../../stocks/src/views/faAnalysis/Compare/index.vue)
   (`name: "Compare"`), mount trong shell [index.vue](../../stocks/src/views/faAnalysis/index.vue) khi
   `active_tab['compare']` bật (chỉ mount 1 lần, `v-if`, sau đó chỉ toggle `v-show`).
-- **Domain test:** https://kfsp.vn/phan-tich-co-ban
+- **Domain test:** `PREV2_BASE_URL` (từ 09/11/2026 = https://kfsp.vn, bản preprod mới nhất, backend production), đăng nhập qua `Prev2Session` (`TEST_USER_*` / `FREE_USER_*`).
+- **Mức xác nhận:** đã chạy pass trên **kfsp.vn** ngày 09/11/2026. kfsp.vn đã được xác minh là bản preprod mới nhất, deploy 06/11 lúc 10:30 GMT. Spec dùng `PREV2_BASE_URL=https://kfsp.vn` trong `.env`; backend là production, như mọi lần. Kết quả: 26 pass + 1 fixme (TC_15). TC_21 tăng thời gian chờ nhãn "Đang chọn" lên 30 giây: sau "Nạp" cả tab hiện spinner tới khi API so sánh thật trả về.
+- **Cập nhật 09/11/2026 (Nhánh B):** preprod chỉ đổi nhỏ ở tab này (nút bo tròn, API chuyển NestJS, focus sẵn ô nhập mã khi mở modal "Thêm mã", thanh cuộn ngang phía trên bảng dính đỉnh + đồng bộ cuộn). **Toast thành công đã tắt toàn app** (`main.js`, 12/10/2026) → TC_19/TC_22 không còn chờ toast. Thêm TC_27, TC_28.
 - **Nguồn testcase gốc (app):** Google Sheet, tab "Phân Tích FA(Cổ Phiếu)", các dòng TC ID 169-190 ("Tab So
   sánh"). Sheet chỉ dùng tham khảo văn phong/không bỏ sót khía cạnh — độ phủ thật sự do tự kiểm kê source code
   (`Compare/index.vue` đầy đủ `data()`/`computed`/`methods`/mọi API) + DOM thật (`inspect-dom.ts` +
@@ -398,7 +400,7 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 3. Click "Thêm mới".
 
 ## Kết quả mong đợi
-- [ ] Toast thành công "Thêm mẫu mới thành công", modal đóng lại.
+- [ ] Modal đóng lại, KHÔNG có toast thành công (đã tắt toàn app từ 12/10/2026 — trước đây hiện "Thêm mẫu mới thành công").
 - [ ] Dòng "Đang chọn: [TEST] Mẫu tạm" + link "Bỏ chọn" xuất hiện dưới 3 nút đầu trang.
 
 ---
@@ -443,7 +445,7 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 
 ## Kết quả mong đợi
 - [ ] Modal "Thông báo" xác nhận ("Bạn có muốn xóa không?") hiện ra trước khi xoá thật.
-- [ ] Sau khi xác nhận "Xóa": toast "Đã xóa thành công", dòng "Mẫu giả C" biến mất khỏi danh sách trong modal.
+- [ ] Sau khi xác nhận "Xóa": modal xác nhận đóng, dòng "Mẫu giả C" biến mất khỏi danh sách trong modal, KHÔNG có toast thành công (trước đây "Đã xóa thành công").
 
 ---
 
@@ -500,6 +502,30 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 
 ---
 
+# [TC_PTCB_SS_27] Mở modal "Thêm mã" → ô nhập mã được focus sẵn
+
+- **Trạng thái:** 🆕 Testcase mới (09/11/2026)
+- **Ghi chú:** `watch warningModal` → `$nextTick` focus `inputMackInsert` (commit 12/10/2026).
+
+## Kết quả mong đợi
+- [ ] Bấm "Thêm mã" → ô "Thêm mã vào danh sách" có focus, gõ "FPT" vào được ngay.
+- [ ] Đóng rồi mở lại → vẫn focus.
+
+---
+
+# [TC_PTCB_SS_28] Thanh cuộn ngang phía trên bảng
+
+- **Trạng thái:** 🆕 Testcase mới (09/11/2026)
+- **Ghi chú:** `scheduleScrollBarTopTable()` ($nextTick + rAF) dựng 1 thanh `.scrollbar-top.custom-scrollbar` (position
+  sticky) rộng bằng `scrollWidth` của bảng, đồng bộ cuộn 2 chiều; chỉ dựng lại khi số cột/rỗng↔có dòng đổi
+  (`table_shape`), không nhân bản khi giá realtime đổi.
+
+## Kết quả mong đợi
+- [ ] Cửa sổ 1000px: có đúng 1 `.scrollbar-top` (sticky, class `custom-scrollbar`), bề rộng ruột ≈ `scrollWidth` của tbody.
+- [ ] Cuộn thanh trên sang phải 150px → tbody cuộn theo.
+
+---
+
 ## Nhóm: Responsive
 
 # [TC_PTCB_SS_26] Responsive viewport mobile/tablet
@@ -515,7 +541,7 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 
 ---
 
-## Tổng hợp trạng thái (26 testcase)
+## Tổng hợp trạng thái (28 testcase)
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-so-sanh.spec.ts](../tests/phan-tich-co-ban-so-sanh.spec.ts) (POM: section "Tab So sánh"
@@ -524,7 +550,7 @@ trong [pages/FaAnalysisPage.ts](../pages/FaAnalysisPage.ts)).
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 7 | TC_PTCB_SS_01, 06, 07, 08, 09, 11, 13 |
-| 🆕 Mới (riêng web) | 18 | TC_PTCB_SS_02, 03, 04, 05, 10, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26 |
+| 🆕 Mới (riêng web) | 20 | TC_PTCB_SS_02, 03, 04, 05, 10, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 (27, 28 thêm 09/11) |
 | ⚠️ Cần xác nhận thêm | 1 | TC_PTCB_SS_15 (`test.fixme` — kéo-thả `vuedraggable`, chưa tìm được cách giả lập ổn định) |
 
 **Phát hiện đáng chú ý cần theo dõi:**

@@ -1,16 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect as baseExpect, Page } from '@playwright/test';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
 
 const EMAIL = process.env.TEST_USER_EMAIL!;
 const PASSWORD = process.env.TEST_USER_PASSWORD!;
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+/** Đăng nhập prev2 bằng phiên đã cache (Prev2Session) rồi vào /dashboard. */
+async function loginFirst(page: Page) {
+  await new DashboardPage(page).open();
 }
+
+test.use({ baseURL: PREV2_BASE_URL });
+// prev2 (backend production) đổ dữ liệu thị trường qua socket — lúc tải nặng chậm hơn hẳn mốc 5 giây mặc định.
+const expect = baseExpect.configure({ timeout: 15_000 });
+test.describe.configure({ timeout: 90_000 });
 
 test.describe('Dashboard/Tab thị trường — Việt Nam: 5 sub-tab', () => {
   test('TC_DASHBOARD_TT_01: Hiển thị 5 sub-tab, "Diễn biến" active mặc định', async ({ page }) => {
@@ -26,10 +30,15 @@ test.describe('Dashboard/Tab thị trường — Việt Nam: 5 sub-tab', () => {
     await loginFirst(page);
     const dashboard = new DashboardPage(page);
 
+    // Từ 20/10/2026 biểu đồ "Ảnh hưởng thị trường" nằm ở sub-tab Diễn biến (trước ở Top).
+    const affectTitle = page.locator('.header-chart-title, .board-chart-wrapper p', { hasText: 'Ảnh hưởng thị trường' });
+    await expect(affectTitle).toBeVisible();
+
     await dashboard.panelSubTab('Top').click();
     await page.waitForTimeout(500);
     await expect(dashboard.panelSubTab('Top')).toHaveClass(/active/);
     await expect(page.locator('.top-stock-title', { hasText: 'Top khối lượng' })).toBeVisible();
+    await expect(affectTitle).toHaveCount(0);
 
     await dashboard.panelSubTab('NN & TD').click();
     await page.waitForTimeout(500);
@@ -46,6 +55,7 @@ test.describe('Dashboard/Tab thị trường — Việt Nam: 5 sub-tab', () => {
     await dashboard.panelSubTab('Diễn biến').click();
     await page.waitForTimeout(500);
     await expect(dashboard.panelSubTab('Diễn biến')).toHaveClass(/active/);
+    await expect(affectTitle).toBeVisible();
   });
 
   test('TC_DASHBOARD_TT_03: Đổi chỉ số đang chọn áp dụng cho toàn bộ sub-tab đang xem', async ({ page }) => {
@@ -205,9 +215,23 @@ test.describe('Dashboard/Tab thị trường — Vĩ mô', () => {
     await expect(page).toHaveURL(/\/vi-mo/);
   });
 
-  test.fixme('TC_DASHBOARD_TT_14: Giới hạn tính năng với tài khoản Free', async () => {
-    // Cần FREE_USER_EMAIL/FREE_USER_PASSWORD hoạt động được trong .env (hiện đang lỗi "Tài khoản không tồn
-    // tại" — xem TRACKER.md và cong-dong.md TC_CONGDONG_55) để verify UpdateRequire hiển thị đúng cho các
-    // section trừ GDP.
+  test('TC_DASHBOARD_TT_14: Tài khoản Free — tab Vĩ mô: GDP hiện dữ liệu, 5 mục còn lại khoá "Nâng cấp ngay"', async ({ page }) => {
+    const dashboard = new DashboardPage(page);
+    await dashboard.open('free');
+    await dashboard.marketTab('Vĩ mô').click();
+    const item = (title: string) => page.locator('.marco-chart-item')
+      .filter({ has: page.locator('.v3-marco-chart-title', { hasText: new RegExp(`^${title}$`) }) });
+
+    await expect(item('GDP')).toBeVisible();
+    await expect(item('GDP').locator('.free-user-img-wrapper')).toHaveCount(0);
+    await expect(item('GDP').locator('canvas').first()).toBeVisible({ timeout: 15_000 });
+    for (const title of ['Công nghiệp', 'Thương mại', 'Xuất nhập khẩu', 'Đầu tư', 'CPI']) {
+      await expect(item(title).locator('.free-user-img-wrapper'), title).toBeVisible();
+      await expect(item(title), title).toContainText('Bạn cần nâng cấp gói hội viên để sử dụng chức năng này');
+      await expect(item(title).locator('canvas'), title).toHaveCount(0);
+    }
+    // "Nâng cấp ngay" mở bảng chọn gói (store.isShowModalPackage).
+    await item('CPI').getByText('Nâng cấp ngay').click();
+    await expect(page.locator('.modal.show', { hasText: 'Chọn dịch vụ' })).toBeVisible();
   });
 });

@@ -4,7 +4,11 @@
 - **Component:** [src/views/dashboard/redirectToDashboard.vue](../../stocks/src/views/dashboard/redirectToDashboard.vue) →
   mặc định render [src/views/dashboard/DashboardV3Resize.vue](../../stocks/src/views/dashboard/DashboardV3Resize.vue)
   (`store.state.usingV3` mặc định `true`).
-- **Domain test:** https://kfsp.vn/dashboard
+- **Domain test:** https://kfsp.vn/dashboard (qua `PREV2_BASE_URL` + `Prev2Session`; production = preprod mới nhất từ 06/11/2026)
+- **Cập nhật 09/11/2026 (nhánh B):** đối chiếu `origin/preprod` (đổi từ 19/08 tới 06/11/2026): cột phải chỉ còn 3 tab
+  IBD/Watchlist/Ghi chú (gỡ "Cảnh báo" và "Cộng đồng" ngày 12/10), cột phải nhớ trạng thái đóng/mở + tab đang mở,
+  nút "Đặt lại bố cục mặc định" đổi sang `role=button` + `aria-label`, debounce lưu bố cục 3 giây → 300ms, menu
+  header gom "Bảng giá chứng khoán" vào menu thả xuống "Thị Trường". Thêm TC_DASHBOARD_23–27.
 - **Nguồn testcase gốc (app):** Google Sheet, tab "Dashboard" (87 dòng). **Hầu như không áp dụng được 1-1** —
   Dashboard app là màn hình mobile hoàn toàn khác kiến trúc: thanh tìm kiếm mã CK, card chỉ số cuộn ngang, 8 icon
   tính năng dạng lưới, section "Bài viết mới"/"Cộng đồng KFSP" dạng feed, bottom navigation. Dashboard web là bố
@@ -26,6 +30,9 @@
   - 🆕 Testcase mới — phát sinh riêng cho web, app không có (hoặc kiến trúc khác hẳn không map được).
   - ⚠️ Cần xác nhận thêm — chưa đủ điều kiện kiểm chứng thực tế.
 
+- **Xác minh trên UI thật (09/11/2026):** chạy trên **https://kfsp.vn** (biến `PREV2_BASE_URL` trong `.env`; production đã là
+  bản preprod mới nhất, deploy 06/11/2026 10:30 GMT) — 4 spec Dashboard pass 2 lần liên tiếp (`--workers=2`). Trước đó prev2
+  bị deploy đè bằng nhánh `feat/ibd_tobao` lúc 07:40 GMT nên không dùng làm môi trường xác nhận.
 ---
 
 ## Nhóm: Truy cập & Tổng quan
@@ -38,10 +45,12 @@
 ## Các bước thực hiện
 1. Đăng nhập thành công, mặc định vào `/dashboard`.
 
+- **Cập nhật 09/11/2026:** cột phải còn 3 tab dọc (gỡ "Cảnh báo"/"Cộng đồng").
+
 ## Kết quả mong đợi
 - [ ] Hiển thị đầy đủ layout 3 cột: cột trái (tab thị trường + card chỉ số VNINDEX/HNXINDEX/UPCOM/VN30), cột
-      giữa (Chỉ số tâm lý, Chỉ số rủi ro, bản đồ nhiệt), cột phải (panel IBD, kèm tab dọc Watchlist/Cảnh báo/
-      Ghi chú/Cộng đồng).
+      giữa (Chỉ số tâm lý, Chỉ số rủi ro, bản đồ nhiệt), cột phải (panel IBD, kèm tab dọc Watchlist/Ghi chú).
+- [ ] Cột phải KHÔNG còn tab "Cảnh báo" và "Cộng đồng".
 - [ ] Không bị tràn/vỡ layout.
 - [ ] Tab "Việt Nam" và panel "IBD" active mặc định (tabIndex = 0, rightTabIndex = 0).
 
@@ -200,7 +209,10 @@
 
 ## Kết quả mong đợi
 - [ ] Panel "IBD" hiển thị mặc định (active).
-- [ ] Có 5 tab dọc bên rìa phải: "IBD", "Watchlist", "Cảnh báo", "Ghi chú", "Cộng đồng".
+- [ ] Có đúng 3 tab dọc bên rìa phải theo thứ tự: "IBD", "Watchlist", "Ghi chú".
+
+- **Cập nhật 09/11/2026:** trước có 5 tab (thêm "Cảnh báo", "Cộng đồng") — 2 tab này gỡ ngày 12/10/2026 (commit
+  4346c85dd "Gỡ tab Cảnh báo và Cộng đồng khỏi thanh bên phải ở mọi màn"; cảnh báo chuyển về Trung tâm thông báo).
 
 ---
 
@@ -210,8 +222,10 @@
 - **Kết quả đo được:** Click tab dọc "Watchlist" → panel đổi từ nội dung IBD sang danh sách Watchlist ("Kungfu
   Watchlist", danh sách mã ABB/ACB/CEO...), tab "Watchlist" chuyển active.
 
+- **Cập nhật 09/11/2026:** chỉ còn 3 tab — bước bấm "Cảnh báo"/"Cộng đồng" đã bỏ.
+
 ## Các bước thực hiện
-1. Click lần lượt các tab dọc: "Watchlist", "Cảnh báo", "Ghi chú", "Cộng đồng".
+1. Click lần lượt các tab dọc: "Watchlist", "Ghi chú", rồi quay lại "IBD".
 
 ## Kết quả mong đợi
 - [ ] Mỗi lần click, panel đổi đúng nội dung tương ứng, tab được chọn chuyển active (`rightTabIndex` đổi đúng
@@ -289,6 +303,9 @@
 - **Kết quả đo được:** Click icon "Đặt lại bố cục mặc định" (title tương ứng) sau khi đã kéo giãn → cột trái/
   phải trở lại đúng 30% chiều rộng màn hình, `bTopHeight` về 150, `expandMenuRight = true`, `rightTabIndex = 0`,
   `showFullHeatMap = false` (khớp code `resetResize()`).
+- **Cập nhật 09/11/2026:** nút giờ là `div[role=button][aria-label="Đặt lại bố cục mặc định"]` (bỏ `title`). Đặt lại
+  còn mở lại cột phải đang thu gọn và **ghi ngay** bản lưu mặc định vào `localStorage.resize`
+  (`{bTopHeight:150, expandMenuRight:true, rightTab:"IBD"}`), không chờ debounce.
 
 ## Các bước thực hiện
 1. Kéo giãn hoặc thu gọn bố cục theo ý muốn.
@@ -296,7 +313,8 @@
 
 ## Kết quả mong đợi
 - [ ] Toàn bộ bố cục quay về đúng trạng thái mặc định ban đầu (kích thước cột, panel phải mở với IBD, bản đồ
-      nhiệt ở chế độ thu nhỏ).
+      nhiệt ở chế độ thu nhỏ) — kể cả khi cột phải đang thu gọn.
+- [ ] Cột trái về đúng 30% chiều rộng cửa sổ; `localStorage.resize` được ghi lại ngay giá trị mặc định.
 
 ---
 
@@ -359,8 +377,12 @@
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
 
+- **Cập nhật 09/11/2026:** menu header không còn link "Bảng giá" trực tiếp — "Bảng giá chứng khoán" nằm trong menu
+  thả xuống "Thị Trường" (rê chuột để mở). Trên prev2 lúc tải nặng, URL chỉ đổi sau khi tải xong chunk Bảng giá
+  (có lần >10 giây) → test chờ tối đa 30 giây.
+
 ## Các bước thực hiện
-1. Từ Dashboard, click menu "Bảng giá" trên header.
+1. Từ Dashboard, rê chuột vào "Thị Trường" trên header, chọn "Bảng giá chứng khoán".
 2. Click lại "Dashboard" trên header để quay lại.
 
 ## Kết quả mong đợi
@@ -374,7 +396,7 @@
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
 
 ## Các bước thực hiện
-1. Từ Dashboard, điều hướng sang `/bang-gia`.
+1. Từ Dashboard, điều hướng sang `/bang-gia` (menu "Thị Trường" → "Bảng giá chứng khoán").
 2. Bấm nút Back của trình duyệt.
 
 ## Kết quả mong đợi
@@ -382,20 +404,104 @@
 
 ---
 
-## Tổng hợp trạng thái (22 testcase — chỉ phạm vi khung/shell của Dashboard)
+## Nhóm: Nhớ trạng thái cột phải (mới từ 10/2026)
+
+# [TC_DASHBOARD_23] Tab cột phải đang mở được nhớ sau khi tải lại trang
+
+- **Trạng thái:** 🆕 Testcase mới
+- **Ghi chú:** `DashboardV3Resize.vue` lưu thêm `expandMenuRight` + `rightTab` (theo TÊN tab) vào `localStorage.resize`,
+  ghi ngay khi đổi tab (không chờ debounce) để chuyển màn liền vẫn nhớ.
+
+## Các bước thực hiện
+1. Bấm tab dọc "Ghi chú".
+2. Tải lại trang.
+
+## Kết quả mong đợi
+- [ ] Ngay sau bước 1, `localStorage.resize` có `expandMenuRight: true`, `rightTab: "Ghi chú"`.
+- [ ] Sau khi tải lại, tab "Ghi chú" vẫn đang mở (không nhảy về IBD).
+
+---
+
+# [TC_DASHBOARD_24] Cột phải đã thu gọn vẫn thu gọn sau khi tải lại / chuyển màn rồi quay lại
+
+- **Trạng thái:** 🆕 Testcase mới
+
+## Các bước thực hiện
+1. Bấm lại tab "IBD" đang mở để thu gọn cột phải.
+2. Tải lại trang; sau đó sang `/watchlist` rồi quay lại `/dashboard`.
+
+## Kết quả mong đợi
+- [ ] `localStorage.resize` có `expandMenuRight: false`, `rightTab: null`.
+- [ ] Sau khi tải lại và sau khi quay lại từ màn khác, cột phải vẫn thu gọn (chỉ còn dải 3 tab dọc, không tab nào active).
+
+---
+
+# [TC_DASHBOARD_25] Bản lưu cũ (số thứ tự trong dãy 5 tab) được đổi đúng tab; tab đã gỡ → mở IBD
+
+- **Trạng thái:** 🆕 Testcase mới
+- **Ghi chú:** Bản lưu trước 10/2026 ghi `rightTabIndex` theo dãy cũ `IBD, Watchlist, Cảnh báo, Ghi chú, Cộng đồng` →
+  code đổi ra tên qua `OLD_RIGHT_TAB_NAMES`; tên không còn trong dãy mới thì mở IBD.
+
+## Các bước thực hiện
+1. Ghi `localStorage.resize` dạng cũ `{..., expandMenuRight: true, rightTabIndex: N}` với N = 3, 2, 4; tải lại trang mỗi lần.
+
+## Kết quả mong đợi
+- [ ] N = 3 (Ghi chú cũ) → mở tab "Ghi chú".
+- [ ] N = 2 (Cảnh báo — đã gỡ) và N = 4 (Cộng đồng — đã gỡ) → mở "IBD"; luôn chỉ có 3 tab dọc.
+
+---
+
+# [TC_DASHBOARD_26] Bản lưu "resize" hỏng (không phải JSON) → bố cục mặc định, không lỗi JS
+
+- **Trạng thái:** 🆕 Testcase mới
+- **Ghi chú:** Code mới bọc `JSON.parse` trong `try/catch` (code cũ parse thẳng).
+
+## Các bước thực hiện
+1. Ghi `localStorage.resize = "{hong"`, tải lại trang.
+
+## Kết quả mong đợi
+- [ ] Dashboard vẫn hiển thị, cột phải mở tab IBD, cột trái 30% chiều rộng cửa sổ (mặc định).
+- [ ] Không có lỗi JS liên quan tới `resize`/`JSON`.
+
+---
+
+## Nhóm: Công tắc "Dashboard mới (beta)"
+
+# [TC_DASHBOARD_27] Tắt/bật công tắc "Dashboard mới (beta)" trong menu tài khoản
+
+- **Trạng thái:** 🆕 Testcase mới
+- **Ghi chú:** Công tắc ở menu avatar (`TheHeaderDropdownAccnt.vue`) đổi `store.usingV3` + `localStorage.using_v3_dashboard`;
+  `redirectToDashboard.vue` render `DashboardV3Resize` (mới) hoặc `dashboard_bk/index.vue` (cũ). Mixin
+  `userDashboardPreference` (`TheContainer.vue`) gửi `POST /api/user-dashboard-preference/save-user-dashboard-preference`
+  `{version: "new"|"old"}` mỗi lần vào trang và mỗi lần đổi — **test giả lập thành công, không gửi tới production**.
+
+## Các bước thực hiện
+1. Vào Dashboard, mở menu avatar.
+2. Tắt công tắc "Dashboard mới (beta)", rồi bật lại.
+
+## Kết quả mong đợi
+- [ ] Khi vào trang, app đã định ghi `version: "new"`. Công tắc đang bật.
+- [ ] Tắt → dashboard mới (`.db-container`) biến mất, hiện dashboard cũ; `localStorage.using_v3_dashboard = "false"`;
+      app định ghi `version: "old"`.
+- [ ] Bật lại → dashboard mới hiện lại (tab "Việt Nam"); `localStorage.using_v3_dashboard = "true"`; định ghi `"new"`.
+
+---
+
+## Tổng hợp trạng thái (27 testcase — chỉ phạm vi khung/shell của Dashboard)
 
 Đã tự động hoá bằng Playwright: [tests/dashboard.spec.ts](../tests/dashboard.spec.ts)
 (POM: [pages/DashboardPage.ts](../pages/DashboardPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| 🆕 Mới (riêng web) | 22 | Kiến trúc Dashboard web khác hẳn app, không có testcase nào map trực tiếp 1-1 từ Sheet |
+| 🆕 Mới (riêng web) | 27 | Kiến trúc Dashboard web khác hẳn app, không có testcase nào map trực tiếp 1-1 từ Sheet (TC_23–27 thêm 09/11/2026) |
 
 **Phát hiện đáng chú ý cần theo dõi:**
 1. **⚠️ Nghi vấn rendering:** Khi bấm "Phóng to" bản đồ nhiệt lần đầu, treemap render vỡ/chồng chữ trong chốc
    lát trước khi ổn định — có thể do canvas chưa nhận kích thước container mới kịp thời. Cần điều tra sâu hơn
    khi viết testcase riêng cho widget Bản đồ nhiệt.
-2. Bố cục kéo giãn (`aWidth`/`cWidth`/`bTopHeight`) được lưu vào `localStorage` với debounce 3 giây và khôi phục
+2. Bố cục kéo giãn (`aWidth`/`cWidth`/`bTopHeight`) được lưu vào `localStorage` với debounce 300ms (trước 10/2026
+   là 3 giây — code cũ tạo hàm debounce mới mỗi lần chuột di chuyển nên thực chất chỉ hoãn ghi) và khôi phục
    đúng sau reload — hành vi đúng như thiết kế, đã verify bằng automation.
 3. Route `/dashboard` được bảo vệ đúng bởi router guard `requiresUser`, redirect về
    `/login?redirect=%2Fdashboard` khi chưa đăng nhập, và `Login.vue` tôn trọng query `redirect` sau khi đăng
@@ -405,5 +511,5 @@
    nhưng là khác biệt UX đáng lưu ý nếu có yêu cầu đồng bộ hành vi với app.
 
 **Ngoài phạm vi lần sinh này (để lại cho các lần gen riêng theo từng widget):** nội dung chi tiết bên trong
-Bản đồ nhiệt, IBD, Watchlist, Cảnh báo, Ghi chú, Cộng đồng (panel phải), Chỉ số tâm lý/Chỉ số rủi ro, và 4 tab
+Bản đồ nhiệt, IBD, Watchlist, Ghi chú (panel phải), Chỉ số tâm lý/Chỉ số rủi ro, và 4 tab
 thị trường Quốc tế/Crypto/Sự kiện/Vĩ mô.

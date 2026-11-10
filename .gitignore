@@ -10,3 +10,4 @@ secrets/
 screens/
 .dom-inspect/
 result_file/
+.auth/

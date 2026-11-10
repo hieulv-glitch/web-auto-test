@@ -1,32 +1,22 @@
 import { test, expect } from '@playwright/test';
 import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+import { Prev2Session, PREV2_BASE_URL } from '../pages/Prev2Session';
+
+/**
+ * Chạy trên prev2 (bản preprod mới nhất, gọi backend PRODUCTION) — đăng nhập qua `Prev2Session` (cache phiên, chặn
+ * ghi setting + giả lập save-user-dashboard-preference). Mọi API ghi của tab (`save_compare/store|update|destroy`)
+ * bị chặn/giả lập ở beforeEach bên dưới.
+ */
+test.use({ baseURL: PREV2_BASE_URL, viewport: { width: 1600, height: 900 } });
+test.setTimeout(90_000);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new Prev2Session(page).open({ account: 'paid', path: '/home' });
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  await new Prev2Session(page).open({ account: 'free', path: '/home' });
 }
 
 /** Vào thẳng tab So sánh + áp dụng workaround race condition (xem TC_PTCB_SS_02/03 và ghi chú
@@ -102,6 +92,29 @@ test.describe('Phân tích cơ bản — So sánh — Tổng quan & bug race con
 });
 
 test.describe('Phân tích cơ bản — So sánh — Bảng dữ liệu', () => {
+  test('TC_PTCB_SS_28: Thanh cuộn ngang phía trên bảng — rộng bằng bảng, đồng bộ cuộn với bảng, dính đỉnh khung; tiêu đề cột nằm ngay dưới', async ({ page }) => {
+    await loginFirst(page);
+    await page.setViewportSize({ width: 1000, height: 800 });
+    const fa = await gotoSoSanhReady(page);
+    const bar = page.locator('.table-scroll .scrollbar-top').first();
+    await expect(bar).toBeAttached();
+    await expect(page.locator('.table-scroll .scrollbar-top'), 'Chỉ dựng 1 thanh (không nhân bản khi dữ liệu realtime đổi)').toHaveCount(1);
+    await expect(bar).toHaveCSS('position', 'sticky');
+    await expect(bar).toHaveClass(/custom-scrollbar/);
+    const tbody = page.locator('.table-scroll table tbody').first();
+    const widths = await page.evaluate(() => {
+      const b = document.querySelector('.table-scroll .scrollbar-top') as HTMLElement;
+      const t = document.querySelector('.table-scroll table tbody') as HTMLElement;
+      return { inner: (b.firstChild as HTMLElement).offsetWidth, scroll: t.scrollWidth };
+    });
+    expect(Math.abs(widths.inner - widths.scroll)).toBeLessThan(3);
+    // Cuộn thanh trên → bảng cuộn theo.
+    await bar.evaluate((el) => { el.scrollLeft = 0; el.dispatchEvent(new Event('scroll')); });
+    await expect.poll(() => tbody.evaluate((el) => el.scrollLeft)).toBeLessThan(5);
+    await bar.evaluate((el) => { el.scrollLeft = 150; el.dispatchEvent(new Event('scroll')); });
+    await expect.poll(() => tbody.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
+  });
+
   test('TC_PTCB_SS_04: Click tên mã ở header mở modal biểu đồ TradingView dùng chung toàn site', async ({ page }) => {
     await loginFirst(page);
     const fa = await gotoSoSanhReady(page);
@@ -130,6 +143,20 @@ test.describe('Phân tích cơ bản — So sánh — Bảng dữ liệu', () =>
 });
 
 test.describe('Phân tích cơ bản — So sánh — Modal "Thêm mã"', () => {
+  test('TC_PTCB_SS_27: Mở modal "Thêm mã" → ô "Thêm mã vào danh sách" được focus sẵn, gõ ngay được', async ({ page }) => {
+    await loginFirst(page);
+    const fa = await gotoSoSanhReady(page);
+    await fa.btnThemMa.click();
+    await expect(fa.addMackModalInput).toBeFocused();
+    await page.keyboard.type('FPT');
+    await expect(fa.addMackModalInput).toHaveValue('FPT');
+    // Đóng rồi mở lại → vẫn focus.
+    await fa.addMackModalCloseBtn.click();
+    await expect(fa.addMackModal).toBeHidden();
+    await fa.btnThemMa.click();
+    await expect(fa.addMackModalInput).toBeFocused();
+  });
+
   test('TC_PTCB_SS_06: Mở modal "Thêm mã" hiển thị đúng cấu trúc', async ({ page }) => {
     await loginFirst(page);
     const fa = await gotoSoSanhReady(page);
@@ -343,7 +370,8 @@ test.describe('Phân tích cơ bản — So sánh — "Lưu mẫu" / "Mở mẫu
     await fa.addTemplateNameInput.fill('[TEST] Mẫu tạm');
     await fa.addTemplateSubmitBtn.click();
 
-    await expect(page.getByText('Thêm mẫu mới thành công')).toBeVisible();
+    // Từ 12/10/2026 web tắt mọi toast thành công (main.js) — chỉ kiểm tra trạng thái.
+    await expect(page.locator('.Vue-Toastification__toast--success')).toHaveCount(0);
     await expect(fa.addTemplateModal).toHaveCount(0);
     await expect(fa.selectedTemplateLabel).toContainText('[TEST] Mẫu tạm');
     await expect(fa.btnBoChonTemplate).toBeVisible();
@@ -378,7 +406,9 @@ test.describe('Phân tích cơ bản — So sánh — "Lưu mẫu" / "Mở mẫu
     await fa.openTemplateModal.getByRole('button', { name: 'Nạp' }).click();
 
     await expect(fa.openTemplateModal).toHaveCount(0);
-    await expect(fa.selectedTemplateLabel).toContainText('Mẫu giả B');
+    // "Nạp" tải lại dữ liệu so sánh cho các mã của mẫu → cả tab hiện spinner (ẩn luôn thanh nút + nhãn) tới khi API
+    // thật trả về — trên production có lúc > 5 giây.
+    await expect(fa.selectedTemplateLabel).toContainText('Mẫu giả B', { timeout: 30000 });
   });
 
   test('TC_PTCB_SS_22: Xoá mẫu trong "Mở mẫu" — modal xác nhận + gọi API xoá (mock)', async ({ page }) => {
@@ -406,7 +436,9 @@ test.describe('Phân tích cơ bản — So sánh — "Lưu mẫu" / "Mở mẫu
     await expect(fa.deleteTemplateConfirmModal.getByText('Bạn có muốn xóa không?')).toBeVisible();
     await fa.deleteTemplateConfirmModal.getByRole('button', { name: 'Xóa' }).click();
 
-    await expect(page.getByText('Đã xóa thành công')).toBeVisible();
+    // Toast thành công đã tắt toàn app (main.js, 12/10/2026).
+    await expect(fa.deleteTemplateConfirmModal).toBeHidden();
+    await expect(page.locator('.Vue-Toastification__toast--success')).toHaveCount(0);
     expect(destroyCalled, 'API xoá (mock) phải được gọi').toBe(true);
     await expect(fa.openTemplateModal.getByText('Mẫu giả C')).toHaveCount(0);
   });

@@ -1,7 +1,9 @@
 import { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { Prev2Session, Prev2Account } from './Prev2Session';
 
 export class DashboardPage extends BasePage {
+  readonly session: Prev2Session;
   readonly marketTabWrapper: Locator;
   readonly rightPanelExpanded: Locator;
   readonly rightPanelCollapsed: Locator;
@@ -33,12 +35,15 @@ export class DashboardPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
+    this.session = new Prev2Session(page);
     this.marketTabWrapper = page.locator('.column .tab-wrapper').first();
     this.rightPanelExpanded = page.locator('.right-tab-item');
     this.rightPanelCollapsed = page.locator('.v3-dashboard-menu-right-tab-item');
     this.enlargeHeatMapButton = page.locator('[title="Phóng to"]');
     this.shrinkHeatMapButton = page.locator('[title="Thu nhỏ"]');
-    this.resetLayoutButton = page.locator('[title="Đặt lại bố cục mặc định"]');
+    // Từ 10/2026 nút là `div[role=button][aria-label]` (trước dùng `title`). Chỉ 1 bản render tại 1 thời điểm:
+    // `.btn-reset-resize-expend` (cột phải đang mở) hoặc `.btn-reset-resize` (cột phải thu gọn).
+    this.resetLayoutButton = page.getByRole('button', { name: 'Đặt lại bố cục mặc định' });
     this.verticalResizers = page.locator('.resizer-vertical');
     this.indexCards = page.locator('.board-item');
     this.heatMapHeader = page.locator('.header-heat-map');
@@ -69,6 +74,13 @@ export class DashboardPage extends BasePage {
     this.viMoLink = page.locator('.marco-chart-item').first().locator('a[href="/vi-mo"]');
   }
 
+  /** Đăng nhập prev2 (cache phiên, chặn ghi setting — xem Prev2Session) rồi vào /dashboard, chờ tab thị trường hiện. */
+  async open(account: Prev2Account = 'paid') {
+    await this.session.open({ account, path: '/dashboard' });
+    // Production lúc nhiều phiên test chạy song song có lần > 30 giây mới dựng xong Dashboard.
+    await this.marketTab('Việt Nam').waitFor({ timeout: 60_000 });
+  }
+
   async goto() {
     await super.goto('/dashboard');
     await this.page.waitForLoadState('networkidle');
@@ -85,7 +97,7 @@ export class DashboardPage extends BasePage {
     return this.page.locator('.tab', { hasText: name });
   }
 
-  /** Tab dọc panel phải (khi đang mở rộng): "IBD" | "Watchlist" | "Cảnh báo" | "Ghi chú" | "Cộng đồng". */
+  /** Tab dọc panel phải (khi đang mở rộng): "IBD" | "Watchlist" | "Ghi chú" (tab "Cảnh báo"/"Cộng đồng" đã gỡ 12/10/2026). */
   rightTab(name: string): Locator {
     return this.rightPanelExpanded.filter({ hasText: name });
   }
@@ -121,6 +133,20 @@ export class DashboardPage extends BasePage {
   /** Tab lọc trong panel Ghi chú, dùng component `TabsBase.vue` riêng (`.tabs-wrapper > .tab-item`). */
   noteFilterTab(name: string): Locator {
     return this.page.locator('.tabs-wrapper .tab-item', { hasText: name });
+  }
+
+  /** Menu tài khoản (avatar góc phải header) → công tắc "Dashboard mới (beta)". */
+  accountMenuToggle(): Locator {
+    return this.page.locator('.c-header-nav-items .c-avatar, .c-header .c-avatar').first();
+  }
+
+  dashboardV3Switch(): Locator {
+    return this.page.locator('.dropdown-item', { hasText: 'Dashboard mới (beta)' }).locator('input[type=checkbox]');
+  }
+
+  /** Đọc bản lưu bố cục `localStorage.resize` dạng object. */
+  async getResizeState(): Promise<Record<string, unknown> | null> {
+    return this.page.evaluate(() => { try { return JSON.parse(localStorage.getItem('resize') || 'null'); } catch { return null; } });
   }
 
   async getResizeFromStorage() {

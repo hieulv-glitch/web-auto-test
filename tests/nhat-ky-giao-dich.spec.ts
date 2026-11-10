@@ -1,195 +1,136 @@
 import { test, expect } from '@playwright/test';
-import { TradingLogPage } from '../pages/TradingLogPage';
-import { LoginPage } from '../pages/LoginPage';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
+import { TradingLogPage, NK_TABS } from '../pages/TradingLogPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * NKGD — khung 5 tab (testcases/nhat-ky-giao-dich.md). Chạy trên prev2 (preprod mới nhất, backend production):
+ * toàn bộ API NKGD là máy chủ giả, mọi request ghi khác bị huỷ — `afterEach` kiểm tra không có gì lọt ra ngoài.
+ */
+test.use({ baseURL: PREV2_BASE_URL, viewport: { width: 1600, height: 900 } });
+test.setTimeout(120_000);
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
-}
+let nk: TradingLogPage;
+test.beforeEach(async ({ page }) => { nk = new TradingLogPage(page); });
+test.afterEach(async () => { expect(nk.server.blocked, 'request ghi lọt tới máy chủ thật').toEqual([]); });
 
-/** Đăng nhập tài khoản Free, tự `test.skip` với lý do rõ ràng nếu tài khoản trong `.env` đăng nhập lỗi — cùng
- * cơ chế đã dùng ở TC_CONGDONG_55/TC_WATCHLIST_09/TC_BANGGIA_48-50. */
-async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
-}
+/** Nội dung đặc trưng của từng tab (để biết tab đã thật sự đổi). */
+const marker = (p: TradingLogPage, tab: typeof NK_TABS[number]) => ({
+  'Tài sản': p.pane.getByRole('heading', { name: 'Tài sản ròng (NAV)' }),
+  'Giao dịch': p.thFilterBtn,
+  'Phân tích giao dịch': p.pane.getByRole('button', { name: 'Phong cách và rủi ro' }),
+  'Phân bổ vốn': p.pane.getByText('Thiết lập deal tiếp theo'),
+  'Danh mục': p.dmAddBtn,
+}[tab]);
 
-/** ProtectedView (blurred image + "Đăng ký ngay") của tab bị khóa CHỈ hiện text hover-only, nhưng
- * `.image-container > .blurred-image` luôn nằm trong DOM ngay khi `disable_featureName` = true — dùng làm dấu
- * hiệu ổn định. QUAN TRỌNG: CoreUI `CTabs` giữ CẢ 3 pane bị gate (Tài sản/Quản lý danh mục/Phân bổ vốn) LUÔN
- * mounted trong DOM cùng lúc (giống pattern CModal không unmount đã ghi nhận ở nơi khác trong codebase này) —
- * `featureName`/`disable_featureName` là 1 computed DÙNG CHUNG cho cả 3 pane (dựa theo `active_tab` hiện tại),
- * nên đếm KHÔNG lọc `:visible` sẽ đếm nhầm cả các pane ẩn (không phải tab đang xem). Luôn lọc `:visible`. */
-function visibleProtectedViewImage(page: any) {
-  return page.locator('.tradingLog-component .image-container .blurred-image:visible');
-}
-
-// An toàn: mọi API MUTATE của trang này (thêm/sửa/xóa giao dịch, danh mục, cổ tức, phân bổ vốn) bị chặn mặc
-// định — tài khoản test có dữ liệu giao dịch thật trị giá lớn. Test nào cần quan sát luồng thành công/lỗi sẽ
-// tự `page.unroute()` rồi mock riêng (không cần ở file này vì chỉ test khung/shell, không thao tác dữ liệu).
-async function blockMutations(page: any) {
-  await page.route(/\/api\/stocks\/trading_log/, (route: any) =>
-    route.request().method() === 'GET' ? route.continue() : route.abort()
-  );
-  await page.route(/\/api\/tradinglog\//, (route: any) =>
-    route.request().method() === 'GET' ? route.continue() : route.abort()
-  );
-  await page.route(/\/api\/stocks\/category/, (route: any) =>
-    route.request().method() === 'GET' ? route.continue() : route.abort()
-  );
-  await page.route('**/updateusersettings**', (route: any) => route.abort());
-}
-
-test.beforeEach(async ({ page }) => {
-  await blockMutations(page);
-});
-
-test.describe('Nhật ký giao dịch — Truy cập & Tổng quan', () => {
-  test('TC_NKGD_01: Overview màn hình khi đã đăng nhập', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-    for (const name of ['Tài sản', 'Nhật ký giao dịch', 'Quản lý danh mục', 'Phân bổ vốn']) {
-      await expect(nkgd.mainTab(name), `Tab "${name}" phải hiển thị`).toBeVisible();
-    }
-    await expect(nkgd.mainTab('Tài sản')).toHaveClass(/active/);
+test.describe('Truy cập & tổng quan', () => {
+  test('TC_NKGD_01: 5 tab đúng thứ tự, "Tài sản" active mặc định', async () => {
+    await nk.open({ tab: null });
+    await expect(nk.tabBar.getByRole('link')).toHaveText([...NK_TABS]);
+    expect(await nk.activeTab()).toBe('Tài sản');
+    await expect(marker(nk, 'Tài sản')).toBeVisible({ timeout: 20000 });
   });
 
-  test('TC_NKGD_02: Chặn truy cập khi chưa đăng nhập', async ({ page }) => {
+  test('TC_NKGD_02: Chưa đăng nhập → chuyển về /login', async ({ page }) => {
     await page.goto('/nhat-ky-giao-dich');
-    await page.waitForURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 20000 });
+    await expect(nk.tabBar).toHaveCount(0);
   });
 });
 
-test.describe('Nhật ký giao dịch — Chuyển tab chính', () => {
-  test('TC_NKGD_03: Chuyển qua lại 4 tab chính', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-
-    for (const name of ['Nhật ký giao dịch', 'Quản lý danh mục', 'Phân bổ vốn', 'Tài sản']) {
-      await nkgd.gotoMainTab(name);
-      await page.waitForTimeout(300);
-      await expect(nkgd.mainTab(name), `Tab "${name}" phải chuyển active`).toHaveClass(/active/);
+test.describe('Chuyển tab', () => {
+  test('TC_NKGD_03: Chuyển lần lượt 5 tab — đúng nội dung, không lỗi JS', async () => {
+    await nk.open();
+    for (const name of [...NK_TABS.slice(1), 'Tài sản' as const]) {
+      await nk.gotoTab(name);
+      await expect(marker(nk, name)).toBeVisible({ timeout: 20000 });
+      expect(await nk.activeTab()).toBe(name);
     }
+    expect(nk.pageErrors).toEqual([]);
   });
 
-  test('TC_NKGD_04: Click tab nhanh liên tục không lag/duplicate', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-
-    for (let i = 0; i < 2; i++) {
-      await nkgd.mainTab('Nhật ký giao dịch').click();
-      await nkgd.mainTab('Quản lý danh mục').click();
-      await nkgd.mainTab('Phân bổ vốn').click();
-      await nkgd.mainTab('Tài sản').click();
-    }
-    await page.waitForTimeout(300);
-    await expect(nkgd.mainTab('Tài sản')).toHaveClass(/active/);
-    // Không có lỗi console/crash trong suốt quá trình chuyển tab liên tục.
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-    await page.waitForTimeout(200);
-    expect(errors).toEqual([]);
+  test('TC_NKGD_04: Bấm tab nhanh liên tục — dừng đúng tab cuối; chỉ tải lại nhật ký khi rời tab Danh mục', async () => {
+    await nk.open();
+    await nk.waitData();
+    const before = nk.server.reads.getAll;
+    for (let round = 0; round < 2; round++) for (const name of NK_TABS) await nk.tab(name).click();
+    await expect(nk.tab('Danh mục')).toHaveClass(/active/);
+    await expect(marker(nk, 'Danh mục')).toBeVisible();
+    // 2 vòng, dừng ở Danh mục → rời tab Danh mục đúng 1 lần (vòng 1 → vòng 2) → nạp lại nhật ký đúng 1 lần.
+    await expect.poll(() => nk.server.reads.getAll).toBe(before + 1);
+    expect(nk.pageErrors).toEqual([]);
   });
 
-  test('TC_NKGD_05: Deep-link ?tab=nhat-ky-giao-dich mở thẳng tab "Nhật ký giao dịch"', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto('nhat-ky-giao-dich');
-    await expect(nkgd.mainTab('Nhật ký giao dịch')).toHaveClass(/active/);
+  test('TC_NKGD_05: Deep-link ?tab=nhat-ky-giao-dich mở "Giao dịch", thắng bản nhớ và ghi đè bản nhớ', async () => {
+    await nk.open({ tab: 4, query: 'tab=nhat-ky-giao-dich' });
+    await expect(nk.tab('Giao dịch')).toHaveClass(/active/);
+    await expect(marker(nk, 'Giao dịch')).toBeVisible({ timeout: 20000 });
+    expect(JSON.parse((await nk.ls('trading_log_view_state'))!)).toEqual({ active_tab: 1 });
   });
 
-  test('TC_NKGD_06: Chuyển tab không cập nhật URL — F5 quay về tab mặc định', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-    await nkgd.gotoMainTab('Quản lý danh mục');
-    await page.waitForTimeout(300);
-    await expect(page).toHaveURL(/\/nhat-ky-giao-dich$/); // không có query nào được thêm
-
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-    await expect(nkgd.mainTab('Tài sản'), 'Sau F5 phải quay về tab mặc định "Tài sản"').toHaveClass(/active/);
+  test('TC_NKGD_06: Tab đang chọn được nhớ — F5 mở lại đúng tab, URL không đổi', async ({ page }) => {
+    await nk.open();
+    await nk.gotoTab('Danh mục');
+    expect(JSON.parse((await nk.ls('trading_log_view_state'))!)).toEqual({ active_tab: 4 });
+    expect(new URL(page.url()).search).toBe('');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(nk.tab('Danh mục')).toHaveClass(/active/, { timeout: 30000 });
+    await expect(marker(nk, 'Danh mục')).toBeVisible({ timeout: 20000 });
   });
 
-  test('TC_NKGD_07: Nút Back trình duyệt điều hướng rời khỏi trang', async ({ page }) => {
-    await loginFirst(page);
-    await page.goto('/dashboard');
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-    await nkgd.gotoMainTab('Nhật ký giao dịch');
-    // KHÔNG chờ "load" mặc định — trang có polling/socket nền liên tục nên event "load" có thể không bao giờ
-    // fire trong timeout (cùng lý do đã ghi ở TradingLogPage.goto()).
-    await Promise.all([
-      page.waitForURL((url) => !/\/nhat-ky-giao-dich/.test(url.pathname), { waitUntil: 'commit' }),
-      page.goBack({ waitUntil: 'commit' }),
-    ]);
-    await expect(page).not.toHaveURL(/\/nhat-ky-giao-dich/);
+  test('TC_NKGD_07: Nút Back rời khỏi trang (chuyển tab không tạo lịch sử)', async ({ page }) => {
+    await nk.open({ waitTabs: false });
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.goto('/nhat-ky-giao-dich', { waitUntil: 'domcontentloaded' });
+    await expect(nk.tabBar).toBeVisible({ timeout: 30000 });
+    await nk.gotoTab('Giao dịch');
+    await nk.gotoTab('Phân bổ vốn');
+    await page.goBack();
+    await expect(page).toHaveURL(/\/dashboard/);
   });
+
+  for (const [label, value] of [['ngoài khoảng (9)', '{"active_tab":9}'], ['không phải JSON', 'abc{']] as const) {
+    test(`TC_NKGD_08: Bản nhớ tab ${label} → về "Tài sản", không trắng trang`, async () => {
+      await nk.open({ tab: null, local: { trading_log_view_state: value } });
+      expect(await nk.activeTab()).toBe('Tài sản');
+      await expect(marker(nk, 'Tài sản')).toBeVisible({ timeout: 20000 });
+      expect(nk.pageErrors).toEqual([]);
+    });
+  }
 });
 
-test.describe('Nhật ký giao dịch — Giới hạn theo gói hội viên', () => {
-  test('TC_NKGD_08: Tab "Nhật ký giao dịch" không bị khóa theo gói hội viên', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-    await nkgd.gotoMainTab('Nhật ký giao dịch');
-    // Scope trong `.tradingLog-component` — trang có thể có sẵn 1 `ProtectedView` khác (VD widget ẩn ở nơi
-    // khác ngoài trang này) không liên quan tới tab đang test, không dùng `page.getByText` không scope.
-    await expect(page.locator('.tradingLog-component').getByText('Bạn cần nâng cấp gói hội viên')).toHaveCount(0);
-    await expect(nkgd.historySubTab('Lịch sử giao dịch')).toBeVisible();
+test.describe('Giới hạn theo gói hội viên', () => {
+  test('TC_NKGD_09: Free — cả 5 tab hiện ProtectedView, không có nội dung thật', async () => {
+    await nk.open({ account: 'free' });
+    for (const name of NK_TABS) {
+      await nk.tab(name).click();
+      await expect(nk.tab(name)).toHaveClass(/active/);
+      await expect(nk.protectedView, name).toBeVisible({ timeout: 20000 });
+      await expect(marker(nk, name), name).toHaveCount(0);
+    }
   });
 
-  test('TC_NKGD_09: Tab bị khóa theo gói hội viên hiển thị ProtectedView (tài khoản Free)', async ({ page }) => {
-    await loginFreeOrSkip(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-    await page.waitForTimeout(800);
-
-    const visibleBlurred = visibleProtectedViewImage(page);
-    const results: Record<string, number> = {};
-    for (const tabName of ['Tài sản', 'Quản lý danh mục', 'Phân bổ vốn']) {
-      await nkgd.gotoMainTab(tabName);
-      await page.waitForTimeout(600);
-      results[tabName] = await visibleBlurred.count();
-    }
-    console.log(`[TC_NKGD_09] Số ProtectedView hiện (blurred-image visible) mỗi tab với tài khoản Free: ${JSON.stringify(results)}`);
-    // Hành vi thật đo được (tài khoản Free hiện tại): cả 3 tab "Tài sản"/"Quản lý danh mục"/"Phân bổ vốn" đều
-    // bị khóa (featureName nkgd_tai_san/nkgd_quan_ly_danh_muc/nkgd_phan_bo_von), mỗi tab hiện đúng 1
-    // ProtectedView khi đang active. Xem thêm testcases/nhat-ky-giao-dich.md.
-    for (const tabName of ['Tài sản', 'Quản lý danh mục', 'Phân bổ vốn']) {
-      expect(results[tabName], `Tab "${tabName}" phải hiện ProtectedView với tài khoản Free`).toBe(1);
+  test('TC_NKGD_10: Trả phí — không tab nào bị khoá', async () => {
+    await nk.open();
+    for (const name of NK_TABS) {
+      await nk.gotoTab(name);
+      await expect(marker(nk, name), name).toBeVisible({ timeout: 20000 });
+      await expect(nk.protectedView, name).toHaveCount(0);
     }
   });
 });
 
-test.describe('Nhật ký giao dịch — Responsive', () => {
-  test('TC_NKGD_10: Responsive viewport mobile/tablet', async ({ page }) => {
-    await loginFirst(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto();
-
-    await page.setViewportSize({ width: 375, height: 812 });
-    await expect(nkgd.mainTab('Tài sản')).toBeVisible();
-
-    await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(nkgd.mainTab('Tài sản')).toBeVisible();
-  });
+test.describe('Responsive', () => {
+  for (const vp of [{ width: 375, height: 812 }, { width: 768, height: 1024 }]) {
+    test(`TC_NKGD_11: ${vp.width}px — 5 tab bấm được, trang không cuộn ngang, NAV hiện đủ`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await nk.open();
+      await expect(nk.tsNavValue).toBeVisible({ timeout: 20000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+      for (const name of NK_TABS) {
+        await nk.tab(name).scrollIntoViewIfNeeded();
+        await nk.tab(name).click();
+        await expect(nk.tab(name)).toHaveClass(/active/);
+      }
+    });
+  }
 });

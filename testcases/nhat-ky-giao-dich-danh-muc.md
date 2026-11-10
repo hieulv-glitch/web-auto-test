@@ -1,361 +1,395 @@
-# Màn hình: Nhật ký giao dịch — Tab "Quản lý danh mục"
+# Màn hình: Nhật ký giao dịch — Tab "Danh mục"
 
-- **URL:** `/nhat-ky-giao-dich` (`active_tab = 2`) — xem tổng quan 4 tab ở
-  [nhat-ky-giao-dich.md](nhat-ky-giao-dich.md).
-- **Component:** [src/views/ManageCategory.vue](../../stocks/src/views/ManageCategory.vue) (796 dòng), dùng
-  thêm `textMask.vue` (input "Vốn ban đầu"). Bị khóa bởi `<ProtectedView featureName="nkgd_quan_ly_danh_muc">`
-  nếu tài khoản chưa đủ quyền (xem [nhat-ky-giao-dich.md](nhat-ky-giao-dich.md) TC_NKGD_09).
-- **Domain test:** https://kfsp.vn/nhat-ky-giao-dich
-- **Nguồn testcase gốc (app):** Google Sheet, tab "Nhật Kí giao dịch" — Sheet không có khái niệm "Quản lý danh
-  mục" tách riêng thành tab như web (app quản lý danh mục lồng trong luồng khác) → toàn bộ testcase dưới đây là
-  🆕, không gắn được `Tham chiếu App`.
-- **Phương pháp sinh:** Đọc toàn bộ `ManageCategory.vue` + `textMask.vue` + kiểm kê độc lập qua DOM thật
-  (`.dom-inspect/nkgd-danhmuc.*`).
-- **⚠️ AN TOÀN DỮ LIỆU — QUAN TRỌNG:** Tài khoản test có **11 danh mục thật** đang dùng cho hàng trăm giao dịch
-  thật (xem danh sách trong ảnh chụp DOM: Lướt Sóng, v70Release, MFR - v70 - iphone, NKGD - V70, v70-4, v71,
-  v71 done release, v72, iphoneV72, NKGD-New, testNKGDnew). Mọi testcase Thêm/Sửa/Xóa/Khôi phục dưới đây
-  **mock qua `page.route()`**, không có testcase nào thao tác thật trên các danh mục hiện có (xóa nhầm 1 danh
-  mục thật sẽ ảnh hưởng trực tiếp tới toàn bộ giao dịch đang gắn với nó).
-- **Quy ước trạng thái:** 🆕 Testcase mới · ⚠️ Cần xác nhận thêm.
+- **URL:** `/nhat-ky-giao-dich`, tab thứ 5 "Danh mục" (`active_tab = 4`) — xem khung ở [nhat-ky-giao-dich.md](nhat-ky-giao-dich.md).
+- **Component:** `stocks/src/views/ManageCategory.vue` (bản preprod 03/11/2026).
+- **Môi trường:** https://kfsp.vn (production — đã ngang preprod mới nhất, deploy 06/11/2026 10:30 GMT; spec đọc `PREV2_BASE_URL` trong .env, hiện trỏ kfsp.vn) — `Prev2Session` + máy chủ giả `NkgdFakeServer`
+  (`pages/TradingLogPage.ts`). Dữ liệu giả: 3 danh mục "Cổ tức", "Dài hạn" (tự nhập vốn 500.000.000 đ), "Lướt sóng"
+  + 1 danh mục trong thùng rác "Danh mục cũ".
+- **Cập nhật 09/11/2026 — viết lại theo giao diện mới (nhánh B).** Khác bản 19/08:
+  - Tab đổi tên "Quản lý danh mục" → **"Danh mục"**, chuyển xuống cuối.
+  - Bỏ 2 sub-tab "Danh mục hiện có"/"Danh mục đã xóa": giờ là hàng đầu "N danh mục" + nút **"Danh mục đã xóa (n)"**
+    (mở modal danh sách) + nút **"+ Thêm danh mục"**; bảng có hàng **"Tổng"**.
+  - Form Thêm/Sửa có ô tích **"Nhập giá vốn"**: không tích = vốn tự động (lưu 0); tích = bắt buộc > 0. Cột "Vốn ban đầu"
+    hiện vốn tự nhập, hoặc vốn tự động (= tổng chi mua số cổ phiếu đang nắm) kèm tooltip.
+  - Vốn ban đầu lưu ở setting `capital_allocation_data_save` (localStorage + `saveSetting`), không gọi API danh mục.
+- **Toast thành công đã bị tắt toàn app** (`main.js`: `$toast.success = () => {}`, yêu cầu 12/10/2026): code vẫn gọi
+  `$toast.success("Đã thêm mới danh mục")`… nhưng không hiện gì — thao tác thành công được kiểm bằng kết quả (bảng, request,
+  setting) và việc KHÔNG có toast nào. Chỉ còn toast lỗi.
+- **⚠️ An toàn dữ liệu:** mọi API danh mục (`/api/stocks/category/store|update|restore|force-delete/{id}|{id}`) đi qua
+  máy chủ giả; ghi setting bị chặn (`settingWrites`).
+- **Quy ước trạng thái:** ✅ Áp dụng · 🆕 Testcase mới · ⚠️ Cần xác nhận thêm.
 
 ---
 
-## Nhóm: Overview & sub-tab
+## Nhóm: Tổng quan & bảng danh mục
 
-# [TC_NKGD_DM_01] Overview — sub-tab "Danh mục hiện có" active mặc định
+# [TC_NKGD_DM_01] Overview tab Danh mục
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** 🆕 Testcase mới
+- **Cập nhật:** bố cục mới (hàng đầu + bảng trong thẻ + hàng Tổng), thay overview 2 sub-tab cũ.
 
 ## Các bước thực hiện
-1. Vào tab "Quản lý danh mục".
+1. Mở tab "Danh mục".
 
 ## Kết quả mong đợi
-- [ ] Hiển thị 2 sub-tab: "Danh mục hiện có" (active mặc định), "Danh mục đã xóa".
-- [ ] Hiển thị nút "Thêm danh mục" + bảng 2 cột "Tên danh mục hiện có"/"Vốn ban đầu" + icon Sửa/Xóa mỗi dòng.
+- [ ] Hàng đầu: "3 danh mục", nút "Danh mục đã xóa (1)", nút "Thêm danh mục".
+- [ ] Bảng có cột "Tên danh mục", "Vốn ban đầu"; 3 dòng xếp theo tên tiếng Việt: Cổ tức, Dài hạn, Lướt sóng; mỗi dòng
+      có nút "Sửa" và "Xóa"; cuối bảng có hàng "Tổng".
 
 ---
 
-# [TC_NKGD_DM_02] Chuyển sang sub-tab "Danh mục đã xóa"
+# [TC_NKGD_DM_02] Cột "Vốn ban đầu": vốn tự nhập, vốn tự động và hàng Tổng
 
 - **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Click sub-tab "Danh mục đã xóa".
+1. Mở tab "Danh mục", đọc cột "Vốn ban đầu".
 
 ## Kết quả mong đợi
-- [ ] Hiển thị bảng danh mục đã xóa (nếu có) với icon Khôi phục/Xóa vĩnh viễn, KHÔNG có nút "Thêm danh mục".
+- [ ] "Dài hạn" (tự nhập) = `500,000,000`, không có tooltip vốn tự động.
+- [ ] "Cổ tức", "Lướt sóng" (vốn tự động) hiện số > 0 và có tooltip "Giá vốn tự động: bằng tổng chi (giá trị + phí) của
+      cổ phiếu đang nắm…".
+- [ ] Hàng "Tổng" = tổng 3 số đang hiện.
 
 ---
 
-## Nhóm: Bảng "Danh mục hiện có"
+# [TC_NKGD_DM_03] Không có danh mục nào
 
-# [TC_NKGD_DM_03] Hiển thị đúng danh sách danh mục + Vốn ban đầu
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Quan sát bảng "Danh mục hiện có".
+1. Máy chủ trả danh sách danh mục rỗng, mở tab "Danh mục".
 
 ## Kết quả mong đợi
-- [ ] Mỗi dòng hiển thị đúng tên danh mục + "Vốn ban đầu" (đọc từ `localStorage`, KHÔNG đồng bộ server — xem
-      ghi chú dưới).
-- [ ] "Vốn ban đầu" hiển thị "0" nếu chưa từng thiết lập trên trình duyệt hiện tại, kể cả khi đã thiết lập trên
-      trình duyệt/thiết bị khác của cùng người dùng.
+- [ ] "0 danh mục", bảng hiện "Chưa có danh mục nào", không có hàng "Tổng".
 
 ---
 
-# [TC_NKGD_DM_04] Lỗi tải danh sách danh mục — im lặng, không thông báo cho người dùng
+## Nhóm: Thêm danh mục
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý**
-- **⚠️ Phát hiện đáng chú ý:** Đọc code `getAllItemCategory()`/`getAllItemCategorySoftDelete()` — nhánh
-  `.catch` chỉ `console.error`, KHÔNG toast, KHÔNG có error-state riêng. Khi API lỗi, bảng hiển thị GIỐNG HỆT
-  trường hợp thật sự chưa có danh mục nào ("Chưa có danh mục nào"), người dùng không phân biệt được đây là lỗi
-  tải hay tài khoản mới chưa có dữ liệu.
+# [TC_NKGD_DM_04] Mở modal "Thêm mới danh mục"
+
+- **Trạng thái:** ✅ Áp dụng
+- **Cập nhật:** form mới có ô tích "Nhập giá vốn" (mặc định không tích, không có ô nhập vốn).
 
 ## Các bước thực hiện
-1. Mock `GET /api/tradinglog/category/get-all` trả lỗi 500.
-2. Vào tab "Quản lý danh mục".
+1. Bấm "Thêm danh mục".
 
 ## Kết quả mong đợi
-- [ ] Bảng hiển thị "Chưa có danh mục nào" — (ghi nhận hạn chế UX) không có bất kỳ toast/thông báo lỗi nào phân
-      biệt với trường hợp tài khoản thật sự chưa có danh mục.
+- [ ] Modal "Thêm mới danh mục": nhãn "Tên danh mục" + ô nhập rỗng, ô tích "Nhập giá vốn" chưa tích, KHÔNG có ô nhập vốn,
+      nút "Thêm danh mục" và "Hủy".
+- [ ] Tích "Nhập giá vốn" → hiện ô nhập vốn + ghi chú "(Vốn giữ nguyên số đã nhập…)"; bỏ tích → ô nhập ẩn lại.
 
 ---
 
-## Nhóm: Thêm danh mục mới
+# [TC_NKGD_DM_05] Tên danh mục rỗng
 
-# [TC_NKGD_DM_05] Mở modal "Thêm mới danh mục"
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** ✅ Áp dụng
 
 ## Các bước thực hiện
-1. Click "Thêm danh mục".
+1. Mở modal Thêm, để trống tên, bấm "Thêm danh mục".
 
 ## Kết quả mong đợi
-- [ ] Modal mở với "Tên danh mục" (rỗng) + "Vốn ban đầu" (mặc định "0", định dạng số nghìn).
+- [ ] Toast lỗi "Tên danh mục không được để trống", ô tên viền đỏ (`is-invalid`), modal vẫn mở, không gọi API.
 
 ---
 
-# [TC_NKGD_DM_06] Validate tên danh mục rỗng
+# [TC_NKGD_DM_06] Tên chỉ có khoảng trắng vẫn được gửi lên máy chủ
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** ⚠️ Cần xác nhận thêm (bug nghi vấn, giữ từ bản cũ)
+- **Kết quả đo được:** `addNewTrading()` chỉ so `name != ""`, không `.trim()` → tên "   " qua được kiểm tra phía web.
 
 ## Các bước thực hiện
-1. Mở modal Thêm danh mục, để trống "Tên danh mục", click "Lưu".
+1. Nhập tên "   ", bấm "Thêm danh mục".
 
-## Kết quả mong đợi
-- [ ] Toast lỗi "Tên danh mục không được để trống", modal vẫn mở, không gọi API.
+## Kết quả mong đợi (đo được)
+- [ ] Web gửi `POST /api/stocks/category/store` với `name: "   "` (máy chủ giả chấp nhận). Cần backend xác nhận có chặn
+      tên rỗng sau khi trim không.
 
 ---
 
-# [TC_NKGD_DM_07] Tên danh mục chỉ chứa khoảng trắng — được chấp nhận (bug tiềm ẩn)
+# [TC_NKGD_DM_07] Tích "Nhập giá vốn" mà vốn = 0
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý**
-- **⚠️ Phát hiện đáng chú ý:** Validate chỉ so sánh `name != ""`, KHÔNG `.trim()` trước khi check → tên toàn
-  khoảng trắng (VD `"   "`) được coi là hợp lệ, vượt qua validate client và bị gửi thẳng lên API.
+- **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Mock `POST /api/stocks/category/store` trả `200`.
-2. Nhập "Tên danh mục" = 3 dấu cách, click "Lưu".
+1. Nhập tên hợp lệ, tích "Nhập giá vốn", để vốn 0, bấm "Thêm danh mục".
 
 ## Kết quả mong đợi
-- [ ] (Hành vi thật đo được) KHÔNG có toast lỗi "không được để trống" — request `POST` được gửi đi với tên toàn
-      khoảng trắng. Ghi nhận là hạn chế validate cần báo dev bổ sung `.trim()`.
+- [ ] Toast lỗi "Vốn ban đầu phải lớn hơn 0", modal vẫn mở, không gọi API.
 
 ---
 
-# [TC_NKGD_DM_08] Thêm danh mục thành công (mock)
+# [TC_NKGD_DM_08] Thêm danh mục vốn tự động thành công
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
 
 ## Các bước thực hiện
-1. Mock `POST /api/stocks/category/store` trả `200` kèm `{ id, name, ... }`.
-2. Nhập tên hợp lệ (VD `[TEST] Danh mục mới`), click "Lưu".
+1. Nhập tên "Tăng trưởng", không tích "Nhập giá vốn", bấm "Thêm danh mục".
 
 ## Kết quả mong đợi
-- [ ] Toast "Đã thêm mới danh mục", modal đóng, danh mục mới xuất hiện đầu bảng (highlight tạm thời).
+- [ ] Gửi đúng 1 `POST …/category/store` với `{ name: "Tăng trưởng" }`.
+- [ ] Không hiện toast (thành công im lặng), modal đóng, "4 danh mục", dòng "Tăng trưởng" xuất hiện.
 
 ---
 
-# [TC_NKGD_DM_09] Thêm danh mục trùng tên (mock lỗi 422)
+# [TC_NKGD_DM_09] Thêm danh mục có nhập giá vốn
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Mock `POST /api/stocks/category/store` trả lỗi HTTP 422.
-2. Nhập tên đã tồn tại, click "Lưu".
+1. Nhập tên "Tăng trưởng", tích "Nhập giá vốn", nhập `300000000`, bấm "Thêm danh mục".
 
 ## Kết quả mong đợi
-- [ ] Toast "Danh mục của bạn đã tồn tại! Vui lòng kiểm tra lại tên danh mục, kể cả các danh mục đã xóa trong
-      thùng rác." (nội dung xấp xỉ, xác nhận đúng theo message thật khi chạy), modal đóng.
+- [ ] Dòng mới hiện vốn `300,000,000`.
+- [ ] Web định ghi setting `capital_allocation_data_save` có `tong_tai_san: "300000000"` cho id danh mục mới (bị chặn
+      trong test).
 
 ---
 
-# [TC_NKGD_DM_10] Thêm danh mục khi mất mạng — bug crash tiềm ẩn (thiếu optional chaining)
+# [TC_NKGD_DM_10] Thêm danh mục trùng tên (máy chủ trả 422)
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện bug thật**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** `.catch` của `addNewTrading()` truy cập `error.response.status`
-  KHÔNG có optional chaining — nếu lỗi là network error thật (không có `error.response`, VD do mất mạng/CORS/
-  timeout), dòng này ném `TypeError: Cannot read properties of undefined (reading 'status')`, làm hỏng luôn
-  `.catch`, không có toast lỗi nào hiển thị cho người dùng.
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
 
 ## Các bước thực hiện
-1. `context.setOffline(true)` HOẶC mock `POST /api/stocks/category/store` bằng `route.abort()`.
-2. Đăng ký `page.on('pageerror', ...)`.
-3. Nhập tên hợp lệ, click "Lưu".
+1. Máy chủ trả 422, thêm danh mục "Dài hạn".
 
 ## Kết quả mong đợi
-- [ ] (Kỳ vọng ban đầu) Toast lỗi mạng hiển thị, modal vẫn mở để thử lại.
-- [ ] (Hành vi thật đo được — BUG) Không có toast nào hiển thị; ghi nhận `pageerror` (`TypeError`) do thiếu
-      optional chaining khi truy cập `error.response.status`. Cần báo dev sửa thành
-      `error.response?.status`.
+- [ ] Toast "Danh mục của bạn đã tồn tại! Vui lòng kiểm tra lại các danh mục hiện có và các danh mục đã xóa trong thùng
+      rác.", modal đóng, danh sách không đổi.
+
+---
+
+# [TC_NKGD_DM_11] Thêm danh mục lỗi 500
+
+- **Trạng thái:** 🆕 Testcase mới
+
+## Các bước thực hiện
+1. Máy chủ trả 500, thêm danh mục.
+
+## Kết quả mong đợi
+- [ ] Toast "Có lỗi xảy ra, vui lòng thử lại", modal đóng, danh sách không đổi.
+
+---
+
+# [TC_NKGD_DM_12] Thêm danh mục khi mất mạng — lỗi JS, không báo gì
+
+- **Trạng thái:** 🆕 Testcase mới — 🐞 bug (giữ từ bản cũ TC_NKGD_DM_10)
+- **Nguyên nhân:** `.catch` đọc `error.response.status` không kiểm tra `error.response` → mất mạng thì `TypeError`, không
+  tới được toast.
+
+## Các bước thực hiện
+1. Request thêm danh mục bị huỷ (mất mạng), thêm danh mục.
+
+## Kết quả mong đợi (đo được)
+- [ ] Modal đóng, KHÔNG có toast nào, trang phát sinh lỗi JS `Cannot read properties of undefined (reading 'status')`.
+- [ ] Mong đợi đúng (cần dev sửa): báo lỗi "Có lỗi xảy ra, vui lòng thử lại".
+
+---
+
+# [TC_NKGD_DM_13] Nhấn Enter trong modal Thêm — lỗi JS, không thêm được
+
+- **Trạng thái:** 🆕 Testcase mới — 🐞 bug mới
+- **Nguyên nhân:** `mounted()` gắn `keyup` Enter lên `window` gọi `document.getElementById("addManageCategory").click()` /
+  `("saveEditCategory")` — giao diện mới đã bỏ 2 id này khỏi nút → `null.click()` ném `TypeError`. Listener còn không
+  bao giờ được gỡ (gắn thêm mỗi lần vào tab).
+
+## Các bước thực hiện
+1. Mở modal Thêm, nhập tên "Tăng trưởng", nhấn Enter.
+
+## Kết quả mong đợi (đo được)
+- [ ] Không gọi API thêm danh mục, modal vẫn mở; trang phát sinh lỗi JS `Cannot read properties of null (reading 'click')`.
+- [ ] Mong đợi đúng (cần dev sửa): Enter = bấm "Thêm danh mục".
+
+---
+
+# [TC_NKGD_DM_14] Đóng modal Thêm bằng "Hủy"/nút X không lưu
+
+- **Trạng thái:** ✅ Áp dụng
+
+## Các bước thực hiện
+1. Nhập tên, bấm "Hủy". Mở lại, nhập tên, bấm X.
+
+## Kết quả mong đợi
+- [ ] Modal đóng, không gọi API, danh sách không đổi; mở lại thì ô tên rỗng.
+
+---
+
+# [TC_NKGD_DM_15] Danh mục vừa thêm có trong phiếu lệnh của tab Giao dịch
+
+- **Trạng thái:** 🆕 Testcase mới
+- **Ghi chú:** rời tab Danh mục → `handleChangeCategories` cập nhật danh sách danh mục của cả trang.
+
+## Các bước thực hiện
+1. Thêm danh mục "Tăng trưởng" (thành công), chuyển sang tab "Giao dịch", bấm "Mua".
+
+## Kết quả mong đợi
+- [ ] Ô "Danh mục" của phiếu lệnh có lựa chọn "Tăng trưởng".
 
 ---
 
 ## Nhóm: Sửa danh mục
 
-# [TC_NKGD_DM_11] Mở modal "Sửa danh mục" — prefill đúng dữ liệu
+# [TC_NKGD_DM_16] Mở modal "Sửa danh mục" — điền sẵn đúng dữ liệu
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** ✅ Áp dụng
+- **Cập nhật:** ô tích "Nhập giá vốn" tích sẵn khi danh mục đang tự nhập vốn > 0.
 
 ## Các bước thực hiện
-1. Click icon Sửa trên 1 dòng danh mục.
+1. Bấm "Sửa" ở dòng "Dài hạn"; đóng; bấm "Sửa" ở dòng "Lướt sóng".
 
 ## Kết quả mong đợi
-- [ ] Modal "Cập nhật Danh mục" (hoặc tiêu đề tương đương — xác nhận đúng text thật khi chạy) mở với "Tên danh
-      mục" và "Vốn ban đầu" đã điền sẵn đúng giá trị hiện có.
+- [ ] "Dài hạn": tên "Dài hạn", "Nhập giá vốn" đã tích, ô vốn = `500,000,000`, nút "Lưu thay đổi".
+- [ ] "Lướt sóng": "Nhập giá vốn" chưa tích, không có ô vốn.
 
 ---
 
-# [TC_NKGD_DM_12] Chỉ sửa "Vốn ban đầu" (không đổi tên) — KHÔNG gọi API, chỉ lưu `localStorage`
+# [TC_NKGD_DM_17] Chỉ đổi vốn ban đầu — không gọi API, chỉ lưu setting
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý**
-- **⚠️ Phát hiện đáng chú ý:** Đọc code `saveEditTradingMC()` — có nhánh rẽ đặc biệt: nếu tên KHÔNG đổi nhưng
-  "Vốn ban đầu" có đổi, hàm gọi `saveVonBanDau()` (chỉ lưu `localStorage`) rồi **return luôn**, KHÔNG gọi API
-  `PUT /api/stocks/category/update`. Toast vẫn hiện "Đã cập nhật giao dịch" y hệt trường hợp có gọi API, khiến
-  người dùng không phân biệt được 2 luồng khác nhau này.
+- **Trạng thái:** ✅ Áp dụng
 
 ## Các bước thực hiện
-1. Đăng ký theo dõi request `PUT /api/stocks/category/update` (không mock, chỉ đếm).
-2. Mở modal Sửa 1 danh mục, CHỈ đổi "Vốn ban đầu" (giữ nguyên tên), click "Lưu".
+1. Sửa "Dài hạn": đổi vốn thành `600000000`, giữ tên, bấm "Lưu thay đổi".
 
 ## Kết quả mong đợi
-- [ ] Toast "Đã cập nhật giao dịch" hiển thị, modal đóng, giá trị Vốn ban đầu trên bảng cập nhật đúng.
-- [ ] KHÔNG có request `PUT /api/stocks/category/update` nào được gửi (chỉ thay đổi `localStorage`) — an toàn
-      để test thật trên tài khoản test vì không chạm server.
+- [ ] Không gọi `PUT …/category/update`; không hiện toast (thành công im lặng); modal đóng; dòng "Dài hạn" hiện `600,000,000`.
+- [ ] Web định ghi setting `capital_allocation_data_save` với `tong_tai_san: "600000000"` cho "Dài hạn".
 
 ---
 
-# [TC_NKGD_DM_13] Đổi tên danh mục — có gọi API (mock thành công)
+# [TC_NKGD_DM_18] Đổi tên danh mục thành công
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
 
 ## Các bước thực hiện
-1. Mock `PUT /api/stocks/category/update` trả `200`.
-2. Mở modal Sửa 1 danh mục, đổi "Tên danh mục" sang tên khác, click "Lưu".
+1. Sửa "Lướt sóng" → tên "Lướt sóng T+", bấm "Lưu thay đổi".
 
 ## Kết quả mong đợi
-- [ ] Request `PUT` được gửi đi, toast "Đã cập nhật giao dịch", modal đóng, tên mới hiển thị trên bảng
-      (highlight tạm thời).
+- [ ] Gửi `PUT …/category/update` với `{ id, name: "Lướt sóng T+" }`; không hiện toast (thành công im lặng); dòng đổi tên.
 
 ---
 
-# [TC_NKGD_DM_14] Đổi tên trùng với danh mục khác (mock lỗi)
+# [TC_NKGD_DM_19] Đổi tên trùng danh mục khác
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
 
 ## Các bước thực hiện
-1. Mock `PUT /api/stocks/category/update` trả lỗi với `error.response.data.error == "Already name"`.
-2. Đổi tên, click "Lưu".
+1. Máy chủ trả lỗi `{ error: "Already name" }`; đổi tên "Lướt sóng" thành "Dài hạn".
 
 ## Kết quả mong đợi
-- [ ] Toast "Tên danh mục đã tồn tại!..." (xác nhận đúng text thật), modal đóng.
+- [ ] Toast "Tên danh mục đã tồn tại! Vui lòng nhập tên danh mục mới", modal đóng, tên cũ giữ nguyên.
 
 ---
 
-## Nhóm: Xóa (thùng rác) & Khôi phục
-
-# [TC_NKGD_DM_15] Icon Xóa mở modal xác nhận "Di chuyển vào thùng rác"
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Click icon Xóa trên 1 dòng danh mục (ở sub-tab "Danh mục hiện có").
-
-## Kết quả mong đợi
-- [ ] Modal "Xóa dữ liệu" mở, nội dung "Di chuyển vào thùng rác. Bạn có chắc chắn không?".
-
----
-
-# [TC_NKGD_DM_16] Xác nhận xóa (soft-delete) thành công (mock)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-
-## Các bước thực hiện
-1. Mock `DELETE /api/stocks/category/{id}` trả `200`.
-2. Xác nhận xóa 1 danh mục.
-
-## Kết quả mong đợi
-- [ ] Toast "Di chuyển vào thùng rác thành công", danh mục biến mất khỏi "Danh mục hiện có" và xuất hiện ở
-      "Danh mục đã xóa".
-
----
-
-# [TC_NKGD_DM_17] Khôi phục danh mục từ thùng rác — chạy ngay, KHÔNG có modal xác nhận
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-- **Ghi chú:** Khác với mọi hành động mutate khác trong tab này, "Khôi phục" KHÔNG có bước xác nhận — click là
-  gọi API ngay lập tức.
-
-## Các bước thực hiện
-1. Ở sub-tab "Danh mục đã xóa", mock `POST /api/stocks/category/restore` trả `200`.
-2. Click icon Khôi phục trên 1 dòng.
-
-## Kết quả mong đợi
-- [ ] Không có modal xác nhận nào xuất hiện, danh mục biến mất khỏi "Danh mục đã xóa" và quay lại "Danh mục
-      hiện có" ngay lập tức, toast "Khôi phục thành công danh mục <tên>".
-
----
-
-# [TC_NKGD_DM_18] Xóa vĩnh viễn — modal xác nhận riêng, chỉ 1 bước (không gõ lại tên)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Ở sub-tab "Danh mục đã xóa", click icon Xóa vĩnh viễn trên 1 dòng.
-
-## Kết quả mong đợi
-- [ ] Modal "Xóa dữ liệu" mở, nội dung "Danh mục sẽ bị xóa vĩnh viễn. Bạn có chắc chắn không?" — chỉ 1 bước xác
-      nhận, KHÔNG yêu cầu gõ lại tên danh mục để confirm (khác với các hệ thống thường yêu cầu double-confirm
-      cho hành động không thể hoàn tác).
-
----
-
-# [TC_NKGD_DM_19] Xác nhận xóa vĩnh viễn thành công (mock)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-
-## Các bước thực hiện
-1. Mock `DELETE /api/stocks/category/force-delete/{id}` trả `200`.
-2. Xác nhận xóa vĩnh viễn.
-
-## Kết quả mong đợi
-- [ ] Toast "Xóa thành công <tên>", danh mục biến mất hẳn khỏi "Danh mục đã xóa".
-
----
-
-# [TC_NKGD_DM_20] Xóa vĩnh viễn lỗi — modal KHÔNG tự đóng (khác các hành động khác)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** Khác với `addNewTrading`/`saveEditTradingMC`/`saveDeleteTradingMC` (luôn đóng modal dù lỗi),
-  `handleForceDelete` KHÔNG đóng modal khi lỗi — hành vi nhất quán hơn, cho phép người dùng thử lại ngay.
-
-## Các bước thực hiện
-1. Mock `DELETE /api/stocks/category/force-delete/{id}` trả lỗi 500.
-2. Xác nhận xóa vĩnh viễn.
-
-## Kết quả mong đợi
-- [ ] Toast lỗi chung hiển thị, modal xác nhận VẪN MỞ (không tự đóng).
-
----
-
-## Nhóm: Hành vi chung khác
-
-# [TC_NKGD_DM_21] Nút "Hủy"/đóng modal Thêm/Sửa không lưu thay đổi
+# [TC_NKGD_DM_20] Sửa với tên rỗng
 
 - **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Mở modal Thêm hoặc Sửa danh mục, nhập vài ký tự vào "Tên danh mục".
-2. Click "Hủy".
+1. Sửa "Lướt sóng", xoá hết tên, bấm "Lưu thay đổi".
 
 ## Kết quả mong đợi
-- [ ] Modal đóng, không có request nào được gửi, bảng không đổi.
+- [ ] Toast "Tên danh mục không được để trống", modal vẫn mở, không gọi API.
 
 ---
 
-## Tổng hợp trạng thái (21 testcase)
+## Nhóm: Thùng rác
 
-Đã tự động hoá bằng Playwright: [tests/nhat-ky-giao-dich-danh-muc.spec.ts](../tests/nhat-ky-giao-dich-danh-muc.spec.ts)
-(POM dùng chung: [pages/TradingLogPage.ts](../pages/TradingLogPage.ts)).
+# [TC_NKGD_DM_21] Xoá danh mục vào thùng rác
 
-| Trạng thái | Số lượng | Ghi chú |
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
+
+## Các bước thực hiện
+1. Bấm "Xóa" ở dòng "Lướt sóng" → modal "Xóa dữ liệu" "Di chuyển vào thùng rác. Bạn có chắc chắn không?" → bấm
+   "Di chuyển vào thùng rác".
+
+## Kết quả mong đợi
+- [ ] Gửi `DELETE /api/stocks/category/{id}`; không hiện toast (thành công im lặng); modal đóng.
+- [ ] Dòng biến mất, "2 danh mục", nút "Danh mục đã xóa (2)".
+
+---
+
+# [TC_NKGD_DM_22] Xoá vào thùng rác lỗi
+
+- **Trạng thái:** 🆕 Testcase mới
+
+## Các bước thực hiện
+1. Máy chủ trả 500, xoá "Lướt sóng".
+
+## Kết quả mong đợi
+- [ ] Toast "Có lỗi xảy ra, vui lòng thử lại", modal đóng, dòng vẫn còn.
+
+---
+
+# [TC_NKGD_DM_23] Modal "Danh mục đã xóa"
+
+- **Trạng thái:** 🆕 Testcase mới
+- **Cập nhật:** thay sub-tab "Danh mục đã xóa" cũ.
+
+## Các bước thực hiện
+1. Bấm "Danh mục đã xóa (1)". Lặp lại khi thùng rác rỗng.
+
+## Kết quả mong đợi
+- [ ] Modal "Danh mục đã xóa" liệt kê "Danh mục cũ" kèm nút "Khôi phục" và "Xóa vĩnh viễn".
+- [ ] Thùng rác rỗng: nút ghi "Danh mục đã xóa" (không số), modal hiện "Chưa có danh mục nào bị xóa."
+
+---
+
+# [TC_NKGD_DM_24] Khôi phục danh mục — chạy ngay, không hỏi lại
+
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
+
+## Các bước thực hiện
+1. Trong modal "Danh mục đã xóa", bấm "Khôi phục" ở "Danh mục cũ".
+
+## Kết quả mong đợi
+- [ ] Gửi `POST …/category/restore` với `{ id }`, không có modal xác nhận; không hiện toast (thành công im lặng); dòng rời modal, xuất hiện trong bảng; "4 danh mục".
+
+---
+
+# [TC_NKGD_DM_25] Xoá vĩnh viễn
+
+- **Trạng thái:** ✅ Áp dụng (giả lập máy chủ)
+
+## Các bước thực hiện
+1. Bấm "Xóa vĩnh viễn" ở "Danh mục cũ" → modal "Danh mục sẽ bị xóa vĩnh viễn. Bạn có chắc chắn không?" → bấm "Xóa vĩnh viễn".
+
+## Kết quả mong đợi
+- [ ] Gửi `DELETE …/category/force-delete/{id}`; không hiện toast (thành công im lặng); modal xác nhận đóng; thùng rác rỗng.
+
+---
+
+# [TC_NKGD_DM_26] Xoá vĩnh viễn lỗi — modal xác nhận không tự đóng
+
+- **Trạng thái:** 🆕 Testcase mới (giữ từ bản cũ TC_NKGD_DM_20)
+- **Ghi chú:** `handleForceDelete().catch` không đóng modal, khác các thao tác khác (đều đóng). Cách cư xử không thống nhất,
+  ghi nhận để dev quyết định.
+
+## Các bước thực hiện
+1. Máy chủ trả 500, xoá vĩnh viễn "Danh mục cũ".
+
+## Kết quả mong đợi (đo được)
+- [ ] Toast "Có lỗi xảy ra, vui lòng thử lại"; modal xác nhận VẪN mở; "Danh mục cũ" vẫn trong thùng rác.
+
+---
+
+## Tổng hợp trạng thái (26 testcase)
+
+Tự động hoá: [tests/nhat-ky-giao-dich-danh-muc.spec.ts](../tests/nhat-ky-giao-dich-danh-muc.spec.ts).
+
+| Trạng thái | Số lượng | Testcase |
 |---|---|---|
-| 🆕 Mới (riêng web) | 21 | Toàn bộ — Sheet app không có tab "Quản lý danh mục" tương ứng |
-| ⚠️ Cần xác nhận thêm | 0 | |
+| ✅ Áp dụng | 12 | DM_04, 05, 08, 10, 14, 16, 17, 18, 19, 21, 24, 25 |
+| 🆕 Mới (riêng web) | 13 | DM_01, 02, 03, 07, 09, 11, 12, 13, 15, 20, 22, 23, 26 |
+| ⚠️ Cần xác nhận thêm | 1 | DM_06 |
 
-**Phát hiện đáng chú ý (bug thật, ưu tiên báo dev):**
-1. **TC_NKGD_DM_10:** `.catch` của `addNewTrading()`/`saveEditTradingMC()` thiếu optional chaining khi đọc
-   `error.response.status`/`error.response.data.error` → crash `TypeError` khi lỗi mạng thật (không có
-   `error.response`), không có toast lỗi nào hiển thị cho người dùng.
-2. **TC_NKGD_DM_07:** Validate tên danh mục không `.trim()`, chấp nhận tên toàn khoảng trắng.
-3. **TC_NKGD_DM_12:** Sửa CHỈ "Vốn ban đầu" (không đổi tên) không gọi API server, chỉ lưu `localStorage` —
-   không đồng bộ giữa các thiết bị, cùng vấn đề với tab Tài sản (TC_NKGD_TS_16).
-4. **TC_NKGD_DM_04:** Lỗi tải danh sách danh mục hoàn toàn im lặng, giao diện giống hệt "chưa có danh mục nào"
-   thật.
-5. Hành vi đóng modal khi lỗi KHÔNG nhất quán giữa các hành động: Thêm/Sửa/Xóa (soft) luôn đóng modal dù lỗi,
-   riêng Xóa vĩnh viễn thì giữ modal mở khi lỗi.
-6. Nghe sự kiện `keyup` toàn cục (Enter) đăng ký trong `mounted()` không có `removeEventListener` tương ứng —
-   rủi ro memory leak nếu vào/rời tab nhiều lần, và có thể vô tình trigger submit ngầm nếu state `action`
-   không được reset đúng lúc đóng modal Sửa bằng nút "Hủy" (chưa viết testcase tự động hoá cho trường hợp
-   này — độ phức tạp cao để tái tạo an toàn, xem TRACKER.md).
+**Đối chiếu bản 19/08 (21 TC):** DM_01–02 (2 sub-tab) → DM_01 + DM_23; DM_03 → DM_01/02; DM_04 (lỗi tải im lặng) bỏ (không
+còn khác biệt quan sát được); DM_05–10 → DM_04–12; DM_11–14 → DM_16–19; DM_15–20 → DM_21, 24–26; DM_21 → DM_14. Mới: DM_03,
+07, 09, 13, 15, 20, 22.
+
+**Phát hiện đáng chú ý:**
+1. 🐞 **DM_13 (mới):** phím Enter trong modal Thêm/Sửa ném `TypeError` vì code còn gọi id nút đã bị xoá khỏi giao diện
+   mới (`addManageCategory`, `saveEditCategory`); listener `keyup` gắn lên `window` không bao giờ gỡ.
+2. 🐞 **DM_12:** mất mạng khi thêm danh mục → `TypeError` trong `.catch`, người dùng không được báo gì (bug cũ, chưa sửa).
+3. ⚠️ **DM_06:** tên toàn khoảng trắng vẫn gửi lên máy chủ (bug cũ, chưa sửa).
+4. **DM_26:** xoá vĩnh viễn lỗi thì modal không đóng — khác mọi thao tác khác của tab.

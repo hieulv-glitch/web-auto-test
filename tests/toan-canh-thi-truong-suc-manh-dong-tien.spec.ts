@@ -1,49 +1,46 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { SucManhDongTienPage } from '../pages/SucManhDongTienPage';
-import { LoginPage } from '../pages/LoginPage';
-import { WatchlistPage } from '../pages/WatchlistPage';
+import { Prev2Session, PREV2_BASE_URL } from '../pages/Prev2Session';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+// Chạy trên `PREV2_BASE_URL` (09/11/2026 = https://kfsp.vn — bản preprod mới nhất), đăng nhập qua `Prev2Session`.
+// ⚠️ AN TOÀN DỮ LIỆU: backend là production, tài khoản test dùng chung. Mọi request không phải GET tới `*.kfsp.vn/api/`
+// bị huỷ (`guardWrites`), riêng `POST /api/watchlist` (thêm mã vào watchlist) được GIẢ LẬP — không mã nào được thêm/xoá
+// thật. Trước 09/11/2026 spec này xoá VNM khỏi watchlist thật qua màn /watchlist rồi thêm lại thật (TC_SMDT_15) — đã bỏ.
+test.use({ baseURL: PREV2_BASE_URL });
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+type WatchlistAdd = { mack: string; my_watchlist_id: number };
+/** Lệnh "thêm mã vào watchlist" app đã định gửi (đã giả lập, không tới máy chủ) + các lệnh ghi khác bị huỷ. */
+const writes = new WeakMap<Page, { adds: WatchlistAdd[]; blocked: string[]; addMode: 'ok' | 'exist' }>();
+const READ_ONLY_POST = /\/api\/login(\?|$)|\/getusersettings|\/api\/filter(\?|$)|\/canslim-fourm\/by-mack|\/count-stock-by-mack|socket\.io/;
+
+async function guardWrites(page: Page) {
+  const rec = { adds: [] as WatchlistAdd[], blocked: [] as string[], addMode: 'ok' as 'ok' | 'exist' };
+  writes.set(page, rec);
+  await page.route(/^https:\/\/[^/]*kfsp\.vn\/api\//, async (route) => {
+    const r = route.request();
+    if (r.method() === 'GET' || r.method() === 'OPTIONS' || READ_ONLY_POST.test(r.url())) return route.fallback();
+    rec.blocked.push(`${r.method()} ${new URL(r.url()).pathname}`);
+    return route.abort();
+  });
+  await page.route(/\/api\/watchlist(\?|$)/, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    const body = route.request().postDataJSON() || {};
+    rec.adds.push({ mack: body.mack, my_watchlist_id: body.my_watchlist_id });
+    if (rec.addMode === 'exist') return route.fulfill({ status: 400, json: { message: 'Mã đã tồn tại' } });
+    return route.fulfill({ json: { id: 990001, mack: body.mack, my_watchlist_id: body.my_watchlist_id } });
+  });
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
-async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+async function loginFirst(page: Page) {
+  await guardWrites(page);
+  await new Prev2Session(page).open({ path: '/suc-manh-dong-tien' });
 }
 
-/** Màn "Sức mạnh dòng tiền" không có UI xoá 1 mã khỏi watchlist NGAY TRÊN CHÍNH màn này (tab "Watchlist" ẩn hẳn
- * cột 3-chấm hành động — xem `is_watchlist` trong `TableData.vue`). Vì watchlist là dữ liệu server dùng chung
- * qua nhiều lần chạy test (không tự dọn), phải xoá trước qua màn `/watchlist` riêng để đảm bảo tiền điều kiện
- * "mã chưa có trong watchlist" cho TC_SMDT_15 — nếu không, lần chạy sau sẽ luôn thấy mã đã có sẵn và server trả
- * lỗi trùng thay vì toast thành công. */
-async function ensureMackNotInWatchlist(page: any, mack: string) {
-  const wl = new WatchlistPage(page);
-  await wl.goto();
-  const row = wl.tableRow(mack);
-  if (await row.isVisible().catch(() => false)) {
-    await wl.deleteIconOf(mack).click();
-    await wl.deleteStockConfirmModal.getByRole('button', { name: 'Xóa', exact: true }).click();
-    await expect(row).toBeHidden({ timeout: 10000 });
-  }
+/** Tài khoản Free (`FREE_USER_*`) — tự `test.skip` nếu chưa cấu hình trong .env. */
+async function loginFreeOrSkip(page: Page) {
+  test.skip(!process.env.FREE_USER_EMAIL || !process.env.FREE_USER_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
+  await guardWrites(page);
+  await new Prev2Session(page).open({ account: 'free', path: '/suc-manh-dong-tien' });
 }
 
 async function gotoReady(page: any) {
@@ -61,12 +58,18 @@ async function addMackAndWaitChart(page: any, smdt: SucManhDongTienPage, mack = 
   await page.waitForTimeout(1200);
 }
 
+test.afterEach(async ({ page }) => {
+  // Lưới an toàn: không lệnh ghi nào ngoài dự kiến bị huỷ (nếu có thì app đã định ghi thứ test chưa biết — xem lại).
+  const rec = writes.get(page);
+  if (rec) expect(rec.blocked, 'lệnh ghi bị chặn ngoài dự kiến').toEqual([]);
+});
+
 test.describe('Toàn cảnh thị trường — Sức mạnh dòng tiền — Điều hướng & tổng quan', () => {
-  test('TC_SMDT_01: Điều hướng vào màn từ menu "Toàn cảnh thị trường"', async ({ page }) => {
+  test('TC_SMDT_01: Điều hướng vào màn từ menu "Thị Trường" (trước 10/2026 tên "Toàn cảnh thị trường")', async ({ page }) => {
     await loginFirst(page);
     await page.goto('/dashboard', { waitUntil: 'networkidle' });
     // Hover (không click) để mở dropdown mà không điều hướng theo href của chính mục cha.
-    await page.getByRole('link', { name: 'Toàn cảnh thị trường', exact: true }).hover();
+    await page.getByRole('link', { name: 'Thị Trường', exact: true }).hover();
     const subLink = page.getByRole('link', { name: 'Sức mạnh dòng tiền', exact: true });
     await subLink.waitFor({ state: 'visible' });
     await subLink.click();
@@ -207,14 +210,17 @@ test.describe('Toàn cảnh thị trường — Sức mạnh dòng tiền — Pa
 
   test('TC_SMDT_15: Thêm mã hợp lệ vào watchlist đang chọn', async ({ page }) => {
     await loginFirst(page);
-    await ensureMackNotInWatchlist(page, 'VNM');
     const smdt = await gotoReady(page);
     await smdt.leftTab('Watchlist').click();
     await smdt.watchlistMackInput.fill('VNM');
     await expect(smdt.leftPanel.locator('.search-stockcode_item').filter({ hasText: 'VNM' }).first()).toBeVisible();
     await smdt.leftPanel.locator('.search-stockcode_item').filter({ hasText: 'VNM' }).first().click();
     await smdt.watchlistAddIcon.click();
-    await expect(page.getByText('Thêm vào watchlist thành công')).toBeVisible({ timeout: 10000 });
+    // Lệnh thêm đã gửi đúng mã + watchlist đang chọn (giả lập thành công, không ghi thật). Toast "Thêm vào watchlist
+    // thành công" KHÔNG hiện vì app tắt mọi toast thành công từ 12/10/2026 (main.js).
+    await expect.poll(() => writes.get(page)!.adds).toEqual([{ mack: 'VNM', my_watchlist_id: expect.any(Number) }]);
+    await expect(page.getByText('Mã chứng khoán đã có trong Watchlist')).toHaveCount(0);
+    await expect(smdt.watchlistMackInput).toHaveValue(''); // ô mã được xoá sau khi thêm xong
   });
 
   test('TC_SMDT_16: Thêm mã không hợp lệ vào watchlist', async ({ page }) => {
@@ -226,11 +232,16 @@ test.describe('Toàn cảnh thị trường — Sức mạnh dòng tiền — Pa
     await expect(page.getByText('Mã CK không hợp lệ!')).toBeVisible({ timeout: 10000 });
   });
 
-  // TC_SMDT_17: cần 1 mã CHẮC CHẮN đã có sẵn trong watchlist đang chọn tại thời điểm chạy để kích hoạt đúng
-  // nhánh lỗi trùng từ server — phụ thuộc dữ liệu watchlist thật của tài khoản test, không cố định trước được.
-  test.fixme('TC_SMDT_17: Thêm mã đã có sẵn trong watchlist', async ({ page }) => {
-    // Cần xác định trước 1 mã chắc chắn có sẵn trong watchlist test rồi thêm lại, verify toast
-    // "Mã chứng khoán đã có trong Watchlist, vui lòng thử lại".
+  test('TC_SMDT_17: Thêm mã đã có sẵn trong watchlist → toast "Mã chứng khoán đã có trong Watchlist, vui lòng thử lại"', async ({ page }) => {
+    await loginFirst(page);
+    writes.get(page)!.addMode = 'exist'; // máy chủ (giả) báo trùng — trước 09/11/2026 là fixme vì cần mã chắc chắn có sẵn
+    const smdt = await gotoReady(page);
+    await smdt.leftTab('Watchlist').click();
+    await smdt.watchlistMackInput.fill('VNM');
+    await smdt.leftPanel.locator('.search-stockcode_item').filter({ hasText: 'VNM' }).first().click();
+    await smdt.watchlistAddIcon.click();
+    await expect(page.getByText('Mã chứng khoán đã có trong Watchlist, vui lòng thử lại')).toBeVisible({ timeout: 10000 });
+    expect(writes.get(page)!.adds.map((a) => a.mack)).toEqual(['VNM']);
   });
 });
 

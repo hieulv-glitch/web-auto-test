@@ -1,16 +1,16 @@
-# Màn hình: Dashboard — Panel phải (IBD / Watchlist / Cảnh báo / Ghi chú / Cộng đồng)
+# Màn hình: Dashboard — Panel phải (IBD / Watchlist / Ghi chú)
 
 - **URL:** `/dashboard` (cùng route với [dashboard.md](dashboard.md), tài liệu này đào sâu nội dung 5 tab của
   panel phải mà tài liệu khung/shell chỉ test việc chuyển đổi giữa các tab, không đi vào nội dung bên trong).
 - **Component:** [board/tabs/IBD.vue](../../stocks/src/views/dashboard/board/tabs/IBD.vue) +
   [board/tabs/Watchlist.vue](../../stocks/src/views/dashboard/board/tabs/Watchlist.vue) (**khác hẳn**
   `views/watchlist/WatchListPage.vue` đã có ở [watchlist.md](watchlist.md) — đây là widget rút gọn riêng cho
-  Dashboard) + [board/tabs/Alert.vue](../../stocks/src/views/dashboard/board/tabs/Alert.vue) +
-  [board/tabs/NoteV2.vue](../../stocks/src/views/dashboard/board/tabs/NoteV2.vue) +
-  [board/tabs/Social.vue](../../stocks/src/views/dashboard/board/tabs/Social.vue) (**dùng chung** component
-  `Post.vue`/`AddNewPost.vue` với trang `/cong-dong` đã có ở [cong-dong.md](cong-dong.md), nhưng chạy ở chế độ
-  `rightTab=true` nên UI rút gọn hơn).
-- **Domain test:** https://kfsp.vn/dashboard
+  Dashboard) + [board/tabs/NoteV2.vue](../../stocks/src/views/dashboard/board/tabs/NoteV2.vue).
+- **Domain test:** https://kfsp.vn/dashboard (qua `PREV2_BASE_URL` + `Prev2Session`; production = preprod mới nhất từ 06/11/2026)
+- **Cập nhật 09/11/2026 (nhánh B):** preprod gỡ tab "Cảnh báo" và "Cộng đồng" khỏi cột phải ở mọi màn (12/10/2026,
+  commit 4346c85dd; `Alert.vue`, `Social.vue`, `PostItem.vue` đã xoá khỏi code) → **xoá TC_DASHBOARD_PP_09–12 (Cảnh
+  báo) và PP_16–19 (Cộng đồng)**, giữ nguyên số của các TC còn lại. Tab Watchlist/Ghi chú giờ là component dùng
+  chung với thanh bên phải của /do-thi, /bang-gia, /bo-loc, /nganh, /suc-manh-dong-tien. Thêm PP_20 (tài khoản Free).
 - **Nguồn testcase gốc (app):** Không áp dụng — app không có khái niệm panel bên cạnh Dashboard như thế này.
   Toàn bộ 🆕.
 - **Phương pháp sinh:** Đọc source code + kiểm kê độc lập bằng Playwright thật.
@@ -20,6 +20,9 @@
   đồng), tài liệu này **không lặp lại** các luồng CRUD/tương tác đã verify ở đó — chỉ test phần khung UI đặc thù
   của panel (dropdown, tab, mở/đóng modal, khác biệt so với bản đầy đủ).
 
+- **Xác minh trên UI thật (09/11/2026):** chạy trên **https://kfsp.vn** (biến `PREV2_BASE_URL` trong `.env`; production đã là
+  bản preprod mới nhất, deploy 06/11/2026 10:30 GMT) — 4 spec Dashboard pass 2 lần liên tiếp (`--workers=2`). Trước đó prev2
+  bị deploy đè bằng nhánh `feat/ibd_tobao` lúc 07:40 GMT nên không dùng làm môi trường xác nhận.
 ---
 
 ## Nhóm: IBD (panel mặc định)
@@ -142,67 +145,6 @@
 
 ---
 
-## Nhóm: Cảnh báo (Alert)
-
-# [TC_DASHBOARD_PP_09] Hiển thị header Cảnh báo mặc định
-
-- **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Chuyển sang tab dọc "Cảnh báo".
-
-## Kết quả mong đợi
-- [ ] Hiển thị 2 sub-tab "Cổ phiếu" (active mặc định) / "Bộ lọc".
-- [ ] Hiển thị thanh tìm kiếm, nút "Lịch sử", nút "Tạo mới".
-- [ ] Bảng danh sách cảnh báo cổ phiếu: cột Chọn/Mã CK/Điều kiện/Sửa-Xóa, mỗi dòng hiển thị mã + số điều kiện
-      cảnh báo + icon sửa (bút chì) + icon xóa (dấu X).
-
----
-
-# [TC_DASHBOARD_PP_10] Chuyển sub-tab "Bộ lọc"
-
-- **Trạng thái:** 🆕 — **Đã verify bằng automation, sửa lại giả định ban đầu**
-- **Kết quả đo được:** Đổi sang danh sách nhóm điều kiện lọc cảnh báo. Thanh tìm kiếm và nút "Lịch sử" **vẫn
-  hiển thị** ở tab này (không bị ẩn) — theo code, `v-if="activeTab === 0"` chỉ áp dụng cho nút "Tạo mới" và nút
-  xóa hàng loạt, KHÔNG áp dụng cho cả khối `.v3-alert-header` như giả định ban đầu khi đọc code.
-
-## Các bước thực hiện
-1. Click sub-tab "Bộ lọc".
-
-## Kết quả mong đợi
-- [ ] Đổi sang danh sách nhóm điều kiện lọc cảnh báo.
-- [ ] Thanh tìm kiếm và nút "Lịch sử" vẫn hiển thị; nút "Tạo mới" (chỉ dành cho tab "Cổ phiếu") không còn hiển
-      thị.
-
----
-
-# [TC_DASHBOARD_PP_11] Tìm kiếm lọc danh sách cảnh báo
-
-- **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Ở sub-tab "Cổ phiếu", nhập 1 mã CK có trong danh sách cảnh báo vào ô tìm kiếm.
-
-## Kết quả mong đợi
-- [ ] Danh sách lọc còn lại đúng (các) dòng khớp từ khóa.
-
----
-
-# [TC_DASHBOARD_PP_12] Chọn nhiều dòng để xóa hàng loạt
-
-- **Trạng thái:** 🆕 — **⚠️ Cần xác nhận thêm**
-- **Ghi chú:** Theo code, tick ít nhất 1 checkbox sẽ hiện icon "xóa hàng loạt" kèm badge số lượng đã chọn
-  (`v-if="list_stockcode_delete.length > 0"`). Chưa thực hiện thao tác xóa thật để tránh làm mất dữ liệu cảnh
-  báo thật của tài khoản test — chỉ nên verify UI hiện icon, không bấm xác nhận xóa.
-
-## Các bước thực hiện
-1. Tick chọn 1-2 checkbox trong bảng cảnh báo.
-
-## Kết quả mong đợi
-- [ ] Xuất hiện icon xóa hàng loạt kèm số lượng đã chọn đúng bằng số dòng đã tick.
-
----
-
 ## Nhóm: Ghi chú (Note)
 
 # [TC_DASHBOARD_PP_13] Hiển thị header Ghi chú mặc định
@@ -245,88 +187,36 @@
 
 ---
 
-## Nhóm: Cộng đồng (Social panel — khác `/cong-dong`)
+## Nhóm: Tài khoản Free
 
-# [TC_DASHBOARD_PP_16] Hiển thị 3 tab, KHÔNG có tab "AI Cập Nhật"
+# [TC_DASHBOARD_PP_20] Free — panel Watchlist không có nút "Thêm mới" watchlist
 
-- **Trạng thái:** 🆕 — **Đã verify thực tế, khác biệt so với `/cong-dong`**
-- **Khác biệt:** Trang `/cong-dong` đầy đủ có 4 tab (AI Cập Nhật/Mới nhất/Quan tâm/Phổ biến — xem
-  [cong-dong.md](cong-dong.md) TC_CONGDONG_10). Panel Dashboard **chỉ có 3 tab**: "Mới nhất" (active mặc định),
-  "Quan tâm", "Phổ biến" — không có "AI Cập Nhật".
+- **Trạng thái:** 🆕 Testcase mới (thêm 09/11/2026)
+- **Ghi chú:** `Watchlist.vue` ẩn nút thêm theo `store.state.isAccountFree` (sửa 01/10/2026 "Chỉnh lại mở khoá free user" —
+  đọc store trực tiếp vì component còn chạy trong flexlayout React không có `$store`).
 
 ## Các bước thực hiện
-1. Chuyển sang tab dọc "Cộng đồng".
+1. Đăng nhập tài khoản Free (`FREE_USER_*`), vào Dashboard, bấm tab dọc "Watchlist", rồi "Ghi chú".
 
 ## Kết quả mong đợi
-- [ ] Hiển thị đúng 3 tab: Mới nhất/Quan tâm/Phổ biến, không có tab AI Cập Nhật.
+- [ ] Panel Watchlist hiện dropdown chọn watchlist nhưng **không** có nút "Thêm mới" (`.v3-watchlist-add-new-btn`).
+- [ ] Tab "Ghi chú" vẫn mở được.
 
 ---
 
-# [TC_DASHBOARD_PP_17] KHÔNG hiển thị thanh soạn bài (compose box)
-
-- **Trạng thái:** 🆕 — **Đã verify qua đọc code + thực tế**
-- **Khác biệt:** Component `Social.vue` nhận `rightTab={true}` khi dùng trong Dashboard, và template có
-  `<AddNewPost ... v-if="!rightTab"/>` → thanh soạn bài "Bạn có nhận định gì muốn chia sẻ?" (có ở
-  [cong-dong.md](cong-dong.md) TC_CONGDONG_19) **không hiển thị** trong panel Dashboard.
-
-## Các bước thực hiện
-1. Quan sát đầu panel "Cộng đồng" ở tab "Mới nhất".
-
-## Kết quả mong đợi
-- [ ] Không có thanh soạn bài viết mới ở đầu panel.
-
----
-
-# [TC_DASHBOARD_PP_18] Bài viết hiển thị đủ nút tương tác (dùng chung component đã test)
-
-- **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
-- **Ghi chú:** Panel dùng chung `Post.vue` với `/cong-dong` → hành vi Thích/Bỏ thích/Bình luận/Chia sẻ/Xem thêm
-  đã được test chi tiết & tự động hoá ở [cong-dong.md](cong-dong.md) (TC_CONGDONG_15 trở đi;
-  [tests/cong-dong.spec.ts](../tests/cong-dong.spec.ts)) — **không lặp lại ở đây**, chỉ verify các nút này có
-  hiển thị đúng trong khung panel hẹp.
-
-## Các bước thực hiện
-1. Quan sát 1 bài viết trong panel Cộng đồng.
-
-## Kết quả mong đợi
-- [ ] Hiển thị avatar/tên tác giả, nội dung, đủ 3 nút Thích/Bình luận/Chia sẻ, không vỡ layout dù panel hẹp hơn
-      nhiều so với feed đầy đủ.
-
----
-
-# [TC_DASHBOARD_PP_19] Chuyển tab Quan tâm/Phổ biến trong panel
-
-- **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Click tab "Quan tâm", rồi "Phổ biến".
-
-## Kết quả mong đợi
-- [ ] Mỗi tab hiển thị đúng danh sách bài viết tương ứng (hoặc empty-state hợp lệ), không lỗi JS, không vỡ
-      layout.
-
----
-
-## Tổng hợp trạng thái (19 testcase)
+## Tổng hợp trạng thái (12 testcase)
 
 Đã tự động hoá bằng Playwright: [tests/dashboard-panel-phai.spec.ts](../tests/dashboard-panel-phai.spec.ts)
 (mở rộng POM [pages/DashboardPage.ts](../pages/DashboardPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| 🆕 Mới (riêng web) | 18 | App không có, hoặc widget khác hẳn app |
-| ⚠️ Cần xác nhận thêm | 1 | TC_DASHBOARD_PP_12 — chưa thực hiện xóa hàng loạt thật để tránh mất dữ liệu cảnh báo của tài khoản test |
+| 🆕 Mới (riêng web) | 12 | PP_01–08, PP_13–15, PP_20. PP_09–12 và PP_16–19 đã xoá 09/11/2026 (tab đã gỡ khỏi web) |
 
 **Phát hiện đáng chú ý:**
-1. Watchlist-panel và Cộng đồng-panel trong Dashboard **dùng lại phần lớn component** với các trang đầy đủ
-   (`/watchlist`, `/cong-dong`) đã có testcase riêng — tài liệu này chỉ bổ sung phần khung/khác biệt, tránh
-   trùng lặp công sức kiểm thử.
+1. Watchlist-panel **dùng lại phần lớn component** với trang đầy đủ `/watchlist` đã có testcase riêng — tài liệu này
+   chỉ bổ sung phần khung/khác biệt, tránh trùng lặp công sức kiểm thử.
 2. Modal "Thêm mới Watchlist" (CModal của CoreUI) **không đóng được bằng phím Escape** — phải dùng đúng icon
    "×". Không phải bug chặn luồng nhưng là điểm UX khác thường có thể báo dev.
-3. Panel Cộng đồng ở Dashboard chạy chế độ rút gọn (`rightTab=true`): thiếu tab "AI Cập Nhật" và thanh soạn bài
-   so với trang `/cong-dong` đầy đủ — là chủ đích thiết kế (không phải bug).
-4. Cả `Watchlist.vue` lẫn `Alert.vue` giữ nguyên nội dung modal "Tạo mới"/"Lịch sử" trong DOM ngay cả khi chưa
-   mở (CModal chỉ ẩn bằng CSS, không unmount) — khiến 1 số text/label bên trong modal (VD tab "Cổ phiếu"/"Bộ
-   lọc", placeholder "Tìm kiếm", tiêu đề "Lịch sử cảnh báo") xuất hiện trùng lặp trong DOM dù không nhìn thấy
-   trên màn hình. Không phải bug, nhưng cần biết để viết locator chính xác (ưu tiên `:visible` hoặc scope theo
-   class riêng thay vì text chung chung).
+3. `Watchlist.vue` giữ nguyên nội dung modal "Tạo mới" trong DOM ngay cả khi chưa mở (CModal chỉ ẩn bằng CSS, không
+   unmount) — cần ưu tiên `:visible` hoặc scope theo class riêng khi viết locator.

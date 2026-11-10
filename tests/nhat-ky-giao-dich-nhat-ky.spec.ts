@@ -1,631 +1,562 @@
-import { test, expect } from '@playwright/test';
-import { TradingLogPage } from '../pages/TradingLogPage';
-import { LoginPage } from '../pages/LoginPage';
+import { test, expect, Page } from '@playwright/test';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
+import { TradingLogPage, NkOpenOptions, CAT, nkLog, nkDate, nkDay, lastSaturday } from '../pages/TradingLogPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * NKGD — tab "Giao dịch" + phiếu lệnh Mua/Bán + modal Thêm/Sửa/Chi tiết/Xóa giao dịch
+ * (testcases/nhat-ky-giao-dich-nhat-ky.md). prev2 + máy chủ giả: thêm/sửa/xoá giao dịch, nhập hàng loạt và đối soát cổ
+ * tức đều đi vào `NkgdFakeServer`; request ghi khác bị huỷ (`afterEach` kiểm tra `blocked` rỗng).
+ */
+test.use({ baseURL: PREV2_BASE_URL, viewport: { width: 1600, height: 900 } });
+test.setTimeout(120_000);
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+let nk: TradingLogPage;
+test.beforeEach(async ({ page }) => { nk = new TradingLogPage(page); });
+test.afterEach(async () => { expect(nk.server.blocked, 'request ghi lọt tới máy chủ thật').toEqual([]); });
+
+async function openTab(opts: NkOpenOptions = {}, firstCategory = 'Dài hạn') {
+  await nk.open({ tab: 1, ...opts });
+  await expect(nk.thFilterBtn).toBeVisible({ timeout: 30000 });
+  await nk.waitData();
+  await expect(nk.thCategoryRow(firstCategory)).toBeVisible({ timeout: 15000 });
 }
-
-/** Đăng nhập tài khoản Free, tự `test.skip` với lý do rõ ràng nếu tài khoản trong `.env` đăng nhập lỗi — cùng
- * cơ chế đã dùng ở TC_CONGDONG_55/TC_WATCHLIST_09/TC_BANGGIA_48-50. */
-async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+const tradeWrites = () => nk.server.writesTo(/\/(tradinglog\/(store|add-bulk)|stocks\/trading_log\/)/);
+const syncWrites = () => nk.server.writesTo(/sync-after-transactions$/);
+const errorToast = (text: string) => nk.toastError.filter({ hasText: text }).first();
+/** Mở phiếu Mua từ thanh công cụ, chọn mã, đặt ngày làm việc gần nhất, nhập giá + khối lượng. */
+async function fillBuyTicket(code = 'VNM', price = '50', volume = '1000', category = 'Dài hạn') {
+  await nk.thMua.click();
+  await expect(nk.ticket).toBeVisible();
+  await nk.pickTicketStock(code);
+  await nk.ticketCategory.selectOption({ label: category });
+  await nk.setTicketDate(nkDay(1));
+  await expect(nk.ticketSubmit).toBeEnabled();
+  await nk.ticketPrice.fill(price);
+  await nk.fillMoney(nk.ticketVolume, volume);
 }
-
-// Regex neo rõ ranh giới (không dùng glob '**') — cùng lý do đã ghi chú ở watchlist.spec.ts: 1 số endpoint
-// không có phần đuôi sau segment cuối, glob có thể không khớp và để lọt request thật.
-const TRADING_LOG_MUTATE = /\/api\/stocks\/trading_log\/(store|update|\d+)(\?|$)/;
-const ADD_BULK = /\/api\/tradinglog\/add-bulk(\?|$)/;
-const CATEGORY_MUTATE = /\/api\/stocks\/category(\/|\?|$)/;
-const INSERT_MULTI = /\/insert-multi-tradinglog(\?|$)/;
-
-// An toàn: MỌI API mutate của tab này (thêm/sửa/xóa giao dịch, ghi nhận cổ tức hàng loạt) bị chặn mặc định —
-// tài khoản test có hàng trăm giao dịch thật. Test nào cần quan sát luồng thành công/lỗi sẽ tự `page.unroute()`
-// rồi mock riêng.
-async function blockMutations(page: any) {
-  await page.route(TRADING_LOG_MUTATE, (route: any) =>
-    route.request().method() === 'GET' ? route.continue() : route.abort()
-  );
-  await page.route(ADD_BULK, (route: any) => route.abort());
-  await page.route(CATEGORY_MUTATE, (route: any) =>
-    route.request().method() === 'GET' ? route.continue() : route.abort()
-  );
-  await page.route(INSERT_MULTI, (route: any) => route.abort());
+async function rowMenu(row: ReturnType<TradingLogPage['thTradeRow']>, item?: 'Sửa' | 'Xóa') {
+  await nk.thRowMenu(row).click();
+  await expect(nk.thMenuItems.first()).toBeVisible();
+  if (item) await nk.thMenuItems.filter({ hasText: item }).click();
 }
+const daiHanRow = (text: string) => nk.thTradeRows.filter({ hasText: text }).first();
+async function expand(name = 'Dài hạn') { await nk.thCategoryRow(name).click(); await expect(nk.thTradeRows.first()).toBeVisible(); }
 
-async function gotoHistoryTab(page: any) {
-  await loginFirst(page);
-  const nkgd = new TradingLogPage(page);
-  await nkgd.goto('nhat-ky-giao-dich');
-  // Bảng lịch sử GD (virtual-scroll-list) render sẵn dòng "Tổng kết toàn bộ" với giá trị 0 NGAY TỪ ĐẦU (trước
-  // khi API getAll trả về dữ liệu thật) — nếu đọc dòng danh mục quá sớm sẽ chỉ thấy đúng 1 dòng placeholder
-  // này, chưa có dòng "Danh mục: ..." nào. Đợi ít nhất 1 dòng danh mục thật xuất hiện trước khi trả quyền điều
-  // khiển lại cho test.
-  await nkgd.historyRow(/^\s*Danh mục:/).first().waitFor({ state: 'visible', timeout: 10000 });
-  return nkgd;
-}
-
-test.beforeEach(async ({ page }) => {
-  await blockMutations(page);
-});
-
-test.describe('Nhật ký GD — Sub-tab & tổng quan', () => {
-  test('TC_NKGD_LS_01: Overview — 2 sub-tab, "Lịch sử giao dịch" active mặc định', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await expect(nkgd.historySubTab('Lịch sử giao dịch')).toHaveClass(/active/);
-    await expect(nkgd.historySubTab('Thống kê phân tích')).toBeVisible();
-    await expect(nkgd.filterTransactionButton).toBeVisible();
-    await expect(nkgd.addTransactionButton).toBeVisible();
+test.describe('Bảng giao dịch', () => {
+  test('TC_NKGD_LS_01: Overview — nút Mua/Bán/Lọc/Xuất Excel, tiêu đề cột, dòng Tổng kết + danh mục (đang gập)', async () => {
+    await openTab();
+    for (const b of [nk.thMua, nk.thBan, nk.thFilterBtn, nk.thExportBtn]) await expect(b).toBeVisible();
+    await expect(nk.thHeader.locator('.bg-header[class*="th-cot-"]')).toHaveText(['Mã CK', 'Ngày giao dịch', 'Loại giao dịch', 'Giá thực hiện (đồng)',
+      'Khối lượng', 'Phí (đồng)', 'Lãi/lỗ đã thực hiện (đồng)', 'Ghi chú']);
+    await expect(nk.thSummaryRow).toContainText(/Mua 7\s*Bán 2\s*Cổ tức 2/);
+    await expect(nk.pane.locator('.th-ten-danh-muc')).toHaveText(['Tổng kết toàn bộ', 'Danh mục: Cổ tức', 'Danh mục: Dài hạn', 'Danh mục: Lướt sóng']);
+    await expect(nk.thCategoryRow('Dài hạn')).toContainText(/Mua 3\s*Bán 1\s*Cổ tức 1/);
+    await expect(nk.thTradeRows).toHaveCount(0);
   });
 
-  test('TC_NKGD_LS_02: Chuyển sang sub-tab "Thống kê phân tích"', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.historySubTab('Thống kê phân tích').click();
-    await page.waitForTimeout(300);
-    await expect(nkgd.historySubTab('Thống kê phân tích')).toHaveClass(/active/);
-    await expect(nkgd.filterTransactionButton).toHaveCount(0);
-    await expect(nkgd.addTransactionButton).toHaveCount(0);
+  test('TC_NKGD_LS_02: Bấm dòng danh mục → mở giao dịch (mới nhất trước); bấm lần 2 → gập', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    await expect(nk.thTradeRows).toHaveCount(5);
+    const dates = (await nk.thTradeRows.locator('.th-cot-ngay_giao_dich').allInnerTexts()).map((d) => d.trim().split('/').reverse().join(''));
+    expect([...dates].sort().reverse()).toEqual(dates);
+    await nk.thCategoryRow('Dài hạn').click();
+    await expect(nk.thTradeRows).toHaveCount(0);
   });
 
-  test('TC_NKGD_LS_03: Feature-gating riêng cho từng sub-tab (tài khoản Free)', async ({ page }) => {
-    await loginFreeOrSkip(page);
-    const nkgd = new TradingLogPage(page);
-    await nkgd.goto('nhat-ky-giao-dich');
-    await page.waitForTimeout(800);
-
-    // `.image-container > .blurred-image` là dấu hiệu ProtectedView đang hiện (component
-    // `tabTradingHistory.vue` có `featureName` RIÊNG cho từng sub-tab: 'nkgd_lich_su_giao_dich' /
-    // 'nkgd_thong_ke_giao_dich' — khác `nhat-ky-giao-dich.md` TC_NKGD_09 vốn gate ở cấp TAB CHÍNH). Lọc
-    // `:visible` vì CoreUI giữ cả 2 nhánh nội dung sub-tab trong DOM.
-    const visibleBlurred = page.locator('.tradingLog-component .image-container .blurred-image:visible');
-    const results: Record<string, number> = {};
-    for (const sub of ['Lịch sử giao dịch', 'Thống kê phân tích'] as const) {
-      await nkgd.historySubTab(sub).click();
-      await page.waitForTimeout(600);
-      results[sub] = await visibleBlurred.count();
-    }
-    console.log(`[TC_NKGD_LS_03] Số ProtectedView hiện (blurred-image visible) mỗi sub-tab với tài khoản Free: ${JSON.stringify(results)}`);
-    // Hành vi thật đo được (tài khoản Free hiện tại): CẢ 2 sub-tab đều bị khóa riêng (mỗi sub-tab hiện đúng 1
-    // ProtectedView khi active) — xác nhận cơ chế gate độc lập theo `featureName` của từng sub-tab hoạt động
-    // đúng (dù tài khoản Free hiện tại không có quyền ở CẢ HAI nên không thể minh hoạ trường hợp lệch nhau
-    // giữa 2 sub-tab). Xem thêm testcases/nhat-ky-giao-dich-nhat-ky.md.
-    for (const sub of ['Lịch sử giao dịch', 'Thống kê phân tích']) {
-      expect(results[sub], `Sub-tab "${sub}" phải hiện ProtectedView với tài khoản Free`).toBe(1);
-    }
-  });
-});
-
-test.describe('Nhật ký GD — Bảng "Lịch sử giao dịch"', () => {
-  test('TC_NKGD_LS_04: Hiển thị đủ cột mặc định', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    for (const col of ['Mã CK', 'Ngày giao dịch', 'Loại giao dịch', 'Giá thực hiện', 'Khối lượng', 'Phí thực hiện', 'Lãi/lỗ']) {
-      await expect(page.getByText(col, { exact: true }).first()).toBeVisible();
-    }
+  test('TC_NKGD_LS_03: Nút gập/mở tất cả danh mục', async () => {
+    await openTab();
+    await nk.thCollapseAll.click();
+    await expect(nk.thTradeRows).toHaveCount(11);
+    await nk.thCollapseAll.click();
+    await expect(nk.thTradeRows).toHaveCount(0);
   });
 
-  test('TC_NKGD_LS_05: Nhóm theo danh mục, dòng "Tổng kết toàn bộ" luôn ở đầu', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await expect(page.getByText('Tổng kết toàn bộ')).toBeVisible();
-    await expect(nkgd.historyRow(/^\s*Danh mục:/).first()).toBeVisible();
+  test('TC_NKGD_LS_04: Dòng giao dịch — nhãn loại, giá theo đồng, phí kèm %, lãi/lỗ có dấu, ghi chú', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    const sell = daiHanRow('Bán');
+    await expect(sell.locator('.th-cot-loai_giao_dich')).toHaveText(/Bán/);
+    await expect(sell.locator('.th-cot-gia_thuc_hien')).toHaveText('56,000');
+    await expect(sell.locator('.th-cot-phi_calc')).toHaveText(/33,600 \(0.15%\)/);
+    await expect(sell.locator('.th-cot-lai_lo_da_thuc_hien')).toHaveText('+2,600,000');
+    const div = daiHanRow('Cổ tức');
+    await expect(div.locator('.th-cot-loai_giao_dich')).toHaveText(/Cổ tức/);
+    await expect(div).toContainText('Trả cổ tức bằng tiền, 1,500 đồng/CP');
+    await expect(daiHanRow('48,000')).toContainText('Mua tích luỹ');
   });
 
-  test('TC_NKGD_LS_06: Thu gọn / mở rộng 1 danh mục', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    const firstCategory = nkgd.historyRow(/^\s*Danh mục:/).first();
-    const label = (await firstCategory.textContent()) || '';
-    await firstCategory.click();
-    await page.waitForTimeout(300);
-    await firstCategory.click();
-    await page.waitForTimeout(300);
-    void nkgd;
-    expect(label).toContain('Danh mục:');
+  test('TC_NKGD_LS_05: Bánh răng "Chọn thêm cột hiển thị" — bật cột "Giá mục tiêu 1", nhớ qua F5', async ({ page }) => {
+    await openTab();
+    await nk.thSettingsBtn.click();
+    const menu = page.locator('.dropdown-menu.show');
+    await expect(menu).toContainText('Chọn thêm cột hiển thị');
+    await expect(menu.locator('label')).toHaveText(['Ghi chú', 'Thiết lập', 'Sai lầm', 'Giá mục tiêu 1', 'Giá mục tiêu 2',
+      'Giá mục tiêu 3', 'Giá cắt lỗ 1', 'Giá cắt lỗ 2', 'Giá cắt lỗ 3']);
+    await menu.getByText('Giá mục tiêu 1').click();
+    await expect(nk.thHeader.locator('.th-cot-target_price_1')).toBeVisible();
+    const saved = JSON.parse((await nk.ls('field_table_trading_history_more_v2'))!);
+    expect(saved.find((c: { key: string }) => c.key === 'target_price_1').is_show).toBe(true);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await nk.waitTabsOrRetry();
+    await expect(nk.thHeader.locator('.th-cot-target_price_1')).toBeVisible({ timeout: 20000 });
   });
 
-  test('TC_NKGD_LS_09: Sắp xếp theo cột trong phạm vi 1 danh mục', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    void nkgd;
-    await page.getByText('Giá thực hiện', { exact: true }).first().click();
-    await page.waitForTimeout(300);
-    // Không assert thứ tự cụ thể (phụ thuộc dữ liệu thật) — chỉ verify không lỗi/crash sau khi sort.
-    await expect(page.getByText('Tổng kết toàn bộ')).toBeVisible();
+  test('TC_NKGD_LS_06: Bấm tiêu đề "Ngày giao dịch" đổi chiều sắp xếp trong từng danh mục', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    const read = async () => (await nk.thTradeRows.locator('.th-cot-ngay_giao_dich').allInnerTexts()).map((d) => d.trim().split('/').reverse().join(''));
+    const before = await read();
+    await nk.thHeaderCell('Ngày giao dịch').click();
+    await expect.poll(read).toEqual([...before].reverse());
   });
 
-  test('TC_NKGD_LS_10: Xuất File Excel bảng lịch sử giao dịch', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    const [download] = await Promise.all([
-      page.waitForEvent('download').catch(() => null),
-      nkgd.historyExportExcelButton.click(),
-    ]);
-    void download;
+  test('TC_NKGD_LS_07: Danh mục > 20 giao dịch → hiện 20 + "Tải thêm 5 giao dịch"; bấm → đủ 25', async () => {
+    await openTab({ data: (d) => {
+      d.logs = Array.from({ length: 25 }, (_, i) => nkLog({ mack: 'MBB', loai_giao_dich: 'mua', danh_muc: CAT.LUOT_SONG, ngay_giao_dich: nkDate(5 + i), khoi_luong: 100 }));
+    } }, 'Lướt sóng');
+    await expand('Lướt sóng');
+    await expect(nk.thTradeRows).toHaveCount(20);
+    const more = nk.pane.getByRole('button', { name: 'Tải thêm 5 giao dịch' }).or(nk.pane.getByText('Tải thêm 5 giao dịch'));
+    await expect(more.first()).toBeVisible();
+    await more.first().click();
+    await expect(nk.thTradeRows).toHaveCount(25);
   });
 
-  test('TC_NKGD_LS_11: Empty state khi bảng không có giao dịch nào (sau khi lọc)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.filterTransactionButton.click();
-    await expect(nkgd.historyFilterModal).toBeVisible();
-    // Mở dropdown vue-multiselect "Mã CK" trước khi có thể gõ vào ô tìm kiếm bên trong (giống pattern đã dùng
-    // ở filter Danh mục tab Tài sản).
-    await nkgd.filterMultiSelectToggle('Mã CK').click();
-    const searchInput = nkgd.historyFilterModal.getByPlaceholder('Tìm kiếm').first();
-    await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    if (await searchInput.isVisible().catch(() => false)) {
-      await searchInput.fill('ZZZ999NOTEXIST');
-    }
-    await page.keyboard.press('Escape').catch(() => {});
-    await nkgd.filterApplyButton.click().catch(() => {});
-    await page.waitForTimeout(400);
-    await expect(page.getByText('Tổng kết toàn bộ')).toBeVisible();
+  test('TC_NKGD_LS_08: "Xuất Excel" tải file "Nhật ký giao dịch.xlsx"', async ({ page }) => {
+    await openTab();
+    const [download] = await Promise.all([page.waitForEvent('download'), nk.thExportBtn.click()]);
+    expect(download.suggestedFilename()).toBe('Nhật ký giao dịch.xlsx');
   });
 });
 
-test.describe('Nhật ký GD — Modal "Lọc giao dịch"', () => {
-  test('TC_NKGD_LS_12: Mở modal Lọc giao dịch — đủ field mặc định', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.filterTransactionButton.click();
-    await expect(nkgd.historyFilterModal).toBeVisible();
-    // Nhãn field trong modal này LUÔN có dấu ":" ở cuối (VD "Loại lệnh:") — xem `filterFieldLabel()`.
-    await expect(nkgd.filterFieldLabel('Loại lệnh')).toBeVisible();
-    await expect(nkgd.filterFieldLabel('Mã CK')).toBeVisible();
-    await expect(nkgd.filterFieldLabel('Danh mục')).toBeVisible();
-  });
-
-  test('TC_NKGD_LS_18: Đóng modal Lọc không áp dụng thay đổi', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.filterTransactionButton.click();
-    await expect(nkgd.historyFilterModal).toBeVisible();
-    await nkgd.filterCloseButton.click();
-    await expect(nkgd.historyFilterModal).toBeHidden();
-  });
-});
-
-test.describe('Nhật ký GD — Modal "Thêm giao dịch" (validate, KHÔNG mutate thật)', () => {
-  test('TC_NKGD_LS_19: Mở modal "Thêm giao dịch" — đủ field, 2 tab, 2 chế độ nhập', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    await expect(nkgd.addModalTab('Giao dịch')).toBeVisible();
-    await expect(nkgd.addModalTab('Cổ tức & quyền')).toBeVisible();
-    await expect(nkgd.addModalEntryModeTab('Nhập đơn lẻ')).toBeVisible();
-    await expect(nkgd.addModalEntryModeTab('Nhập hàng loạt')).toBeVisible();
-    await expect(nkgd.addModalStockcodeInput).toBeVisible();
-    await expect(nkgd.addModalVolumeInput).toBeVisible();
-  });
-
-  test('TC_NKGD_LS_20: Validate Mã CK không hợp lệ', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    await nkgd.addModalStockcodeInput.fill('ZZZ');
-    await nkgd.addModalVolumeInput.fill('100');
-    let storeCalled = false;
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      storeCalled = true;
-      return route.abort();
-    });
-    await nkgd.addModalSaveButton.click();
-    await expect(page.getByText('Mã CK không hợp lệ')).toBeVisible();
-    expect(storeCalled).toBe(false);
-  });
-
-  test('TC_NKGD_LS_22: Validate Ngày giao dịch > hôm nay', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    const future = new Date(Date.now() + 3 * 86400000).toISOString().substring(0, 10);
-    await nkgd.addModalDateInput.fill(future);
-    await expect(page.getByText('Không thể thực hiện giao dịch vào ngày này').or(page.getByText('Ngày giao dịch phải bé hơn hoặc bằng ngày hiện tại'))).toBeVisible({ timeout: 5000 }).catch(() => {});
-  });
-
-  test('TC_NKGD_LS_26: Thêm giao dịch thành công (mock API 200)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'POST') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ list_data_item: [], trading_style: { stock_trader: 0, stock_businessman: 0, value_investor: 0 } }),
-        });
-      }
-      return route.continue();
-    });
-
-    await nkgd.addModalStockcodeInput.fill('ACB');
-    await page.waitForTimeout(300);
-    await nkgd.addModalVolumeInput.fill('100');
-    await nkgd.addModalPriceInput.fill('20');
-    await nkgd.addModalSaveButton.click();
-    await expect(page.getByText(/Đã thêm mới giao dịch/)).toBeVisible({ timeout: 10000 });
-  });
-
-  test('TC_NKGD_LS_27: Thêm giao dịch lỗi API (mock 500)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'POST') return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
-    });
-
-    await nkgd.addModalStockcodeInput.fill('ACB');
-    await page.waitForTimeout(300);
-    await nkgd.addModalVolumeInput.fill('100');
-    await nkgd.addModalPriceInput.fill('20');
-    await nkgd.addModalSaveButton.click();
-    await expect(page.getByText('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible({ timeout: 10000 });
-    await expect(nkgd.addModal).toBeVisible();
-  });
-
-  test('TC_NKGD_LS_28: Double-click nút "Lưu" — chưa có guard chống double-submit', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-
-    let postCount = 0;
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, async (route: any) => {
-      if (route.request().method() === 'POST') {
-        postCount++;
-        await new Promise((r) => setTimeout(r, 800));
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ list_data_item: [], trading_style: { stock_trader: 0, stock_businessman: 0, value_investor: 0 } }),
-        });
-      }
-      return route.continue();
-    });
-
-    await nkgd.addModalStockcodeInput.fill('ACB');
-    await page.waitForTimeout(300);
-    await nkgd.addModalVolumeInput.fill('100');
-    await nkgd.addModalPriceInput.fill('20');
-    await Promise.all([nkgd.addModalSaveButton.click(), nkgd.addModalSaveButton.click({ force: true }).catch(() => {})]);
-    await page.waitForTimeout(1200);
-    // Ghi nhận hành vi thật đo được — không assert cứng để không fail nếu framework Vue chặn được double-click
-    // ở UI event loop; mục tiêu là ĐO, không phải khẳng định trước.
-    console.log(`[TC_NKGD_LS_28] Số request POST đo được khi double-click nút Lưu: ${postCount}`);
-  });
-
-  test('TC_NKGD_LS_30: Nút "Hủy" đóng modal Thêm giao dịch không lưu', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    await nkgd.addModalStockcodeInput.fill('ACB');
-    await nkgd.addModalCancelButton.click();
-    await expect(nkgd.addModal).toBeHidden();
-  });
-
-  test('TC_NKGD_LS_29: Chọn thẻ "Thiết lập" trong modal Thêm giao dịch', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    await nkgd.addModalTagButton('Thiết lập').click();
-    await expect(nkgd.tagPopup).toBeVisible();
-    const firstTagCheckbox = nkgd.tagPopup.getByRole('checkbox').first();
-    if (await firstTagCheckbox.count()) {
-      await firstTagCheckbox.click({ force: true });
-    }
-    await nkgd.tagPopupSaveButton.click();
-    await expect(nkgd.tagPopup).toBeHidden();
-  });
-});
-
-test.describe('Nhật ký GD — Chế độ "Nhập hàng loạt"', () => {
-  test('TC_NKGD_LS_32: Thêm/xóa dòng, validate thiếu Mã CK', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    await nkgd.addModalEntryModeTab('Nhập hàng loạt').click();
-    await expect(nkgd.multiAddAddRowLink).toBeVisible();
-    await nkgd.multiAddAddRowLink.click();
-    await nkgd.multiAddAddRowLink.click();
-
-    let addBulkCalled = false;
-    await page.route(ADD_BULK, (route: any) => {
-      addBulkCalled = true;
-      return route.abort();
-    });
-    await nkgd.addModalSaveButton.click();
-    await expect(page.getByText('Vui lòng nhập mã CK')).toBeVisible({ timeout: 5000 }).catch(() => {});
-    expect(addBulkCalled).toBe(false);
-  });
-
-  test('TC_NKGD_LS_33: "Nhập hàng loạt" — submit thành công (mock)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.addTransactionButton.click();
-    await expect(nkgd.addModal).toBeVisible();
-    await nkgd.addModalEntryModeTab('Nhập hàng loạt').click();
-
-    await page.unroute(ADD_BULK);
-    await page.route(ADD_BULK, (route: any) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) })
-    );
-
-    await nkgd.multiAddFirstRowMackInput.fill('ACB');
-    await page.waitForTimeout(300);
-    const volumeCell = nkgd.addModal.locator('.trading-log tbody tr').first().locator('input').nth(2);
-    await volumeCell.fill('100').catch(() => {});
-    await nkgd.addModalSaveButton.click();
-    await expect(page.getByText('Thêm mới giao dịch thành công!')).toBeVisible({ timeout: 10000 }).catch(() => {});
-  });
-});
-
-test.describe('Nhật ký GD — Modal "Sửa giao dịch"', () => {
-  async function openEditOnFirstRow(page: any, nkgd: TradingLogPage) {
-    const firstCategory = nkgd.historyRow(/^\s*Danh mục:/).first();
-    await firstCategory.click();
-    await page.waitForTimeout(400);
-    // Bảng lịch sử GD không dùng <table>/<tr> thật — mỗi dòng là 1 div `.item-table-trading-history-wrapper`,
-    // icon "..." (CIcon cilOptions) có class riêng `.btn-action`.
-    const row = nkgd.historyRow(/^\s*[A-Z]{3}/).first();
-    const optionsButton = row.locator('.btn-action');
-    await optionsButton.click({ force: true });
-    // Scope trong CHÍNH dòng vừa click — mọi dòng khác trong bảng cũng có sẵn menu Sửa/Xóa riêng (ẩn qua CSS,
-    // vẫn tồn tại trong DOM), `page.getByText('Sửa')` không scope sẽ khớp nhiều phần tử (strict-mode violation).
-    const editItem = row.getByText('Sửa', { exact: true });
-    await editItem.click();
-    await expect(nkgd.editModal).toBeVisible();
+test.describe('Lọc giao dịch', () => {
+  const select = (label: string) => nk.filterField(label).locator('select');
+  async function applyFilter(fn: () => Promise<void>) {
+    await nk.thFilterBtn.click();
+    await expect(nk.filterModal).toBeVisible();
+    await fn();
+    await nk.filterModal.getByRole('button', { name: 'Lọc', exact: true }).click();
+    await expect(nk.filterModal).toBeHidden();
   }
 
-  test('TC_NKGD_LS_34: Mở modal Sửa — chỉ Mã CK bị khóa với giao dịch thường', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await openEditOnFirstRow(page, nkgd);
-    const stockcodeField = nkgd.editModal.locator('input[disabled]').first();
-    await expect(stockcodeField).toBeVisible();
+  test('TC_NKGD_LS_09: Modal "Lọc giao dịch" — đủ ô, giá trị mặc định', async () => {
+    await openTab();
+    await nk.thFilterBtn.click();
+    await expect(select('Xem theo')).toHaveValue('khoang_thoi_gian');
+    await expect(select('Thời gian').locator('option:checked')).toHaveText('Toàn bộ');
+    await expect(select('Thời gian').locator('option')).toHaveCount(13);
+    await expect(select('Loại lệnh').locator('option')).toHaveText(['Toàn bộ', 'Mua', 'Bán']);
+    await expect(nk.filterField('Mã CK')).toContainText('Nhấn để chọn');
+    await expect(nk.filterField('Danh mục')).toContainText('Nhấn để chọn');
+    await expect(nk.filterField('Thiết lập')).toContainText('Chọn thẻ tags');
+    await expect(nk.filterField('Sai lầm')).toContainText('Chọn thẻ tags');
+    await expect(nk.filterModal.getByRole('button', { name: 'Đóng', exact: true })).toBeVisible();
   });
 
-  test('TC_NKGD_LS_35: Sửa giao dịch thường thành công (mock)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await openEditOnFirstRow(page, nkgd);
+  test('TC_NKGD_LS_10: Lọc "Loại lệnh = Bán" → chỉ còn lệnh bán', async () => {
+    await openTab();
+    await applyFilter(() => select('Loại lệnh').selectOption({ label: 'Bán' }).then(() => undefined));
+    await expect(nk.thSummaryRow).toContainText(/Mua 0\s*Bán 2\s*Cổ tức 0/);
+  });
 
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'PUT') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            list_data_item: [],
-            trading_style: { stock_trader: 0, stock_businessman: 0, value_investor: 0 },
-            list_data_mack: [],
-          }),
-        });
-      }
-      return route.continue();
+  test('TC_NKGD_LS_11: Lọc "Mã CK = HPG" → chỉ HPG', async () => {
+    await openTab();
+    await applyFilter(async () => {
+      await nk.filterField('Mã CK').locator('.multiselect__tags').click();
+      await nk.filterField('Mã CK').locator('.multiselect__option', { hasText: /^HPG$/ }).click();
     });
-
-    await nkgd.editModalNoteTextarea.fill('[TEST-AUTOMATION] ghi chú mock').catch(() => {});
-    await nkgd.editModalSaveButton.click();
-    await expect(page.getByText(/Đã cập nhật giao dịch/)).toBeVisible({ timeout: 10000 });
+    await expect(nk.thSummaryRow).toContainText(/Mua 1\s*Bán 1\s*Cổ tức 0/);
   });
 
-  test('TC_NKGD_LS_36: Sửa giao dịch lỗi 422 → thông báo riêng', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await openEditOnFirstRow(page, nkgd);
-
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'PUT') return route.fulfill({ status: 422, body: 'Unprocessable Entity 422' });
-      return route.continue();
+  test('TC_NKGD_LS_12: Lọc "Danh mục = Cổ tức" → chỉ danh mục đó', async () => {
+    await openTab();
+    await applyFilter(async () => {
+      await nk.filterField('Danh mục').locator('.multiselect__tags').click();
+      await nk.filterField('Danh mục').locator('.multiselect__option', { hasText: /^Cổ tức$/ }).click();
     });
-
-    await nkgd.editModalSaveButton.click();
-    await expect(page.getByText('Giao dịch không hợp lệ! Vui lòng thử lại.')).toBeVisible({ timeout: 10000 });
-    await expect(nkgd.editModal).toBeHidden();
+    await expect(nk.thSummaryRow).toContainText(/Mua 1\s*Bán 0\s*Cổ tức 1/);
   });
 
-  test('TC_NKGD_LS_37: Sửa giao dịch lỗi mạng/500 — modal vẫn tự đóng dù lỗi', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await openEditOnFirstRow(page, nkgd);
+  test('TC_NKGD_LS_13: Lọc "Thời gian = 1 tháng" → chỉ giao dịch trong 30 ngày', async () => {
+    await openTab();
+    await applyFilter(() => select('Thời gian').selectOption({ label: '1 tháng' }).then(() => undefined));
+    // Cổ tức VNM ghi 30 ngày trước (lùi về ngày làm việc) → ngoài mốc "1 tháng" (now − 30×24h).
+    await expect(nk.thSummaryRow).toContainText(/Mua 2\s*Bán 2\s*Cổ tức 0/);
+  });
 
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'PUT') return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
+  test('TC_NKGD_LS_14: "Tùy chọn" Từ ngày > Đến ngày → toast lỗi, bảng rỗng', async () => {
+    await openTab();
+    await applyFilter(async () => {
+      await select('Xem theo').selectOption('tuy_chon');
+      await nk.filterField('Từ ngày').locator('input').fill('2026-06-01');
+      await nk.filterField('Đến ngày').locator('input').fill('2026-01-01');
     });
-
-    await nkgd.editModalSaveButton.click();
-    await expect(page.getByText('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible({ timeout: 10000 });
-    // Hành vi thật đo được: modal tự đóng ngay cả khi request thất bại (BUG — xem testcases/nhat-ky-giao-dich-nhat-ky.md).
-    await expect(nkgd.editModal).toBeHidden({ timeout: 5000 });
+    await expect(errorToast('Bạn cần nhập thời gian Từ ngày phải bé hơn Đến ngày')).toBeVisible();
+    await expect(nk.thSummaryRow).toContainText(/Mua 0\s*Bán 0\s*Cổ tức 0/);
   });
 
-  test.fixme(
-    'TC_NKGD_LS_38: Mở modal Sửa — giao dịch Cổ tức/Quyền (cần xác nhận có dòng cổ tức khả dụng ổn định)',
-    async () => {}
-  );
-  test.fixme(
-    'TC_NKGD_LS_39: Đổi Loại giao dịch trong modal Sửa cổ tức — reset field liên quan (phụ thuộc dữ liệu cổ tức có sẵn)',
-    async () => {}
-  );
-});
+  test('TC_NKGD_LS_15: Bấm "Đóng" → không áp dụng thay đổi', async () => {
+    await openTab();
+    await nk.thFilterBtn.click();
+    await select('Loại lệnh').selectOption({ label: 'Bán' });
+    await nk.filterModal.getByRole('button', { name: 'Đóng', exact: true }).click();
+    await expect(nk.filterModal).toBeHidden();
+    await expect(nk.thSummaryRow).toContainText(/Mua 7\s*Bán 2\s*Cổ tức 2/);
+  });
 
-test.describe('Nhật ký GD — Modal "Xem giao dịch"', () => {
-  test('TC_NKGD_LS_40: Mở modal Xem — mọi field readonly', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    const firstCategory = nkgd.historyRow(/^\s*Danh mục:/).first();
-    await firstCategory.click();
-    await page.waitForTimeout(400);
-    const row = nkgd.historyRow(/^\s*[A-Z]{3}/).first();
-    await row.click();
-    await expect(nkgd.viewModal).toBeVisible();
-    const inputs = nkgd.viewModal.locator('input, select, textarea');
-    const count = await inputs.count();
-    for (let i = 0; i < Math.min(count, 10); i++) {
-      await expect(inputs.nth(i)).toBeDisabled();
-    }
+  test('TC_NKGD_LS_16: Ô "Thiết lập" mở popup "Chọn thẻ Setup"', async () => {
+    await openTab();
+    await nk.thFilterBtn.click();
+    await nk.filterField('Thiết lập').click();
+    await expect(nk.modal('Chọn thẻ Setup')).toBeVisible();
+    await nk.modal('Chọn thẻ Setup').getByRole('button', { name: 'Đóng cửa sổ' }).click();
+    await expect(nk.modal('Chọn thẻ Setup')).toBeHidden();
+    await expect(nk.filterModal).toBeVisible();
   });
 });
 
-test.describe('Nhật ký GD — Xóa giao dịch', () => {
-  async function openDeleteOnFirstRow(page: any, nkgd: TradingLogPage) {
-    const firstCategory = nkgd.historyRow(/^\s*Danh mục:/).first();
-    await firstCategory.click();
-    await page.waitForTimeout(400);
-    // QUAN TRỌNG: KHÔNG lấy dòng "Mua" đầu tiên — `showFormDelete()` chặn xóa giao dịch Mua nếu khối lượng đã
-    // bán/dùng vượt tồn (xem TC_NKGD_LS_43), đã xác nhận thật gặp toast "Không thể xóa giao dịch này!" khi vô
-    // tình chọn đúng dòng Mua gốc của 1 chuỗi giao dịch. Dòng loại "Bán" KHÔNG bị chặn theo logic này — chọn
-    // dòng "Bán" đầu tiên để đảm bảo luôn xóa được (an toàn cho test xác nhận thành công/lỗi API).
-    const row = nkgd.historyRow('Bán').and(nkgd.historyRow(/^\s*[A-Z]{3}/)).first();
-    const optionsButton = row.locator('.btn-action');
-    await optionsButton.click({ force: true });
-    // Scope trong CHÍNH dòng vừa click — xem lý do ở `openEditOnFirstRow`.
-    await row.getByText('Xóa', { exact: true }).click();
-  }
-
-  test('TC_NKGD_LS_41: Icon "..." → "Xóa" mở modal xác nhận', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await openDeleteOnFirstRow(page, nkgd);
-    await expect(nkgd.deleteTransactionModal).toBeVisible();
+test.describe('Phiếu lệnh Mua/Bán', () => {
+  test('TC_NKGD_LS_17: Nút "Mua" mở phiếu — chọn mã, danh mục, ngày hôm nay, phí 0.15, "Tổng chi", "Xác nhận mua"', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await expect(nk.ticket).toBeVisible();
+    await expect(nk.ticketSide('Mua')).toHaveClass(/is-buy/);
+    await expect(nk.ticketStockInput).toHaveValue('');
+    await expect(nk.ticketCategory.locator('option')).toHaveText(['Cổ tức', 'Dài hạn', 'Lướt sóng']);
+    expect(await nk.ticketDate.inputValue()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await expect(nk.ticketFee).toHaveValue('0.15');
+    await expect(nk.ticketSummary('Tổng chi')).toHaveText('0 đ');
+    await expect(nk.ticketSubmit).toHaveText(/Xác nhận mua/);
+    await expect(nk.ticketNote).toHaveAttribute('placeholder', 'Lý do vào lệnh...');
+    await expect(nk.ticketAdvanced).toBeVisible();
+    await expect(nk.ticket).toContainText('Thêm setup, sai lầm, giá mục tiêu, cắt lỗ...');
   });
 
-  test('TC_NKGD_LS_42: Xác nhận xóa thành công (mock)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    await openDeleteOnFirstRow(page, nkgd);
-    await expect(nkgd.deleteTransactionModal).toBeVisible();
-
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'DELETE') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ list_data_item: [], trading_style: { stock_trader: 0, stock_businessman: 0, value_investor: 0 } }),
-        });
-      }
-      return route.continue();
-    });
-
-    await nkgd.deleteTransactionConfirmButton.click();
-    await expect(page.getByText('Đã xóa giao dịch thành công')).toBeVisible({ timeout: 10000 });
+  test('TC_NKGD_LS_18: Giá trị / Phí / Tổng chi tính theo đồng (giá nghìn đồng × khối lượng)', async () => {
+    await openTab();
+    await fillBuyTicket('VNM', '50', '1000');
+    await expect(nk.ticketSummary('Giá trị')).toHaveText('50,000,000 đ');
+    await expect(nk.ticket.locator('.ot-row').nth(1).locator('b')).toHaveText('75,000 đ');
+    await expect(nk.ticketSummary('Tổng chi')).toHaveText('50,075,000 đ');
   });
 
-  test('TC_NKGD_LS_44: Xóa giao dịch lỗi API — bug mất `this` trong `.catch` (đo qua pageerror)', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-
-    await openDeleteOnFirstRow(page, nkgd);
-    await expect(nkgd.deleteTransactionModal).toBeVisible();
-
-    await page.unroute(TRADING_LOG_MUTATE);
-    await page.route(TRADING_LOG_MUTATE, (route: any) => {
-      if (route.request().method() === 'DELETE') return route.fulfill({ status: 500, body: 'error' });
-      return route.continue();
-    });
-
-    await nkgd.deleteTransactionConfirmButton.click();
-    await page.waitForTimeout(1000);
-    // Ghi nhận hành vi thật đo được (bug: .catch(function(error){...}) mất `this`) — log để đối chiếu, không
-    // fail cứng test vì hành vi trình duyệt cụ thể (có ném pageerror hay bị nuốt âm thầm) có thể khác nhau.
-    console.log(`[TC_NKGD_LS_44] pageerror ghi nhận được khi xóa lỗi: ${JSON.stringify(errors)}`);
+  test('TC_NKGD_LS_19: Chọn mã → giá tự điền theo giá khớp hiện tại', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await nk.pickTicketStock('VNM');
+    await expect.poll(async () => Number(await nk.ticketPrice.inputValue()), { timeout: 10000 }).toBeGreaterThan(0);
   });
 
-  test('TC_NKGD_LS_43: Chặn xóa giao dịch "Mua" khi khối lượng đã bán/dùng vượt tồn', async ({ page }) => {
-    const nkgd = await gotoHistoryTab(page);
-    const firstCategory = nkgd.historyRow(/^\s*Danh mục:/).first();
-    await firstCategory.click();
-    await page.waitForTimeout(400);
-    // Dòng "Mua" đầu tiên của danh mục "Lướt Sóng" (dữ liệu thật hiện có) là giao dịch mua gốc mà các giao
-    // dịch Bán/Cổ tức sau đó phụ thuộc vào — xóa nó sẽ khiến khối lượng tồn âm, bị chặn theo đúng logic
-    // `showFormDelete()`. Đã xác nhận ổn định qua nhiều lần chạy thật (không mock).
-    const row = nkgd.historyRow('Mua').and(nkgd.historyRow(/^\s*[A-Z]{3}/)).first();
-    const optionsButton = row.locator('.btn-action');
-    await optionsButton.click({ force: true });
-    await row.getByText('Xóa', { exact: true }).click();
+  test('TC_NKGD_LS_20: Bán + chọn mã đang nắm → khối lượng tự điền = số đang nắm; "Tổng thu", "Xác nhận bán"', async () => {
+    await openTab();
+    await nk.thBan.click();
+    await nk.ticketCategory.selectOption({ label: 'Lướt sóng' });
+    await nk.pickTicketStock('SSI');
+    await expect(nk.ticketVolume).toHaveValue('1,000');
+    await expect(nk.ticketSide('Bán')).toHaveClass(/is-sell/);
+    await expect(nk.ticketSummary('Tổng thu')).toBeVisible();
+    await expect(nk.ticketSubmit).toHaveText(/Xác nhận bán/);
+  });
 
-    await expect(page.getByText('Không thể xóa giao dịch này!')).toBeVisible({ timeout: 5000 });
-    await expect(nkgd.deleteTransactionModal).toBeHidden();
+  test('TC_NKGD_LS_21: Để trống → toast lỗi mã + khối lượng + giá; ⚠️ giá 0 bị từ chối dù thông báo ghi "≥ 0"', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await nk.setTicketDate(nkDay(1));
+    await nk.ticketSubmit.click();
+    await expect(errorToast('Mã CK không hợp lệ')).toBeVisible();
+    await expect(errorToast('Khối lượng phải lớn hơn 0')).toBeVisible();
+    await expect(errorToast('Giá thực hiện phải lớn hơn hoặc bằng 0')).toBeVisible();
+    expect(tradeWrites()).toEqual([]);
+    await expect(nk.ticket).toBeVisible();
+  });
+
+  test('TC_NKGD_LS_22: Ngày giao dịch trong tương lai → "Ngày giao dịch phải bé hơn hoặc bằng ngày hiện tại!"', async () => {
+    await openTab();
+    await fillBuyTicket();
+    const future = new Date(Date.now() + 7 * 86400_000);
+    while ([0, 6].includes(future.getUTCDay())) future.setUTCDate(future.getUTCDate() + 1);
+    await nk.setTicketDate(future.toISOString().slice(0, 10));
+    await nk.ticketSubmit.click();
+    await expect(errorToast('Ngày giao dịch phải bé hơn hoặc bằng ngày hiện tại!')).toBeVisible();
+    expect(tradeWrites()).toEqual([]);
+  });
+
+  test('TC_NKGD_LS_23: Ngày thứ 7 → toast "Không thể thực hiện giao dịch vào ngày này…", khoá ô và nút xác nhận', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await nk.setTicketDate(lastSaturday());
+    await expect(errorToast('Không thể thực hiện giao dịch vào ngày này. Vui lòng chọn một ngày làm việc khác')).toBeVisible();
+    await expect(nk.ticketSubmit).toBeDisabled();
+    await expect(nk.ticketPrice).toBeDisabled();
+    await expect(nk.ticketCategory).toBeDisabled();
+    await nk.setTicketDate(nkDay(1));
+    await expect(nk.ticketSubmit).toBeEnabled();
+  });
+
+  test('TC_NKGD_LS_24: Bán vượt số đang nắm → "Khối lượng bán phải bé hơn hoặc bằng số lượng mua!"', async () => {
+    await openTab();
+    await nk.thBan.click();
+    await nk.ticketCategory.selectOption({ label: 'Lướt sóng' });
+    await nk.pickTicketStock('SSI');
+    await nk.setTicketDate(nkDay(1));
+    await nk.ticketPrice.fill('20');
+    await nk.fillMoney(nk.ticketVolume, '5000');
+    await nk.ticketSubmit.click();
+    await expect(errorToast('Khối lượng bán phải bé hơn hoặc bằng số lượng mua!')).toBeVisible();
+    expect(tradeWrites()).toEqual([]);
+  });
+
+  test('TC_NKGD_LS_25: Xác nhận mua thành công → POST đúng dữ liệu, đối soát cổ tức, phiếu đóng im lặng, bảng có lệnh mới', async () => {
+    await openTab();
+    await fillBuyTicket('VNM', '50', '1000', 'Dài hạn');
+    await nk.ticketNote.fill('Mua thử');
+    await nk.ticketSubmit.click();
+    await expect(nk.ticket).toBeHidden();
+    expect(tradeWrites()).toHaveLength(1);
+    expect(tradeWrites()[0]).toMatchObject({ method: 'POST', path: expect.stringMatching(/tradinglog\/store$/),
+      body: { mack: 'VNM', loai_giao_dich: 'mua', danh_muc: CAT.DAI_HAN, ngay_giao_dich: nkDay(1), gia_thuc_hien: '50', phi: 0.15, chu_thich: 'Mua thử' } });
+    expect(String(tradeWrites()[0].body.khoi_luong).replace(/,/g, '')).toBe('1000');
+    await expect.poll(() => syncWrites().length).toBe(1);
+    expect(syncWrites()[0].body).toEqual({ items: [{ danh_muc: CAT.DAI_HAN, mack: 'VNM', ngay_giao_dich: nkDay(1) }] });
+    await nk.expectSilentSuccess();
+    await expect(nk.thCategoryRow('Dài hạn')).toContainText(/Mua 4/);
+  });
+
+  test('TC_NKGD_LS_26: Lỗi 500 → toast "Có lỗi xảy ra, vui lòng thử lại", phiếu vẫn mở', async () => {
+    await openTab();
+    nk.server.mode.store = '500';
+    await fillBuyTicket();
+    await nk.ticketSubmit.click();
+    await expect(errorToast('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+    await expect(nk.ticket).toBeVisible();
+  });
+
+  test('TC_NKGD_LS_27: 🐞 Bấm đúp "Xác nhận mua" → gửi 2 lệnh POST (không chặn bấm lặp)', async ({ page }) => {
+    await openTab();
+    nk.server.mode.store = 'slow';
+    await fillBuyTicket();
+    await nk.ticketSubmit.dblclick();
+    await expect.poll(() => tradeWrites().length, { timeout: 8000 }).toBe(2);
+    await page.waitForTimeout(3000);
+    expect(tradeWrites().filter((w) => /store$/.test(w.path))).toHaveLength(2);
+  });
+
+  test('TC_NKGD_LS_28: Phí được nhớ — đổi phí, đóng phiếu, mở lại vẫn giữ', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await nk.ticketFee.fill('0.2');
+    await expect.poll(() => nk.ls('trading_log_last_fee_percent')).toBe('0.2');
+    await nk.ticketCancel.click();
+    await nk.thBan.click();
+    await expect(nk.ticketFee).toHaveValue('0.2');
+  });
+
+  test('TC_NKGD_LS_29: Đóng phiếu — Esc, nút X, "Hủy" đều đóng; bấm ra nền KHÔNG đóng', async ({ page }) => {
+    await openTab();
+    await nk.thMua.click();
+    await page.mouse.click(30, 450);
+    await expect(nk.ticket).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(nk.ticket).toBeHidden();
+    await nk.thMua.click();
+    await nk.ticketClose.click();
+    await expect(nk.ticket).toBeHidden();
+    await nk.thMua.click();
+    await nk.ticketCancel.click();
+    await expect(nk.ticket).toBeHidden();
+    expect(tradeWrites()).toEqual([]);
+  });
+
+  test('TC_NKGD_LS_30: 🐞 Chọn mã trong phiếu → lỗi JS "reading \'0\'" từ callback giá (socket getlive)', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await nk.pickTicketStock('VNM');
+    await expect.poll(() => nk.pageErrors.join('\n'), { timeout: 10000 }).toMatch(/Cannot read properties of undefined \(reading '0'\)/);
   });
 });
 
-test.describe('Nhật ký GD — Sub-tab "Thống kê phân tích"', () => {
-  async function gotoAnalysisTab(page: any) {
-    const nkgd = await gotoHistoryTab(page);
-    await nkgd.historySubTab('Thống kê phân tích').click();
-    await page.waitForTimeout(500);
-    return nkgd;
-  }
-
-  test('TC_NKGD_LS_45: Overview — radar chart, mức điểm rủi ro, bảng lợi nhuận', async ({ page }) => {
-    await gotoAnalysisTab(page);
-    await expect(page.getByText('Phong cách giao dịch')).toBeVisible();
-    await expect(page.getByText('Mức điểm rủi ro phù hợp')).toBeVisible();
-  });
-
-  test('TC_NKGD_LS_46: Đổi tiêu chí "Lợi nhuận theo..."', async ({ page }) => {
-    await gotoAnalysisTab(page);
-    const select = page.locator('select').filter({ has: page.locator('option', { hasText: 'Mã CK' }) }).first();
-    if (await select.count()) {
-      await select.selectOption({ label: 'Ngành' }).catch(() => {});
-      await page.waitForTimeout(300);
+test.describe('Nhập nâng cao (modal "Thêm giao dịch")', () => {
+  test('TC_NKGD_LS_31: "Nhập nâng cao" → đóng phiếu, mở "Thêm giao dịch" giữ nguyên mã/loại đang nhập', async () => {
+    await openTab();
+    await nk.thBan.click();
+    await nk.ticketCategory.selectOption({ label: 'Lướt sóng' });
+    await nk.pickTicketStock('SSI');
+    await nk.ticketAdvanced.click();
+    await expect(nk.ticket).toBeHidden();
+    await expect(nk.addModal).toBeVisible();
+    await expect(nk.addModal.locator('.nav-link')).toHaveText(['Giao dịch', 'Nhập đơn lẻ', 'Nhập hàng loạt']);
+    await expect(nk.addModalField('Loại giao dịch').locator('select')).toHaveValue('ban');
+    await expect(nk.addModalField('Mã CK').locator('input')).toHaveValue('SSI');
+    for (const l of ['Giá mục tiêu 1', 'Giá mục tiêu 2', 'Giá mục tiêu 3', 'Giá cắt lỗ 1', 'Giá cắt lỗ 2', 'Giá cắt lỗ 3']) {
+      await expect(nk.addModal.getByText(l, { exact: true })).toBeVisible();
     }
   });
 
-  test('TC_NKGD_LS_48: Bug: Xuất File Excel làm hỏng vĩnh viễn computed `fields_table`, thêm cột "Mã CK" thừa (chỉ lộ ra ở lần re-render TIẾP THEO)', async ({ page }) => {
-    await gotoAnalysisTab(page);
-    const table = page.locator('table.table-analysis');
-    const headerRow2 = table.locator('thead tr').nth(1).locator('th');
-    const exportButton = page.getByRole('button', { name: 'Xuất File Excel' });
-
-    const countBefore = await headerRow2.filter({ hasText: 'Mã CK' }).count();
-    expect(countBefore, 'Trước khi xuất Excel, KHÔNG được có cột "Mã CK" thừa nào').toBe(0);
-
-    // Xuất Excel 3 lần liên tiếp — vì `schema` là Vue computed KHÔNG có dependency reactive nào (đọc thẳng
-    // `this.fields_table.unshift(...)`), Vue chỉ evaluate nó 1 LẦN DUY NHẤT rồi cache mãi mãi → dòng `unshift`
-    // chỉ thật sự chạy ở lần export ĐẦU TIÊN trong vòng đời component, 2 lần sau không lặp lại thêm.
-    for (let i = 0; i < 3; i++) {
-      const [download] = await Promise.all([page.waitForEvent('download').catch(() => null), exportButton.click()]);
-      void download;
-      await page.waitForTimeout(300);
-    }
-
-    // Ngay sau export, `fields_table` (cũng là computed, cache riêng) đã bị mutate trong bộ nhớ nhưng KHÔNG tự
-    // re-render (mảng trả về từ computed không phải reactive array được Vue theo dõi) — bảng trên màn hình vẫn
-    // hiển thị ĐÚNG, chưa lộ bug.
-    const countRightAfterExport = await headerRow2.filter({ hasText: 'Mã CK' }).count();
-    expect(countRightAfterExport, 'Ngay sau export, bảng CHƯA re-render nên chưa lộ cột thừa').toBe(0);
-
-    // Chỉ khi có 1 tương tác khác buộc Vue re-render bảng (VD click sắp xếp 1 cột — đổi `key_sort`/`type_sort`,
-    // dữ liệu reactive thật) thì cột "Mã CK" thừa (từ `fields_table` đã bị hỏng) mới XUẤT HIỆN, và CHỈ xuất
-    // hiện đúng 1 cột thừa (không phải 3, dù đã bấm xuất Excel 3 lần) — đúng với việc `schema` chỉ evaluate 1 lần.
-    await headerRow2.first().click();
-    await page.waitForTimeout(300);
-    const countAfterRerender = await headerRow2.filter({ hasText: 'Mã CK' }).count();
-    console.log(`[TC_NKGD_LS_48] Cột "Mã CK" thừa: trước=${countBefore}, ngay sau export=${countRightAfterExport}, sau khi ép re-render=${countAfterRerender}`);
-    expect(countAfterRerender, 'Sau khi ép re-render, phải lộ ĐÚNG 1 cột "Mã CK" thừa').toBe(1);
+  test('TC_NKGD_LS_32: Giá mục tiêu trùng nhau → "Giá mục tiêu 1 phải khác giá mục tiêu 2 và 3!", không gửi', async () => {
+    await openTab();
+    await fillBuyTicket();
+    await nk.ticketAdvanced.click();
+    const tp = (n: number) => nk.addModal.locator(`xpath=.//div[normalize-space()="Giá mục tiêu ${n}"]/following::input[1]`).first();
+    await tp(1).fill('60');
+    await tp(2).fill('60');
+    await nk.addModal.getByRole('button', { name: 'Lưu' }).click();
+    await expect(errorToast('Giá mục tiêu 1 phải khác giá mục tiêu 2 và 3!')).toBeVisible();
+    expect(tradeWrites()).toEqual([]);
   });
 
-  test('TC_NKGD_LS_49: get-risk-aversion-index lỗi mạng — không crash', async ({ page }) => {
-    await page.route(/get-risk-aversion-index/, (route: any) => route.fulfill({ status: 500, body: 'error' }));
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-    await gotoAnalysisTab(page);
-    await page.waitForTimeout(500);
-    expect(errors).toEqual([]);
-    await expect(page.getByText('Mức điểm rủi ro phù hợp')).toBeVisible();
+  test('TC_NKGD_LS_33: "Nhập hàng loạt" — thêm/xoá dòng; gửi khi dòng trống → toast lỗi, không gọi API', async () => {
+    await openTab();
+    await nk.thMua.click();
+    await nk.ticketAdvanced.click();
+    await nk.addModal.locator('.nav-link', { hasText: 'Nhập hàng loạt' }).click();
+    const rows = nk.addModal.locator('.trading-log tbody tr').filter({ has: nk.root.page().getByRole('button', { name: 'Xóa dòng' }) });
+    const n = await rows.count();
+    await nk.addModal.getByText('+ Thêm giao dịch khác').click();
+    await expect(rows).toHaveCount(n + 1);
+    await rows.last().getByRole('button', { name: 'Xóa dòng' }).click();
+    await expect(rows).toHaveCount(n);
+    await nk.addModal.getByRole('button', { name: 'Lưu' }).click();
+    await expect(nk.toastError.first()).toBeVisible();
+    expect(tradeWrites()).toEqual([]);
+  });
+});
+
+test.describe('Sửa / Chi tiết / Xoá giao dịch', () => {
+  test('TC_NKGD_LS_34: Menu "..." — lệnh mua/bán có Sửa + Xóa; dòng cổ tức chỉ có Xóa', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    await rowMenu(daiHanRow('48,000'));
+    await expect(nk.thMenuItems).toHaveText([/Sửa/, /Xóa/]);
+    await nk.root.page().keyboard.press('Escape');
+    await nk.thSummaryRow.click();
+    await rowMenu(daiHanRow('Cổ tức'));
+    await expect(nk.thMenuItems).toHaveText([/Xóa/]);
+  });
+
+  test('TC_NKGD_LS_35: Modal "Sửa giao dịch" điền sẵn đúng dữ liệu, Mã CK khoá', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    await rowMenu(daiHanRow('48,000'), 'Sửa');
+    await expect(nk.editModal).toBeVisible();
+    await expect(nk.editField('Loại giao dịch').locator('select')).toHaveValue('mua');
+    await expect(nk.editField('Danh mục').locator('select option:checked')).toHaveText('Dài hạn');
+    await expect(nk.editField('Mã CK').locator('input')).toHaveValue('FPT');
+    await expect(nk.editField('Mã CK').locator('input')).toBeDisabled();
+    await expect(nk.editField('Ngày giao dịch').locator('input')).toHaveValue(nkDate(120).slice(0, 10));
+    await expect(nk.editField('Khối lượng').locator('input')).toHaveValue('1,000');
+    await expect(nk.editField('Giá thực hiện (nghìn đồng)').locator('input')).toHaveValue('48');
+    await expect(nk.editField('Phí (%)').locator('input')).toHaveValue('0.15');
+    await expect(nk.editModal.locator('textarea')).toHaveValue('Mua tích luỹ');
+    await expect(nk.editModal.getByText('Biểu đồ giá mục tiêu - cắt lỗ')).toBeVisible();
+  });
+
+  test('TC_NKGD_LS_36: Sửa thành công → PUT đúng dữ liệu, đối soát cổ tức, modal đóng, bảng cập nhật', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    await rowMenu(daiHanRow('48,000'), 'Sửa');
+    await nk.editField('Giá thực hiện (nghìn đồng)').locator('input').fill('47');
+    await nk.editModal.locator('textarea').fill('Sửa giá');
+    await nk.editModal.getByRole('button', { name: 'Lưu' }).click();
+    await expect(nk.editModal).toBeHidden();
+    const put = tradeWrites().find((w) => w.method === 'PUT')!;
+    expect(put.body).toMatchObject({ mack: 'FPT', loai_giao_dich: 'mua', gia_thuc_hien: '47', chu_thich: 'Sửa giá', danh_muc: CAT.DAI_HAN });
+    await expect.poll(() => syncWrites().length).toBe(1);
+    await nk.expectSilentSuccess();
+    await expect(nk.thTradeRows.filter({ hasText: '47,000' })).toHaveCount(1);
+  });
+
+  test('TC_NKGD_LS_37: 🐞 Sửa lỗi 422 → "Giao dịch không hợp lệ! Vui lòng thử lại.", modal TỰ ĐÓNG (mất chỉnh sửa)', async () => {
+    await openTab();
+    nk.server.mode.update = '422';
+    await expand('Dài hạn');
+    await rowMenu(daiHanRow('48,000'), 'Sửa');
+    await nk.editModal.getByRole('button', { name: 'Lưu' }).click();
+    await expect(errorToast('Giao dịch không hợp lệ! Vui lòng thử lại.')).toBeVisible();
+    await expect(nk.editModal).toBeHidden();
+  });
+
+  test('TC_NKGD_LS_38: 🐞 Sửa lỗi 500 → "Có lỗi xảy ra, vui lòng thử lại", modal TỰ ĐÓNG', async () => {
+    await openTab();
+    nk.server.mode.update = '500';
+    await expand('Dài hạn');
+    await rowMenu(daiHanRow('48,000'), 'Sửa');
+    await nk.editModal.getByRole('button', { name: 'Lưu' }).click();
+    await expect(errorToast('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+    await expect(nk.editModal).toBeHidden();
+  });
+
+  test('TC_NKGD_LS_39: Bấm vào dòng → modal "Chi tiết giao dịch" (chỉ xem), nút "Đóng"', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    await daiHanRow('48,000').locator('.th-cot-ngay_giao_dich').click();
+    await expect(nk.viewModal).toBeVisible();
+    await expect(nk.viewModal).toContainText('FPT');
+    await expect(nk.viewModal.getByText('Biểu đồ giá mục tiêu - cắt lỗ')).toBeVisible();
+    await expect(nk.viewModal.getByRole('button', { name: 'Lưu' })).toHaveCount(0);
+    await nk.viewModal.getByRole('button', { name: 'Đóng', exact: true }).click();
+    await expect(nk.viewModal).toBeHidden();
+  });
+
+  test('TC_NKGD_LS_40: Xoá lệnh bán → modal xác nhận → DELETE, đối soát cổ tức, dòng biến mất', async () => {
+    await openTab();
+    await expand('Dài hạn');
+    const id = nk.server.data.logs.find((l) => l.mack === 'FPT' && l.loai_giao_dich === 'ban')!.id;
+    await rowMenu(daiHanRow('Bán'), 'Xóa');
+    await expect(nk.deleteModal).toBeVisible();
+    await nk.deleteModal.getByRole('button', { name: 'Xóa', exact: true }).click();
+    await expect(nk.deleteModal).toBeHidden();
+    expect(tradeWrites()).toEqual([expect.objectContaining({ method: 'DELETE', path: expect.stringMatching(new RegExp(`/trading_log/${id}$`)) })]);
+    await expect.poll(() => syncWrites().length).toBe(1);
+    await nk.expectSilentSuccess();
+    await expect(nk.thCategoryRow('Dài hạn')).toContainText(/Bán 0/);
+  });
+
+  test('TC_NKGD_LS_41: Xoá lệnh mua đã bán hết → "Không thể xóa giao dịch này!", không mở xác nhận', async () => {
+    await openTab();
+    await expand('Lướt sóng');
+    await rowMenu(nk.thTradeRows.filter({ hasText: 'HPG' }).filter({ hasText: 'Mua' }).first(), 'Xóa');
+    await expect(errorToast('Không thể xóa giao dịch này!')).toBeVisible();
+    await expect(nk.deleteModal).toBeHidden();
+    expect(tradeWrites()).toEqual([]);
+  });
+
+  test('TC_NKGD_LS_42: Xoá lỗi 500 → toast "Có lỗi xảy ra, vui lòng thử lại", modal đóng, dòng còn', async () => {
+    await openTab();
+    nk.server.mode.delete = '500';
+    await expand('Dài hạn');
+    await rowMenu(daiHanRow('Bán'), 'Xóa');
+    await nk.deleteModal.getByRole('button', { name: 'Xóa', exact: true }).click();
+    await expect(errorToast('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
+    await expect(nk.deleteModal).toBeHidden();
+    await expect(daiHanRow('Bán')).toBeVisible();
+  });
+
+  test('TC_NKGD_LS_43: Sau khi thêm lệnh, đối soát có sự kiện quyền → modal "Đã cập nhật sự kiện quyền", nạp lại nhật ký', async () => {
+    await openTab();
+    nk.server.syncApply = { has_pending: true, inserted: 1, removed: 0, groups: [{ danh_muc: CAT.DAI_HAN, mack: 'VNM',
+      events: [{ eventid: 1, date: nkDay(3), note: 'Trả cổ tức bằng tiền', type: 'tien_mat', ratio: 0.1 }] }] };
+    const reads = () => nk.server.reads.getAll;
+    await fillBuyTicket('VNM', '50', '1000', 'Dài hạn');
+    const before = reads();
+    await nk.ticketSubmit.click();
+    await expect(nk.dividendModal).toBeVisible();
+    await expect(nk.dividendModal).toContainText('Tài sản có thay đổi, hệ thống đã cập nhật lại sự kiện quyền:');
+    await expect(nk.dividendModal).toContainText('VNM');
+    await expect(nk.dividendModal).toContainText('danh mục: Dài hạn');
+    await expect(nk.dividendModal).toContainText('Trả cổ tức bằng tiền');
+    expect(reads()).toBeGreaterThan(before);
+    await nk.dividendModal.getByRole('button', { name: 'Đóng', exact: true }).click();
+    await expect(nk.dividendModal).toBeHidden();
+  });
+});
+
+test.describe('Phân quyền', () => {
+  test('TC_NKGD_LS_44: Free — tab "Giao dịch" hiện ProtectedView, không có nút Mua/Bán/Lọc', async ({ page }: { page: Page }) => {
+    await nk.open({ account: 'free', tab: 1 });
+    await expect(nk.protectedView).toBeVisible({ timeout: 20000 });
+    await expect(nk.thMua).toHaveCount(0);
+    await expect(nk.thFilterBtn).toHaveCount(0);
+    expect(page.url()).toContain('/nhat-ky-giao-dich');
   });
 });

@@ -1,15 +1,27 @@
-import { test, expect } from '@playwright/test';
+import { test, expect as baseExpect, Page } from '@playwright/test';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
 
 const EMAIL = process.env.TEST_USER_EMAIL!;
 const PASSWORD = process.env.TEST_USER_PASSWORD!;
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+/** Đăng nhập prev2 bằng phiên đã cache (Prev2Session) rồi vào /dashboard. */
+async function loginFirst(page: Page) {
+  await new DashboardPage(page).open();
+}
+
+test.use({ baseURL: PREV2_BASE_URL });
+// prev2 (backend production) đổ dữ liệu thị trường qua socket — lúc tải nặng chậm hơn hẳn mốc 5 giây mặc định.
+const expect = baseExpect.configure({ timeout: 15_000 });
+test.describe.configure({ timeout: 90_000 });
+
+/** Menu header từ 12/10/2026: "Bảng giá chứng khoán" nằm trong menu thả xuống "Thị Trường". */
+async function gotoBangGiaFromMenu(page: Page) {
+  await page.locator('header').getByText('Thị Trường', { exact: true }).first().hover();
+  await page.locator('header').getByRole('link', { name: 'Bảng giá chứng khoán' }).first().click();
+  // vue-router chỉ đổi URL sau khi tải xong chunk màn Bảng giá — prev2 lúc tải nặng mất hàng chục giây.
+  await expect(page).toHaveURL(/\/bang-gia/, { timeout: 30_000 });
 }
 
 test.describe('Dashboard — Truy cập & Tổng quan', () => {
@@ -25,9 +37,9 @@ test.describe('Dashboard — Truy cập & Tổng quan', () => {
     await expect(page.getByText('Chỉ số rủi ro')).toBeVisible();
     await expect(dashboard.rightTab('IBD')).toBeVisible();
     await expect(dashboard.rightTab('Watchlist')).toBeVisible();
-    await expect(dashboard.rightTab('Cảnh báo')).toBeVisible();
     await expect(dashboard.rightTab('Ghi chú')).toBeVisible();
-    await expect(dashboard.rightTab('Cộng đồng')).toBeVisible();
+    // Tab "Cảnh báo" và "Cộng đồng" đã gỡ khỏi cột phải (12/10/2026).
+    await expect(dashboard.rightPanelExpanded).toHaveText(['IBD', 'Watchlist', 'Ghi chú']);
   });
 
   test('TC_DASHBOARD_02: Truy cập /dashboard khi chưa đăng nhập => redirect /login', async ({ page, context }) => {
@@ -148,12 +160,13 @@ test.describe('Dashboard — Cột giữa: Chỉ số tâm lý/rủi ro & Bản 
   });
 });
 
-test.describe('Dashboard — Cột phải: Panel IBD/Watchlist/Cảnh báo/Ghi chú/Cộng đồng', () => {
+test.describe('Dashboard — Cột phải: Panel IBD/Watchlist/Ghi chú', () => {
   test('TC_DASHBOARD_11: Hiển thị panel phải mặc định (IBD active)', async ({ page }) => {
     await loginFirst(page);
     const dashboard = new DashboardPage(page);
     await expect(dashboard.rightTab('IBD')).toHaveClass(/active/);
     await expect(page.getByText('Tổng quan thị trường')).toBeVisible();
+    await expect(dashboard.rightPanelExpanded).toHaveCount(3);
   });
 
   test('TC_DASHBOARD_12: Chuyển panel phải', async ({ page }) => {
@@ -163,14 +176,15 @@ test.describe('Dashboard — Cột phải: Panel IBD/Watchlist/Cảnh báo/Ghi c
     await dashboard.rightTab('Watchlist').click();
     await expect(dashboard.rightTab('Watchlist')).toHaveClass(/active/);
 
-    await dashboard.rightTab('Cảnh báo').click();
-    await expect(dashboard.rightTab('Cảnh báo')).toHaveClass(/active/);
+    await expect(dashboard.watchlistPanelHeader).toBeVisible();
 
     await dashboard.rightTab('Ghi chú').click();
     await expect(dashboard.rightTab('Ghi chú')).toHaveClass(/active/);
+    await expect(dashboard.notePanel).toBeVisible();
 
-    await dashboard.rightTab('Cộng đồng').click();
-    await expect(dashboard.rightTab('Cộng đồng')).toHaveClass(/active/);
+    await dashboard.rightTab('IBD').click();
+    await expect(dashboard.rightTab('IBD')).toHaveClass(/active/);
+    await expect(page.getByText('Tổng quan thị trường')).toBeVisible();
   });
 
   test('TC_DASHBOARD_13: Thu gọn panel phải khi click lại tab đang active', async ({ page }) => {
@@ -206,7 +220,7 @@ test.describe('Dashboard — Kéo giãn & Reset bố cục', () => {
     const dashboard = new DashboardPage(page);
 
     await dashboard.dragVerticalResizer(0, 150);
-    await page.waitForTimeout(3500); // debounce lưu localStorage là 3s
+    await page.waitForTimeout(1500); // debounce lưu localStorage 300ms (trước 10/2026 là 3s)
 
     const stored = await dashboard.getResizeFromStorage();
     expect(stored, 'Sau khi kéo giãn, localStorage key "resize" phải được ghi giá trị mới').not.toBeNull();
@@ -217,13 +231,17 @@ test.describe('Dashboard — Kéo giãn & Reset bố cục', () => {
     const dashboard = new DashboardPage(page);
 
     await dashboard.dragVerticalResizer(0, 150);
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(1500);
     const storedBefore = await dashboard.getResizeFromStorage();
 
-    await page.reload({ waitUntil: 'networkidle' });
+    const widthBefore = (await page.locator('.db-container > .column').first().boundingBox())!.width;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await dashboard.marketTab('Việt Nam').waitFor();
     const storedAfter = await dashboard.getResizeFromStorage();
 
     expect(storedAfter).toBe(storedBefore);
+    const widthAfter = (await page.locator('.db-container > .column').first().boundingBox())!.width;
+    expect(Math.abs(widthAfter - widthBefore)).toBeLessThan(3);
   });
 
   test('TC_DASHBOARD_17: Đặt lại bố cục mặc định', async ({ page }) => {
@@ -233,11 +251,19 @@ test.describe('Dashboard — Kéo giãn & Reset bố cục', () => {
     await dashboard.dragVerticalResizer(0, 150);
     await page.waitForTimeout(500);
 
+    await dashboard.rightTab('Ghi chú').click();
+    await dashboard.rightTab('Ghi chú').click(); // thu gọn cột phải
+    await expect(dashboard.rightPanelExpanded).toHaveCount(0);
+
     await dashboard.resetLayoutButton.click();
-    await page.waitForTimeout(500);
 
     await expect(dashboard.rightTab('IBD')).toHaveClass(/active/);
     await expect(dashboard.enlargeHeatMapButton).toBeVisible();
+    const vw = page.viewportSize()!.width;
+    const aWidth = (await page.locator('.db-container > .column').first().boundingBox())!.width;
+    expect(Math.abs(aWidth - vw * 0.3)).toBeLessThan(3);
+    // Đặt lại ghi ngay bản lưu mặc định (không chờ debounce).
+    expect(await dashboard.getResizeState()).toMatchObject({ bTopHeight: 150, expandMenuRight: true, rightTab: 'IBD' });
   });
 });
 
@@ -281,23 +307,113 @@ test.describe('Dashboard — Responsive & Điều hướng', () => {
 
   test('TC_DASHBOARD_21: Điều hướng từ header sang màn khác rồi quay lại Dashboard', async ({ page }) => {
     await loginFirst(page);
-    await page.getByRole('link', { name: 'Bảng giá' }).click();
-    await expect(page).toHaveURL(/\/bang-gia/);
+    await gotoBangGiaFromMenu(page);
 
-    await page.getByRole('link', { name: 'Dashboard' }).click();
-    await expect(page).toHaveURL(/\/dashboard/);
+    await page.locator('header').getByRole('link', { name: 'Dashboard', exact: true }).first().click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
     const dashboard = new DashboardPage(page);
-    await expect(dashboard.marketTab('Việt Nam')).toBeVisible();
+    await expect(dashboard.marketTab('Việt Nam')).toBeVisible({ timeout: 30_000 });
   });
 
   test('TC_DASHBOARD_22: Nút Back của trình duyệt', async ({ page }) => {
     await loginFirst(page);
-    await page.getByRole('link', { name: 'Bảng giá' }).click();
-    await expect(page).toHaveURL(/\/bang-gia/);
+    await gotoBangGiaFromMenu(page);
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
     const dashboard = new DashboardPage(page);
+    await expect(dashboard.marketTab('Việt Nam')).toBeVisible({ timeout: 30_000 });
+  });
+});
+
+test.describe('Dashboard — Nhớ trạng thái cột phải (từ 10/2026)', () => {
+  test('TC_DASHBOARD_23: Tab cột phải đang mở được nhớ sau khi tải lại trang', async ({ page }) => {
+    await loginFirst(page);
+    const dashboard = new DashboardPage(page);
+    await dashboard.rightTab('Ghi chú').click();
+    // Ghi ngay khi đổi tab (không chờ debounce).
+    expect(await dashboard.getResizeState()).toMatchObject({ expandMenuRight: true, rightTab: 'Ghi chú' });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await dashboard.marketTab('Việt Nam').waitFor();
+    await expect(dashboard.rightTab('Ghi chú')).toHaveClass(/active/);
+    await expect(dashboard.notePanel).toBeVisible();
+  });
+
+  test('TC_DASHBOARD_24: Cột phải đã thu gọn vẫn thu gọn sau khi tải lại / chuyển màn rồi quay lại', async ({ page }) => {
+    await loginFirst(page);
+    const dashboard = new DashboardPage(page);
+    await dashboard.rightTab('IBD').click();
+    await expect(dashboard.rightPanelExpanded).toHaveCount(0);
+    expect(await dashboard.getResizeState()).toMatchObject({ expandMenuRight: false, rightTab: null });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await dashboard.marketTab('Việt Nam').waitFor();
+    await expect(dashboard.rightPanelExpanded).toHaveCount(0);
+    await expect(dashboard.collapsedRightTab('IBD')).toBeVisible();
+    await expect(dashboard.collapsedRightTab('IBD')).not.toHaveClass(/active/);
+
+    // Không chờ sự kiện `load` (màn Watchlist/Dashboard nạp nhiều tài nguyên, `load` có thể > 90 giây).
+    await page.goto('/watchlist', { waitUntil: 'domcontentloaded' });
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await dashboard.marketTab('Việt Nam').waitFor({ timeout: 30_000 });
+    await expect(dashboard.rightPanelExpanded).toHaveCount(0);
+  });
+
+  test('TC_DASHBOARD_25: Bản lưu cũ (số thứ tự trong dãy 5 tab) được đổi đúng tab; tab đã gỡ → mở IBD', async ({ page }) => {
+    await loginFirst(page);
+    const dashboard = new DashboardPage(page);
+    const cases: { index: number; expected: string }[] = [
+      { index: 3, expected: 'Ghi chú' }, // dãy cũ: IBD, Watchlist, Cảnh báo, Ghi chú, Cộng đồng
+      { index: 2, expected: 'IBD' }, // "Cảnh báo" đã gỡ
+      { index: 4, expected: 'IBD' }, // "Cộng đồng" đã gỡ
+    ];
+    for (const c of cases) {
+      await page.evaluate((i) => localStorage.setItem('resize',
+        JSON.stringify({ bTopHeight: 150, aWidth: 480, cWidth: 480, expandMenuRight: true, rightTabIndex: i })), c.index);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await dashboard.marketTab('Việt Nam').waitFor();
+      await expect(dashboard.rightTab(c.expected), `rightTabIndex cũ = ${c.index}`).toHaveClass(/active/);
+      await expect(dashboard.rightPanelExpanded).toHaveCount(3);
+    }
+  });
+
+  test('TC_DASHBOARD_26: Bản lưu "resize" hỏng (không phải JSON) → bố cục mặc định, không lỗi JS', async ({ page }) => {
+    await loginFirst(page);
+    const dashboard = new DashboardPage(page);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.evaluate(() => localStorage.setItem('resize', '{hong'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await dashboard.marketTab('Việt Nam').waitFor();
+    await expect(dashboard.rightTab('IBD')).toHaveClass(/active/);
+    const vw = page.viewportSize()!.width;
+    const aWidth = (await page.locator('.db-container > .column').first().boundingBox())!.width;
+    expect(Math.abs(aWidth - vw * 0.3)).toBeLessThan(3);
+    expect(errors.filter((e) => /resize|JSON/i.test(e))).toEqual([]);
+  });
+});
+
+test.describe('Dashboard — Công tắc "Dashboard mới (beta)" (menu tài khoản)', () => {
+  test('TC_DASHBOARD_27: Tắt/bật công tắc → đổi giữa Dashboard cũ và mới, lưu localStorage + định ghi lựa chọn lên máy chủ (đã giả lập)', async ({ page }) => {
+    const dashboard = new DashboardPage(page);
+    await dashboard.open(); // dùng đúng instance này để đọc `session.dashboardPreferenceWrites`
+    // Mỗi lần vào trang app ghi lựa chọn hiện tại ("new") — Prev2Session giả lập thành công, không tới production.
+    await expect.poll(() => dashboard.session.dashboardPreferenceWrites).toContain('new');
+
+    await dashboard.accountMenuToggle().click();
+    const sw = dashboard.dashboardV3Switch();
+    await expect(sw).toBeChecked();
+    await sw.locator('xpath=..').click();
+    await expect(sw).not.toBeChecked();
+    await expect(page.locator('.db-container')).toHaveCount(0); // DashboardV3Resize đã thay bằng dashboard cũ
+    expect(await page.evaluate(() => localStorage.getItem('using_v3_dashboard'))).toBe('false');
+    await expect.poll(() => dashboard.session.dashboardPreferenceWrites.slice(-1)[0]).toBe('old');
+
+    await sw.locator('xpath=..').click();
+    await expect(sw).toBeChecked();
     await expect(dashboard.marketTab('Việt Nam')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('using_v3_dashboard'))).toBe('true');
+    await expect.poll(() => dashboard.session.dashboardPreferenceWrites.slice(-1)[0]).toBe('new');
   });
 });

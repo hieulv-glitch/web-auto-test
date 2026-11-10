@@ -1,346 +1,280 @@
 # Màn hình: Nhật ký giao dịch — Tab "Phân bổ vốn"
 
-- **URL:** `/nhat-ky-giao-dich` (`active_tab = 3`) — xem tổng quan 4 tab ở
-  [nhat-ky-giao-dich.md](nhat-ky-giao-dich.md).
-- **Component:** [src/views/CapitalAllocation.vue](../../stocks/src/views/CapitalAllocation.vue) (1869 dòng),
-  dùng `CustomEChart` (pie chart). Bị khóa bởi `<ProtectedView featureName="nkgd_phan_bo_von">` nếu tài khoản
-  chưa đủ quyền (xem [nhat-ky-giao-dich.md](nhat-ky-giao-dich.md) TC_NKGD_09). Chỉ mount khi thực sự click vào
-  tab này (`v-else-if`, lazy).
-- **Domain test:** https://kfsp.vn/nhat-ky-giao-dich
-- **Nguồn testcase gốc (app):** Google Sheet, tab "Nhật Kí giao dịch" — app có nhắc "Phân bổ vốn" nhưng không
-  mô tả chi tiết công thức tính (% cắt lỗ trên tài sản). Toàn bộ testcase dưới đây do tự kiểm kê source code
-  web, hầu hết 🆕.
-- **Phương pháp sinh:** Đọc toàn bộ `CapitalAllocation.vue` + `src/views/charts/CustomEchart.vue` + `src/store.js`
-  (đoạn mutation `saveSetting` dùng chung) + kiểm kê độc lập qua DOM thật (`.dom-inspect/nkgd-phanbovon.*`).
-- **⚠️ AN TOÀN DỮ LIỆU — QUAN TRỌNG:** Tab này KHÔNG có API lưu "phân bổ vốn" chuyên biệt, nhưng có cơ chế
-  **auto-save ngầm lên server** (debounce ~3.2 giây sau khi ngừng gõ) qua mutation Vuex `saveSetting` dùng
-  chung toàn app → `POST {saveSettingAPI}/updateusersettings`. Vì đây là API "cài đặt người dùng" dùng chung
-  (không phải endpoint riêng của phân bổ vốn), testcase liên quan tới auto-save **mock/chặn** request này để
-  không ghi đè `capital_allocation_data_save` thật của tài khoản test.
-- **Quy ước trạng thái:** 🆕 Testcase mới · ⚠️ Cần xác nhận thêm.
+- **URL:** `/nhat-ky-giao-dich`, tab thứ 4 "Phân bổ vốn" (`active_tab = 3`) — khung ở [nhat-ky-giao-dich.md](nhat-ky-giao-dich.md).
+- **Component:** `stocks/src/views/CapitalAllocation.vue` (bản preprod 03/11/2026).
+- **Môi trường:** https://kfsp.vn (production — đã ngang preprod mới nhất, deploy 06/11/2026 10:30 GMT; spec đọc `PREV2_BASE_URL` trong .env, hiện trỏ kfsp.vn) + `Prev2Session` + máy chủ giả `NkgdFakeServer`. Dữ liệu giả: "Dài hạn" vốn 500.000.000 đ, % cắt lỗ
+  tối đa 2, % cắt lỗ deal 10; "Cổ tức", "Lướt sóng" chưa cấu hình.
+- **Cập nhật 09/11/2026 — viết lại theo giao diện mới (nhánh B).** Khác bản 20/08:
+  - Bố cục mới: hàng đầu = ô chọn danh mục (dropdown tự viết, xếp theo tên) + dải 3 số "Vốn ban đầu" (có **bút chì sửa
+    tại chỗ**), "Lãi/lỗ đã thực hiện", "Vốn khả dụng"; 2 khung "Thiết lập deal tiếp theo" và bảng "Trạng thái danh mục"
+    (Hiện tại / Khi có deal tiếp theo + chênh lệch); "Biểu đồ cơ cấu" dạng vòng kèm bảng chú thích, gập/mở được.
+  - **Bỏ** ô nhập "Vốn ban đầu" dạng form và checkbox "Ghi nhận lời lỗ của danh mục vào vốn khả dụng" (TC_NKGD_PBV_07 cũ
+    xoá) — vốn khả dụng giờ luôn = vốn + lãi/lỗ đã thực hiện.
+  - Bỏ 3 nút gập riêng lẻ (TC_PBV_12 cũ) — chỉ còn 1 nút gập biểu đồ cơ cấu.
+  - Cấu hình lưu localStorage `capital_allocation_data_save` ngay + setting `saveSetting` gom 3 giây (`_.debounce`).
+- **Toast thành công đã bị tắt toàn app** (`main.js`, 12/10/2026): "Đã lưu vốn ban đầu" không hiện; chỉ còn toast lỗi.
+- **⚠️ An toàn dữ liệu:** tab không gọi API ghi riêng; ghi setting bị `Prev2Session` chặn (`settingWrites`).
+- **Quy ước trạng thái:** ✅ Áp dụng · 🆕 Testcase mới · ⚠️ Cần xác nhận thêm.
 
 ---
 
-## Nhóm: Overview & tính toán
+## Nhóm: Tổng quan & chọn danh mục
 
 # [TC_NKGD_PBV_01] Overview tab Phân bổ vốn
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** ✅ Áp dụng
+- **Cập nhật:** bố cục mới (xem đầu file).
 
 ## Các bước thực hiện
-1. Vào tab "Phân bổ vốn".
+1. Mở tab "Phân bổ vốn" (chưa từng chọn danh mục).
 
 ## Kết quả mong đợi
-- [ ] Hiển thị 4 khối: "Phân bổ vốn theo % cắt lỗ trên tài sản" (form nhập), "Trạng thái danh mục hiện tại"
-      (bảng số liệu + pie chart), "Deal tiếp theo" (giá vốn + pie chart), "Trạng thái danh mục khi có deal tiếp
-      theo" (bảng mô phỏng + pie chart).
-- [ ] Dropdown "Danh mục" mặc định chọn 1 danh mục có sẵn.
+- [ ] Ô chọn danh mục hiện danh mục đầu tiên theo tên ("Cổ tức").
+- [ ] Dải 3 số "Vốn ban đầu" (có bút chì "Sửa vốn ban đầu"), "Lãi/lỗ đã thực hiện", "Vốn khả dụng".
+- [ ] Khối "Thiết lập deal tiếp theo": "% Cắt lỗ tối đa trên tổng tài sản" (placeholder 2), "Giá trị cắt lỗ tối đa trên
+      tổng tài sản", "% Cắt lỗ trên deal tiếp theo" (placeholder 10), "Phân bổ vốn cho deal tiếp theo", "Tiền mặt", "Margin".
+- [ ] Bảng "Trạng thái danh mục | Hiện tại | Khi có deal tiếp theo" với 4 dòng: Giá vốn chứng khoán của danh mục, Số tiền
+      khả dụng của danh mục, Margin đang sử dụng, Tỷ lệ Margin/Vốn khả dụng.
+- [ ] Khối "Biểu đồ cơ cấu" đang mở (bảng chú thích "Thành phần" chỉ hiện khi danh mục có dữ liệu — xem PBV_16).
 
 ---
 
-# [TC_NKGD_PBV_02] Validate "Vốn ban đầu" required + phải > 0
+# [TC_NKGD_PBV_02] Chọn danh mục — nạp đúng cấu hình đã lưu của danh mục đó
 
-- **Trạng thái:** ⚠️ Cần xác nhận thêm — **`test.fixme` (đo qua automation 2 lần, kết quả KHÔNG ổn định)**
-- **⚠️ Phát hiện đáng chú ý (nghi bug race condition, đo qua automation):** Chạy đúng cùng 1 kịch bản thao tác
-  (xóa trắng qua bàn phím Ctrl+A + Backspace, Tab để blur) ở 2 lần chạy độc lập cho 2 kết quả TRÁI NGƯỢC: lần 1
-  field KHÔNG BAO GIỜ hiện `is-invalid` dù giá trị luôn `"0"` (v-money tự làm tròn field trống về `"0"`, vốn
-  không hợp lệ theo `greaterThanZero`); lần 2 field CÓ hiện `is-invalid` đúng như kỳ vọng. Vì hành vi không lặp
-  lại ổn định, KHÔNG assert 1 chiều cụ thể (sẽ tạo test flaky giả) — đánh dấu `test.fixme`. Nguyên nhân nghi
-  ngờ: input có 2 directive `v-model.lazy="tong_tai_san"` VÀ `v-model="tong_tai_san"` cùng lúc trên 1 thẻ
-  (trùng lặp, dòng 33 + 37 của `CapitalAllocation.vue`) — hành vi biên dịch của Vue 2 với v-model trùng lặp
-  không xác định rõ ràng, khiến thời điểm watcher `tong_tai_san() { this.$v.tong_tai_san.$touch(); }` (cần
-  thiết để kích hoạt `$error`) chạy hay không có thể phụ thuộc race condition giữa 2 directive.
-- **Cần gì để verify:** Xác nhận từ dev về việc có đúng 2 `v-model` trùng lặp trên field này là lỗi copy-paste
-  hay có chủ đích; sau khi dev xác nhận/sửa, chạy lại nhiều lần để kiểm tra độ ổn định trước khi bỏ `fixme`.
+- **Trạng thái:** ✅ Áp dụng
+- **Cập nhật:** dropdown mới, danh sách xếp theo tên, bấm ra ngoài thì đóng.
 
 ## Các bước thực hiện
-1. Xóa trắng "Vốn ban đầu" qua bàn phím (Ctrl+A + Backspace), Tab để blur.
+1. Mở ô chọn danh mục; bấm ra ngoài. Chọn "Dài hạn". Chọn "Lướt sóng".
 
 ## Kết quả mong đợi
-- [ ] (Kỳ vọng theo code validators) Field chuyển trạng thái lỗi (validate `required` + `greaterThanZero`), ổn
-      định qua nhiều lần thử.
-- [ ] (Hành vi thật đo được) `is-invalid` xuất hiện KHÔNG ổn định giữa các lần chạy — có lần không bao giờ xuất
-      hiện dù giá trị luôn "0".
+- [ ] Danh sách: Cổ tức, Dài hạn, Lướt sóng; bấm ra ngoài thì danh sách đóng.
+- [ ] "Dài hạn": vốn `500,000,000 đ`, % cắt lỗ tối đa `2`, % deal `10`.
+- [ ] "Lướt sóng" (chưa cấu hình): vốn `0 đ`, % = `0`.
 
 ---
 
-# [TC_NKGD_PBV_03] "% Cắt lỗ tối đa trên tổng tài sản" — required, > 0, KHÔNG có giới hạn trên
+# [TC_NKGD_PBV_03] Tài khoản chưa có danh mục nào
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý**
-- **⚠️ Phát hiện đáng chú ý:** Dù tên biến validator là `maxValue`, thực chất chỉ kiểm tra `> 0` — KHÔNG có giới
-  hạn trên nào dù đây là field phần trăm. Nhập 500% hoặc lớn hơn vẫn được coi là hợp lệ.
+- **Trạng thái:** 🆕 Testcase mới
+- **Cập nhật:** thay TC_PBV_09 cũ (crash tiềm ẩn) — đo lại trên bản mới: không lỗi.
 
 ## Các bước thực hiện
-1. Nhập "% Cắt lỗ tối đa trên tổng tài sản" = `500`.
+1. Máy chủ trả 0 danh mục, mở tab.
 
 ## Kết quả mong đợi
-- [ ] (Hành vi thật đo được) Field KHÔNG báo lỗi dù giá trị vô lý về mặt nghiệp vụ (>100%). "Giá trị cắt lỗ tối
-      đa trên tổng tài sản" vẫn tính ra số liệu tương ứng (có thể lớn hơn cả Vốn ban đầu) mà không có cảnh báo
-      nào khác ngoài field liên quan tới "vượt quá số tiền khả dụng" (TC_NKGD_PBV_06).
+- [ ] Không lỗi JS; vốn `0 đ`, "Phân bổ vốn cho deal tiếp theo" `0 đ`.
 
 ---
 
-# [TC_NKGD_PBV_04] "% Cắt lỗ trên deal tiếp theo" — required, > 0
+## Nhóm: Tính toán deal tiếp theo
 
-- **Trạng thái:** ⚠️ Cần xác nhận thêm — **`test.fixme` (đo qua automation 3 lần, kết quả KHÔNG ổn định)**
-- **⚠️ Phát hiện đáng chú ý (nghi bug race condition, đo qua automation):** Field này KHÔNG có `v-money` (chấp
-  nhận xóa trắng thật, không tự làm tròn về "0") nên xác nhận rõ ràng: dù giá trị thực sự rỗng (`inputValue()`
-  trả về chuỗi rỗng) — 2 lần chạy đầu field KHÔNG BAO GIỜ hiện `is-invalid`, nhưng lần chạy thứ 3 (cùng hệt kịch
-  bản) field LẠI hiện `is-invalid` đúng như kỳ vọng. Cùng pattern không ổn định với TC_NKGD_PBV_02 — cùng nghi
-  ngờ nguyên nhân: field này cũng có 2 directive `v-model.lazy` + `v-model` trùng lặp trên cùng input (dòng 106
-  + 112 của `CapitalAllocation.vue`), có thể gây race condition ở thời điểm watcher gọi `$touch()`.
-- **Cần gì để verify:** Cùng điều kiện với TC_NKGD_PBV_02 — xác nhận từ dev về 2 `v-model` trùng lặp.
+# [TC_NKGD_PBV_04] Công thức cắt lỗ tối đa, phân bổ vốn, vốn khả dụng
+
+- **Trạng thái:** ✅ Áp dụng
 
 ## Các bước thực hiện
-1. Xóa trắng "% Cắt lỗ trên deal tiếp theo" (qua bàn phím, xác nhận field thực sự rỗng), blur.
+1. Chọn "Dài hạn" (vốn 500 triệu, 2%, 10%).
 
 ## Kết quả mong đợi
-- [ ] (Kỳ vọng theo code validators) Field báo lỗi `is-invalid`, "Kết quả — Phân bổ vốn cho deal tiếp theo"
-      (readonly) không tính ra giá trị hợp lệ, ổn định qua nhiều lần thử.
-- [ ] (Hành vi thật đo được) `is-invalid` xuất hiện KHÔNG ổn định giữa các lần chạy dù giá trị rỗng thật.
+- [ ] Giá trị cắt lỗ tối đa = 500.000.000 × 2% = `10,000,000 đ`.
+- [ ] Phân bổ vốn cho deal tiếp theo = 10.000.000 ÷ 10% = `100,000,000 đ`.
+- [ ] Vốn khả dụng = vốn ban đầu + lãi/lỗ đã thực hiện của danh mục (số ở ô "Lãi/lỗ đã thực hiện").
 
 ---
 
-# [TC_NKGD_PBV_05] Tự tính "Giá trị cắt lỗ tối đa" & "Phân bổ vốn cho deal tiếp theo"
+# [TC_NKGD_PBV_05] Đổi % → tính lại ngay
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** ✅ Áp dụng
 
 ## Các bước thực hiện
-1. Nhập đủ 3 field: Vốn ban đầu = `100,000,000`, % Cắt lỗ tối đa = `10`, % Cắt lỗ trên deal tiếp theo = `2`.
+1. "Dài hạn": % cắt lỗ tối đa = 5; rồi % deal = 20.
 
 ## Kết quả mong đợi
-- [ ] "Giá trị cắt lỗ tối đa trên tổng tài sản" tự cập nhật = 10% × 100,000,000 = 10,000,000 (readonly).
-- [ ] "Phân bổ vốn cho deal tiếp theo" tự cập nhật theo đúng công thức (10,000,000 / 2% = 500,000,000 hoặc
-      công thức tương đương — xác nhận đúng con số thật khi chạy, không hard-code công thức suy đoán).
+- [ ] Cắt lỗ tối đa `25,000,000 đ`, phân bổ `250,000,000 đ`; sau khi % deal = 20 → phân bổ `125,000,000 đ`.
 
 ---
 
-# [TC_NKGD_PBV_06] Cảnh báo khi Phân bổ vốn cho deal tiếp theo vượt quá vốn khả dụng
+# [TC_NKGD_PBV_06] Phân bổ vượt số tiền khả dụng → cảnh báo màu + có margin
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** ✅ Áp dụng
 
 ## Các bước thực hiện
-1. Nhập giá trị khiến "Phân bổ vốn cho deal tiếp theo" tính ra lớn hơn "Vốn khả dụng" hiện có của danh mục.
+1. "Dài hạn": % cắt lỗ tối đa = 50 (phân bổ 2,5 tỷ > tiền khả dụng).
 
 ## Kết quả mong đợi
-- [ ] Field "Phân bổ vốn cho deal tiếp theo" chuyển style `is-invalid` (viền đỏ).
+- [ ] "Phân bổ vốn cho deal tiếp theo" = `2,500,000,000 đ`, tô màu cảnh báo (`warning-text-color`); trước đó không tô.
+- [ ] Dòng "Margin" > 0.
 
 ---
 
-# [TC_NKGD_PBV_07] Checkbox "Ghi nhận lời lỗ của danh mục vào vốn khả dụng"
+# [TC_NKGD_PBV_07] % trống hoặc 0 → viền đỏ, số tính ra = 0
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Trạng thái:** 🆕 Testcase mới (thay TC_PBV_02/03/04 cũ)
+- **Ghi chú:** bản 20/08 để fixme vì `is-invalid` không ổn định (2 `v-model` trùng trên cùng ô). Bản mới vẫn còn 2
+  `v-model` trùng nhưng có `watch` gọi `$touch()` mỗi khi giá trị đổi → đo lại ổn định.
 
 ## Các bước thực hiện
-1. Tick/bỏ tick checkbox "Ghi nhận lời lỗ của danh mục vào vốn khả dụng".
+1. "Dài hạn": % cắt lỗ tối đa = 0 (rời ô); % deal = trống (rời ô).
 
 ## Kết quả mong đợi
-- [ ] "Vốn khả dụng" và các số liệu phụ thuộc (margin, tỷ lệ...) trong khối "Trạng thái danh mục hiện tại" thay
-      đổi tương ứng theo trạng thái checkbox.
+- [ ] Ô viền đỏ (`is-invalid`); cắt lỗ tối đa `0 đ`; phân bổ `0 đ`.
 
 ---
 
-## Nhóm: Đổi danh mục — cấu hình riêng theo từng danh mục
+# [TC_NKGD_PBV_08] Bảng trạng thái — cột "Khi có deal tiếp theo" + chênh lệch
 
-# [TC_NKGD_PBV_08] Đổi Danh mục — tải lại đúng cấu hình đã lưu riêng
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-- **Ghi chú:** Mỗi danh mục lưu cấu hình phân bổ vốn (Vốn ban đầu, % cắt lỗ, checkbox) độc lập trong
-  `data_save`, khoá theo id danh mục.
-- **Ghi chú test:** phải chọn tường minh danh mục A trước khi sửa giá trị (không giả định danh mục đang active
-  mặc định trùng với option đầu tiên trong dropdown) — sửa lỗi giả định sai trong lúc viết test, không phải bug
-  sản phẩm. Cũng phải xóa qua bàn phím (Ctrl+A + Backspace) rồi gõ giá trị mới thay vì dùng `.fill()` trực
-  tiếp — đã xác nhận `.fill('123456')` khi field đang có sẵn giá trị thật ("54,321") cho ra chuỗi nối
-  "54321123456" thay vì thay thế hoàn toàn (do tương tác giữa `v-money` và cách Playwright `.fill()` ghi đè DOM
-  value trực tiếp, không phải bug sản phẩm — người dùng gõ tay bình thường không gặp vấn đề này).
+- **Trạng thái:** ✅ Áp dụng
+- **Cập nhật:** thay 2 khối "Trạng thái hiện tại"/"khi có deal" cũ bằng 1 bảng 3 cột.
 
 ## Các bước thực hiện
-1. Nhập giá trị khác biệt cho danh mục A.
-2. Đổi dropdown Danh mục sang danh mục B (chưa từng thiết lập).
-3. Đổi lại về danh mục A.
+1. Chọn "Dài hạn" (phân bổ 100 triệu).
 
 ## Kết quả mong đợi
-- [ ] Danh mục B hiển thị giá trị mặc định ("0", "0", "0", checkbox tắt).
-- [ ] Quay lại danh mục A vẫn giữ đúng giá trị đã nhập trước đó (không bị mất/lẫn giữa các danh mục).
+- [ ] Dòng "Giá vốn chứng khoán của danh mục": cột sau = hiện tại + 100.000.000, chênh lệch `+100,000,000`.
 
 ---
 
-# [TC_NKGD_PBV_09] Crash tiềm ẩn khi tài khoản chưa có danh mục nào
+## Nhóm: Sửa vốn ban đầu (bút chì)
 
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Ghi chú:** Đọc code `loadDataFromLocalStorage()` — nếu `option_filter_category` rỗng (API `/category/get-all`
-  trả mảng rỗng, tài khoản chưa từng tạo danh mục), dòng
-  `this.data_filter_category = this.option_filter_category[0].value` sẽ ném `TypeError` vì
-  `option_filter_category[0]` là `undefined` (thiếu guard, khác với 1 nhánh khác trong cùng hàm ĐÃ có guard
-  tương tự).
-- **Cần gì để verify:** Tài khoản test hiện tại luôn có sẵn ≥ 1 danh mục — không tái tạo được điều kiện "0 danh
-  mục" một cách an toàn (không được xóa hết danh mục thật của tài khoản test dùng chung). Có thể verify bằng
-  cách mock `GET /api/stocks/category/get-all` trả `[]` — xem spec.
-
-## Các bước thực hiện
-1. Mock `GET /api/stocks/category/get-all` trả mảng rỗng `[]`.
-2. Vào tab "Phân bổ vốn".
-3. Theo dõi `page.on('pageerror', ...)`.
-
-## Kết quả mong đợi
-- [ ] (Kỳ vọng đúng) Trang hiển thị trạng thái rỗng hợp lý (VD dropdown Danh mục trống, form vô hiệu), không
-      crash.
-- [ ] (Cần xác nhận) Có ghi nhận `pageerror` (`TypeError`) hay không khi `option_filter_category` rỗng.
-
----
-
-## Nhóm: Auto-save ngầm lên server
-
-# [TC_NKGD_PBV_10] Đổi giá trị form → auto-save lên server — gửi request KHÔNG ổn định (nghi bug thật)
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm — **`test.fixme` (đo qua automation nhiều lần, kết quả KHÔNG ổn định)**
-- **Ghi chú thiết kế (theo code):** Debounce 2 lớp: computed `input_value` (có side-effect gán
-  `data_save[category] = {...}`) được `watch({deep:true})`, watcher `data_save` gọi `saveAllData()` (debounce
-  3000ms qua lodash), rồi mutation Vuex `saveSetting` debounce thêm 200ms trước khi `POST updateusersettings`
-  thật (tổng ~3.2 giây).
-- **⚠️ Phát hiện đáng chú ý (nghi bug reactivity, đo qua automation):** Chạy cùng kịch bản (đổi "Vốn ban đầu",
-  chờ 8 giây — dài hơn nhiều mốc debounce lý thuyết ~3.2 giây, kể cả chờ thêm 2 giây sau khi vào tab để loại
-  trừ khả năng cờ `is_active_save_data` còn `false` lúc mount) ở nhiều lần chạy độc lập cho kết quả TRÁI NGƯỢC:
-  có lần hoàn toàn KHÔNG có request `updateusersettings` nào được gửi; có lần request được gửi đúng như thiết
-  kế. Vì không lặp lại ổn định, KHÔNG assert 1 chiều cụ thể — đánh dấu `test.fixme`. Nguyên nhân nghi ngờ: đọc
-  code, `data_save[this.data_filter_category] = {...}` gán trực tiếp bằng object property assignment (không
-  dùng `Vue.set`/`this.$set`) — nếu key ứng với danh mục đang chọn CHƯA từng tồn tại sẵn trong `data_save`
-  (chưa reactive, VD danh mục lần đầu dùng tính năng này), Vue 2 sẽ không track được mutation này nên watcher
-  `deep:true` trên `data_save` không kích hoạt → auto-save không chạy cho danh mục đó; ngược lại nếu key đã tồn
-  tại sẵn (đã từng lưu trước đó) thì watcher hoạt động bình thường. Kết quả phụ thuộc trạng thái lưu trữ của
-  danh mục đang active tại thời điểm chạy — không kiểm soát ổn định được trên tài khoản test dùng chung.
-- **Cần gì để verify:** Xác nhận từ dev cơ chế gán `data_save[category]` có nên dùng `Vue.set` hay không; sau
-  đó cần 1 danh mục XÁC ĐỊNH chưa từng lưu "Phân bổ vốn" trước đó (để tái tạo nhánh lỗi ổn định) và 1 danh mục
-  XÁC ĐỊNH đã từng lưu (để tái tạo nhánh hoạt động đúng), thay vì phụ thuộc danh mục mặc định hiện tại.
-
-## Các bước thực hiện
-1. Theo dõi mọi request khớp `updateusersettings` (mock trả `200`, không để lọt request thật).
-2. Chờ 2 giây sau khi đăng nhập (đảm bảo API cài đặt người dùng lúc mount app đã load xong).
-3. Đổi "Vốn ban đầu", chờ 8 giây không thao tác gì thêm.
-
-## Kết quả mong đợi
-- [ ] (Kỳ vọng theo thiết kế) Ghi nhận đúng 1 request `POST` gửi `listitem` chứa key
-      `capital_allocation_data_save` với giá trị mới sau ~3.2 giây, ổn định qua nhiều lần thử.
-- [ ] (Hành vi thật đo được) Việc request có được gửi hay không KHÔNG ổn định giữa các lần chạy.
-
----
-
-# [TC_NKGD_PBV_11] Auto-save lỗi mạng — hoàn toàn im lặng, không thông báo
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-
-## Các bước thực hiện
-1. Mock `POST .../updateusersettings` trả lỗi 500.
-2. Đổi giá trị form, chờ > 3.5 giây.
-
-## Kết quả mong đợi
-- [ ] Không có toast lỗi nào hiển thị cho người dùng (ghi nhận hạn chế UX, không phải bug crash) — người dùng
-      không biết thay đổi của mình có được lưu lên server hay không.
-
----
-
-## Nhóm: Các khối hiển thị & collapse
-
-# [TC_NKGD_PBV_12] 3 icon toggle collapse (Deal tiếp theo / Trạng thái sau deal)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Click lần lượt: "Trong đó:" (khối Deal tiếp theo), "Giá vốn chứng khoán của danh mục" và "- Giá vốn chứng
-   khoán deal tiếp theo" (khối Trạng thái sau deal) — cả 3 mặc định đang mở sẵn.
-
-## Kết quả mong đợi
-- [ ] Mỗi lần click, đúng khối con tương ứng thu gọn/mở rộng, không ảnh hưởng các khối khác.
-
----
-
-# [TC_NKGD_PBV_13] Khối "Trạng thái danh mục hiện tại" — đủ số liệu + pie chart
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Quan sát khối "Trạng thái danh mục hiện tại" với 1 danh mục có sẵn giao dịch thật.
-
-## Kết quả mong đợi
-- [ ] Hiển thị đủ: Vốn ban đầu, Lãi lỗ đã thực hiện, Vốn khả dụng, Giá vốn chứng khoán, Số tiền khả dụng, Tổng
-      giá trị đầu tư, Margin đang sử dụng, Tỷ lệ Margin/Vốn khả dụng, Tỷ lệ Margin/Giá vốn chứng khoán.
-- [ ] Pie chart hiển thị tương ứng tỷ trọng (không rỗng nếu danh mục đã có giao dịch).
-
----
-
-# [TC_NKGD_PBV_14] Khối "Trạng thái danh mục khi có deal tiếp theo" — mô phỏng SAU deal
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Nhập đủ 3 field chính, quan sát khối "Trạng thái danh mục khi có deal tiếp theo".
-
-## Kết quả mong đợi
-- [ ] Số liệu trong khối này khác với khối "Trạng thái danh mục hiện tại" (đã cộng thêm ảnh hưởng của deal mô
-      phỏng), có collapse lồng 2 cấp (Giá vốn chứng khoán của danh mục → Giá vốn chứng khoán deal tiếp theo →
-      Tiền mặt/Margin).
-
----
-
-## Nhóm: Empty state & lỗi tải dữ liệu
-
-# [TC_NKGD_PBV_15] Empty state khi danh mục chưa đủ dữ liệu giao dịch
+# [TC_NKGD_PBV_09] Bút chì → sửa tại chỗ, Enter lưu
 
 - **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Chọn 1 danh mục chưa có (hoặc rất ít) giao dịch.
+1. "Dài hạn": bấm bút chì, nhập `600000000`, nhấn Enter.
 
 ## Kết quả mong đợi
-- [ ] Pie chart fallback về trạng thái mặc định (100% "Tiền" hoặc rỗng hợp lệ), không crash, không hiển thị số
-      liệu vô lý (NaN/undefined).
+- [ ] Bấm bút chì: ô nhập được focus, có sẵn `500,000,000`, toàn bộ chữ được chọn.
+- [ ] Enter: không hiện toast (thành công im lặng); vốn `600,000,000 đ`; cắt lỗ tối đa tính lại `12,000,000 đ`.
 
 ---
 
-# [TC_NKGD_PBV_16] Lỗi tải danh sách danh mục — im lặng, không toast
+# [TC_NKGD_PBV_10] Esc hoặc bấm ra ngoài → huỷ sửa
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Trạng thái:** 🆕 Testcase mới
 
 ## Các bước thực hiện
-1. Mock `GET /api/stocks/category/get-all` trả lỗi 500.
-2. Vào tab "Phân bổ vốn".
+1. Bấm bút chì, nhập số khác, nhấn Esc. Lặp lại, bấm ra ngoài ô.
 
 ## Kết quả mong đợi
-- [ ] Không crash, dropdown "Danh mục" rỗng, mọi giá trị derived = 0/rỗng, không có toast/thông báo lỗi nào cho
-      người dùng (ghi nhận hạn chế UX, giống pattern lỗi im lặng ở các tab khác của trang này).
+- [ ] Vốn giữ `500,000,000 đ`, không có toast.
 
 ---
 
-## Tổng hợp trạng thái (16 testcase)
+# [TC_NKGD_PBV_11] Vốn không hợp lệ (số âm, chữ)
 
-Đã tự động hoá bằng Playwright: [tests/nhat-ky-giao-dich-phan-bo-von.spec.ts](../tests/nhat-ky-giao-dich-phan-bo-von.spec.ts)
-(POM dùng chung: [pages/TradingLogPage.ts](../pages/TradingLogPage.ts)).
+- **Trạng thái:** 🆕 Testcase mới
 
-| Trạng thái | Số lượng | Ghi chú |
+## Các bước thực hiện
+1. Bấm bút chì, nhập `-5` (lần 2: `abc`), nhấn Enter.
+
+## Kết quả mong đợi
+- [ ] Toast lỗi "Vốn ban đầu phải là số không âm"; vẫn ở chế độ sửa (ô nhập còn hiện).
+
+---
+
+# [TC_NKGD_PBV_12] Enter khi không đổi số → chỉ thoát chế độ sửa
+
+- **Trạng thái:** 🆕 Testcase mới
+
+## Các bước thực hiện
+1. Bấm bút chì, nhấn Enter ngay.
+
+## Kết quả mong đợi
+- [ ] Thoát chế độ sửa, vốn giữ nguyên, không có toast.
+
+---
+
+## Nhóm: Lưu cấu hình
+
+# [TC_NKGD_PBV_13] Lưu localStorage ngay, setting gom ~3 giây
+
+- **Trạng thái:** ✅ Áp dụng
+- **Cập nhật:** thay TC_PBV_10/11 cũ (auto-save không ổn định / lỗi im lặng). Bản mới: `watch data_save` ghi localStorage
+  ngay và gọi `saveAllData` (`_.debounce` 3 giây) → `saveSetting`. Đo lại: ổn định.
+
+## Các bước thực hiện
+1. "Dài hạn": % cắt lỗ tối đa = 3, % deal = 8 (liên tiếp).
+
+## Kết quả mong đợi
+- [ ] localStorage `capital_allocation_data_save` cập nhật ngay `phan_tram_cutloss_toi_da: "3"`.
+- [ ] Ngay sau đó chưa gửi setting; sau ~3 giây gửi đúng 1 lần `capital_allocation_data_save` chứa cả `3` và `8`.
+- **Ghi chú:** trong ~1 giây đầu sau khi tab nạp cấu hình (`is_first_set_data`, `setTimeout 1000`), thay đổi KHÔNG được ghi
+  (localStorage lẫn setting) và cũng không được ghi lại sau đó nếu không sửa thêm — người dùng thật khó gặp, ghi nhận để dev biết.
+
+---
+
+# [TC_NKGD_PBV_14] Cấu hình riêng từng danh mục
+
+- **Trạng thái:** ✅ Áp dụng
+
+## Các bước thực hiện
+1. "Dài hạn": % cắt lỗ tối đa = 4; chọn "Lướt sóng"; chọn lại "Dài hạn".
+
+## Kết quả mong đợi
+- [ ] "Lướt sóng" hiện `0`; quay lại "Dài hạn" vẫn `4`.
+
+---
+
+## Nhóm: Biểu đồ cơ cấu
+
+# [TC_NKGD_PBV_15] Gập/mở biểu đồ cơ cấu
+
+- **Trạng thái:** 🆕 Testcase mới
+
+## Các bước thực hiện
+1. Bấm nút mũi tên ở "Biểu đồ cơ cấu" 2 lần.
+
+## Kết quả mong đợi
+- [ ] Lần 1: `aria-expanded="false"`, nhãn "Mở biểu đồ cơ cấu", vùng biểu đồ ẩn. Lần 2: mở lại.
+
+---
+
+# [TC_NKGD_PBV_16] Chú thích cơ cấu và thanh Vốn khả dụng/Margin
+
+- **Trạng thái:** 🆕 Testcase mới
+
+## Các bước thực hiện
+1. Chọn "Dài hạn", đọc bảng chú thích và thanh tỷ lệ dưới biểu đồ.
+
+## Kết quả mong đợi
+- [ ] Tổng cột "Tỷ trọng" = 100%; giữa vòng ghi "Tổng".
+- [ ] Thanh dưới: "Vốn khả dụng x%" + "Margin y%", x + y = 100.
+
+---
+
+# [TC_NKGD_PBV_17] Mở thẳng tab Phân bổ vốn khi setting chưa tải xong — cấu hình không nạp
+
+- **Trạng thái:** 🆕 Testcase mới — 🐞 bug mới
+- **Nguyên nhân:** `getDataCategory()` chỉ gọi `loadDataFromLocalStorage()` khi `store.state.is_getting_data_saved` đã là false;
+  nếu danh sách danh mục về TRƯỚC setting người dùng (`/getusersettings`) thì không bao giờ nạp lại (không có watcher). Từ khi
+  NKGD nhớ tab (`trading_log_view_state`), F5 khi đang ở tab Phân bổ vốn là mở thẳng tab này → dễ gặp.
+
+## Các bước thực hiện
+1. Đặt tab nhớ = Phân bổ vốn, mở `/nhat-ky-giao-dich` (danh mục về trước setting); chọn "Dài hạn".
+
+## Kết quả mong đợi (đo được)
+- [ ] Ô chọn danh mục RỖNG, "Vốn ban đầu" `0 đ`; chọn "Dài hạn" vẫn `0 đ`, % = `0` (đúng ra 500,000,000 đ và 2).
+- [ ] Mong đợi đúng (cần dev sửa): nạp lại cấu hình khi setting tải xong (watch `is_getting_data_saved`).
+
+---
+
+## Tổng hợp trạng thái (17 testcase, 18 test vì TC_11 chạy 2 giá trị)
+
+Tự động hoá: [tests/nhat-ky-giao-dich-phan-bo-von.spec.ts](../tests/nhat-ky-giao-dich-phan-bo-von.spec.ts).
+
+| Trạng thái | Số lượng | Testcase |
 |---|---|---|
-| 🆕 Mới (riêng web) | 12 | |
-| ⚠️ Cần xác nhận thêm | 4 | TC_NKGD_PBV_02, TC_NKGD_PBV_04, TC_NKGD_PBV_09, TC_NKGD_PBV_10 — xem "Phát hiện đáng chú ý" bên dưới |
+| ✅ Áp dụng | 8 | PBV_01, 02, 04, 05, 06, 08, 13, 14 |
+| 🆕 Mới (riêng web) | 9 | PBV_03, 07, 09, 10, 11, 12, 15, 16, 17 |
+| ⚠️ Cần xác nhận thêm | 0 | |
 
-**Phát hiện đáng chú ý (nghi bug thật, ưu tiên báo dev):**
-1. **TC_NKGD_PBV_02 & TC_NKGD_PBV_04:** Cả 3 field nhập của form ("Vốn ban đầu", "% Cắt lỗ tối đa trên tổng tài
-   sản", "% Cắt lỗ trên deal tiếp theo") đều có 2 directive `v-model.lazy="x"` VÀ `v-model="x"` trùng lặp trên
-   cùng 1 thẻ `<input>` trong `CapitalAllocation.vue`. Hệ quả đo được: style `is-invalid` khi field không hợp
-   lệ hoạt động KHÔNG ổn định giữa các lần chạy — cả TC_NKGD_PBV_02 ("Vốn ban đầu") và TC_NKGD_PBV_04 ("% Cắt
-   lỗ trên deal tiếp theo") đều cho kết quả trái ngược nhau (có lúc is-invalid không bao giờ xuất hiện, có lúc
-   xuất hiện đúng) qua nhiều lần chạy cùng 1 kịch bản thao tác — nghi ngờ do race condition từ 2 v-model trùng
-   lặp.
-2. **TC_NKGD_PBV_10:** Auto-save ngầm lên server (`updateusersettings`) khi đổi giá trị form hoạt động KHÔNG ổn
-   định — có lần hoàn toàn không gửi request dù chờ vượt xa mốc debounce lý thuyết ~3.2 giây, có lần gửi đúng
-   thiết kế. Nghi vấn nguyên nhân: `data_save[category] = {...}` gán key mới không qua `Vue.set` nên không được
-   Vue 2 theo dõi reactive nếu danh mục đó chưa từng có dữ liệu lưu trước đó, khiến watcher `deep:true` trên
-   `data_save` không kích hoạt. Hệ quả tiềm ẩn: thay đổi cấu hình phân bổ vốn có thể không đồng bộ lên server
-   cho một số danh mục, chỉ tồn tại trên `localStorage` của máy/trình duyệt hiện tại.
-3. **TC_NKGD_PBV_03:** Field % cắt lỗ không có giới hạn trên (dù tên hàm validator gợi ý `maxValue`) — có thể
-   nhập giá trị phần trăm vô lý (>100%) mà không bị chặn.
-4. **TC_NKGD_PBV_09:** Nghi vấn crash `TypeError` khi tài khoản 0 danh mục — thiếu guard tại 1 nhánh của
-   `loadDataFromLocalStorage()`, trong khi 1 nhánh khác cùng hàm đã có guard tương tự (bất nhất trong code).
-5. Toàn bộ dữ liệu "phân bổ vốn" là MÔ PHỎNG client-side, không có bảng/API lưu trữ chuyên biệt — chỉ đồng bộ
-   lên server qua cơ chế "user settings" dùng chung, không có phản hồi thành công/thất bại nào cho người dùng
-   biết (và trên thực tế, theo phát hiện #2, có thể không đồng bộ được ổn định).
-6. Component dùng `v-else-if` (lazy mount) — mỗi lần rời rồi quay lại tab đều gọi lại API `get-all` từ đầu,
-   không cache giữa các lần chuyển tab.
+**Đối chiếu bản 20/08 (16 TC, 3 fixme):** 01, 05, 06, 08 giữ (sửa theo bố cục mới); 02/03/04 (validate, 2 fixme) → PBV_07 (đã
+tự động hoá ổn định); 07 (checkbox ghi nhận lời lỗ) xoá — tính năng bỏ; 09 → 03; 10/11 (auto-save, 1 fixme) → 13; 12 (3 nút gập)
+→ 15; 13/14 → 08 + 16; 15/16 (empty/lỗi tải) gộp vào 03.
+
+**Phát hiện đáng chú ý:**
+- 🐞 **PBV_17 (mới):** mở thẳng tab (F5 khi đang ở tab) mà danh mục về trước setting → cấu hình phân bổ vốn không nạp.
+- 3 fixme cũ (TC_PBV_02, 04, 10) không còn cần — hành vi đo lại ổn định trên bản mới. Ô % vẫn
+có 2 `v-model` trùng (`v-model.lazy` + `v-model`) — nên đề nghị dev bỏ 1 cái cho sạch, dù hiện không gây lỗi quan sát được.

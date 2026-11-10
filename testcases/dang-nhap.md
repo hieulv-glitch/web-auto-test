@@ -2,7 +2,18 @@
 
 - **URL:** `/login` (route con của `/`, redirect mặc định khi chưa đăng nhập)
 - **Component:** [src/views/pages/Login.vue](../../stocks/src/views/pages/Login.vue)
-- **Domain test:** https://kfsp.vn/login
+- **Domain test:** https://kfsp.vn/login (qua `PREV2_BASE_URL`; production = preprod mới nhất từ 06/11/2026). Số lần đăng nhập thật / sai mật khẩu thật giữ nguyên như trước, không tăng.
+- **Cập nhật 09/11/2026 (nhánh B):** đối chiếu `origin/preprod` (đổi từ 18/08 tới 06/11/2026):
+  - 07/10 (commit 26cfdbe01): thêm logo "KFSP" cố định ở góc trên trái (`a.login-corner-logo`); logo trong thẻ đăng
+    nhập đổi link `/home/#trang-chu` → `/home` → sửa TC_LOGIN_01/02/03.
+  - 06/11 (commit ff0dbcdc8): **gỡ checkbox "Duy trì đăng nhập"**, web luôn gửi `persist_login: true` → **xoá
+    TC_LOGIN_35/36/37/38**, thêm TC_LOGIN_55. Đo ngày 09/11/2026: prev2 **chưa build** commit này (vẫn còn checkbox)
+    → TC_LOGIN_55 tự bỏ qua (`test.skip`) khi trang còn checkbox, tự chạy khi môi trường lên bản mới.
+  - **Xác minh trên UI thật (09/11/2026):** chạy trên **https://kfsp.vn** (production = preprod mới nhất, deploy 06/11/2026
+    10:30 GMT, đã không còn checkbox) — 46 pass, 3 bỏ qua (fixme TC_LOGIN_15/32/48), **TC_LOGIN_55 pass** (xác nhận thật:
+    không có checkbox, body gửi `persist_login: true`). Ghi chú cũ: prev2 lúc 07:00 GMT còn checkbox; từ 07:40 GMT prev2 bị
+    deploy đè bằng nhánh `feat/ibd_tobao` nên không dùng để xác nhận.
+  - 05/11: API `/api/login` chuyển sang NestJS (`$apiAdressNest`), giao diện không đổi.
 - **Nguồn testcase gốc (app):** Google Sheet, tab "Đăng Nhập" (68 testcase). Đã lược bỏ 15 case đặc thù mobile không áp dụng cho web (FaceID, bàn phím ảo, icon back, icon con mắt, lưu tài khoản, đa ngôn ngữ...) → còn **54 testcase** dưới đây.
 - **Phương pháp sinh:** Đọc source code (`Login.vue`, `router/index.js`, `TheHeaderDropdownAccnt.vue`) + kiểm thử trực tiếp trên môi trường thật bằng Playwright.
 - **Quy ước trạng thái:**
@@ -21,16 +32,16 @@
 - **Mô tả:** Kiểm tra tổng thể giao diện màn hình Đăng nhập khi mới truy cập.
 - **Tiền điều kiện:** Chưa đăng nhập, truy cập lần đầu.
 - **Khác biệt so với app:** Web KHÔNG có icon back và KHÔNG có icon FaceID (web không hỗ trợ sinh trắc học).
+- **Cập nhật 09/11/2026:** bỏ mục checkbox "Duy trì đăng nhập" (đã gỡ, xem TC_LOGIN_55); thêm logo góc trên trái.
 
 ## Các bước thực hiện
 1. Mở `/login`.
 
 ## Kết quả mong đợi
 - [ ] Màn hình hiển thị đầy đủ, không vỡ layout.
-- [ ] Logo "KungFuStocksPro" ở giữa, phía trên.
+- [ ] Logo "KungFuStocksPro" ở giữa, phía trên; logo "KFSP" (icon + chữ) cố định ở góc trên trái.
 - [ ] Tiêu đề "Đăng Nhập" và dòng phụ "Hãy đăng nhập vào tài khoản của bạn".
 - [ ] 2 textbox: "Tài khoản" (placeholder "Nhập email hoặc số điện thoại"), "Mật khẩu" (placeholder "Nhập mật khẩu").
-- [ ] Checkbox "Duy trì đăng nhập" (mặc định **chưa** tích — khác app).
 - [ ] Link "Quên mật khẩu?" và link "Đăng ký".
 - [ ] Button "Đăng nhập" màu xanh lá.
 
@@ -44,8 +55,11 @@
 ## Các bước thực hiện
 1. Quan sát logo trên màn hình Đăng nhập.
 
+- **Cập nhật 09/11/2026:** thêm logo thứ 2 "KFSP" ở góc trên trái màn hình (giống thanh menu trang chủ).
+
 ## Kết quả mong đợi
 - [ ] Hiển thị logo "KungFuStocksPro" (icon + chữ) căn giữa phía trên form.
+- [ ] Hiển thị logo "KFSP" (icon + chữ "KFSP") cố định (`position: fixed`) ở góc trên trái.
 
 ---
 
@@ -55,11 +69,14 @@
 - **Tham chiếu App:** TC_04
 - **Mô tả:** Trên web, logo đóng vai trò link quay về trang chủ thay cho icon back.
 
+- **Cập nhật 09/11/2026:** link đổi `/home/#trang-chu` → `/home`; logo góc trên trái cũng trỏ `/home`.
+
 ## Các bước thực hiện
-1. Click vào logo "KungFuStocksPro".
+1. Click vào logo "KFSP" ở góc trên trái.
+2. Quay lại `/login`, click vào logo "KungFuStocksPro" trong thẻ đăng nhập.
 
 ## Kết quả mong đợi
-- [ ] Điều hướng tới `/home#trang-chu` (đã xác nhận qua source: `<a href="/home/#trang-chu">`).
+- [ ] Cả 2 logo có `href="/home"` và điều hướng tới `/home`.
 
 ---
 
@@ -517,70 +534,6 @@
 
 ---
 
-## Nhóm: Checkbox "Duy trì đăng nhập"
-
-# [TC_LOGIN_35] Hiển thị checkbox
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế, khác app**
-- **Tham chiếu App:** TC_39
-- **Khác biệt so với app:** App mặc định checkbox **được tích sẵn**; Web đã verify qua screenshot — checkbox mặc định **KHÔNG tích** (`persistLogin: false` trong code).
-
-## Các bước thực hiện
-1. Quan sát checkbox "Duy trì đăng nhập".
-
-## Kết quả mong đợi
-- [ ] Hiển thị checkbox "Duy trì đăng nhập", trạng thái mặc định **chưa tích**.
-
----
-
-# [TC_LOGIN_36] Tích/bỏ tích checkbox
-
-- **Trạng thái:** ✅ Áp dụng
-- **Tham chiếu App:** TC_40
-
-## Các bước thực hiện
-1. Click vào checkbox.
-
-## Kết quả mong đợi
-- [ ] Trạng thái chuyển đổi (tích ↔ bỏ tích) bình thường.
-
----
-
-# [TC_LOGIN_37] Đăng nhập khi có tích "Duy trì đăng nhập"
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation, có khác biệt thực đo được**
-- **Tham chiếu App:** TC_41
-- **Kết quả đo được (Playwright, so sánh `localStorage.expires_in` giữa 2 lần đăng nhập):**
-  - Tích "Duy trì đăng nhập": `expires_in = 1789633275`
-  - Không tích: `expires_in = 1787127680`
-  - Chênh lệch ≈ **2.505.595 giây (~29 ngày)** — xác nhận checkbox **có thực sự ảnh hưởng** tới thời hạn phiên đăng nhập (JWT sống lâu hơn khi tích).
-
-## Các bước thực hiện
-1. Tích checkbox "Duy trì đăng nhập".
-2. Đăng nhập thành công.
-3. Đóng trình duyệt hoàn toàn, mở lại và truy cập `/dashboard`.
-
-## Kết quả mong đợi
-- [ ] Vẫn ở trạng thái đăng nhập, không bị đá về `/login` (thời hạn token dài hơn ~29 ngày so với không tích).
-
----
-
-# [TC_LOGIN_38] Đăng nhập khi KHÔNG tích "Duy trì đăng nhập"
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation**
-- **Tham chiếu App:** TC_42
-- **Ghi chú:** App note gốc: "app cũ cũng đang gặp lỗi như này". Trên web, token vẫn được lưu vào `localStorage` bất kể có tích checkbox hay không (khác với kỳ vọng "yêu cầu đăng nhập lại ngay" của app) — chỉ khác nhau về **thời hạn** (`expires_in`), không khác về việc có lưu phiên hay không. Xem số liệu cụ thể ở TC_LOGIN_37.
-
-## Các bước thực hiện
-1. Bỏ tích checkbox.
-2. Đăng nhập thành công.
-3. Đóng trình duyệt hoàn toàn, mở lại và truy cập `/dashboard`.
-
-## Kết quả mong đợi
-- [ ] Vẫn ở trạng thái đăng nhập (không bị đá về `/login` ngay), nhưng phiên hết hạn sớm hơn (~29 ngày sớm hơn so với khi tích) — khác với hành vi "yêu cầu đăng nhập lại" mà app mô tả.
-
----
-
 ## Nhóm: Link "Quên mật khẩu?"
 
 # [TC_LOGIN_39] Hiển thị link
@@ -820,19 +773,46 @@
 
 ---
 
-## Tổng hợp trạng thái (54 testcase — đã lược bỏ 15 case không áp dụng cho web)
+## Nhóm: Phiên đăng nhập (sau khi gỡ checkbox "Duy trì đăng nhập")
+
+# [TC_LOGIN_55] Không còn checkbox "Duy trì đăng nhập" — mọi lần đăng nhập gửi `persist_login: true`
+
+- **Trạng thái:** 🆕 Testcase mới (thêm 09/11/2026) — thay cho TC_LOGIN_35–38 đã xoá
+- **Ghi chú:** Commit ff0dbcdc8 (06/11/2026) gỡ `CInputCheckbox` + `persistLogin` khỏi `Login.vue`, gửi cứng
+  `persist_login: true` → mọi phiên đều là phiên dài hạn (trước đây chỉ khi tích; chênh ~29 ngày, đo 08/2026).
+  Test giả lập `/api/login` (trả 401) để đọc body — không đăng nhập thật.
+- **Kết quả đo được 09/11/2026:** trên kfsp.vn (bản có commit này) — **Pass**: không có checkbox, body có `persist_login: true`.
+  Test vẫn tự bỏ qua nếu chạy trên bản build cũ còn checkbox.
+
+## Các bước thực hiện
+1. Mở `/login`.
+2. Nhập tài khoản/mật khẩu bất kỳ, bấm "Đăng nhập".
+
+## Kết quả mong đợi
+- [ ] Không có checkbox/chữ "Duy trì đăng nhập" trên màn hình.
+- [ ] Request `POST /api/login` có `persist_login: true`.
+- [ ] Đăng nhập thất bại vẫn hiện thông báo lỗi chung như trước.
+
+---
+
+## Tổng hợp trạng thái (51 testcase — đã lược bỏ 15 case không áp dụng cho web; 09/11/2026 xoá TC_LOGIN_35–38, thêm TC_LOGIN_55)
 
 Đã tự động hoá bằng Playwright: [tests/login.spec.ts](../tests/login.spec.ts) (POM: [pages/LoginPage.ts](../pages/LoginPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| ✅ Áp dụng | 50 | Đã tự động hoá & verify trực tiếp trên web thật bằng Playwright |
+| ✅ Áp dụng | 46 | Đã tự động hoá & verify trực tiếp trên web thật bằng Playwright |
 | ⚠️ Cần xác nhận thêm | 3 | Cần tài khoản test riêng (dạng email, đã bị khóa, dùng để thử khóa tạm thời) — hiện chỉ có 1 tài khoản test dạng SĐT nên chưa an toàn để tự động hoá các case này |
-| 🆕 Mới (riêng web) | 1 | Router guard redirect khi đã đăng nhập |
+| 🆕 Mới (riêng web) | 2 | TC_LOGIN_54 (router guard redirect khi đã đăng nhập), TC_LOGIN_55 (gửi `persist_login: true`) |
 
 **Phát hiện đáng chú ý cần báo lại team dev (đã verify bằng automation, không còn là dự đoán):**
 1. **Không có validate required/format phía client** — mọi lỗi input đều trả về 1 thông báo chung "Tài khoản hoặc mật khẩu không đúng...", kém thân thiện hơn app.
 2. **Không chống double-submit** — nút "Đăng nhập" không disable khi đang xử lý → spam click gọi API `/api/login` tới **4 lần** (đo được bằng cách đếm request qua `page.on('request')`).
 3. **🐞 BUG xác nhận:** mất kết nối mạng hoàn toàn → ném lỗi JS runtime chưa xử lý `Cannot read properties of undefined (reading 'data')` trong `catch` của `login()`, người dùng không thấy thông báo lỗi nào cả (khác với lỗi server 500 — trường hợp đó vẫn hiển thị alert bình thường, đã verify không crash).
 4. **Không có loading indicator** khi đang xử lý đăng nhập (button vẫn `enabled` trong lúc chờ API, đo bằng cách giả lập API trễ 1.5s).
-5. Checkbox "Duy trì đăng nhập" **có tác dụng thật**: chênh lệch thời hạn phiên đăng nhập (`expires_in`) ~29 ngày giữa tích/không tích — khác với suy đoán ban đầu, đây là điểm khác biệt tích cực so với mô tả "chưa hoạt động" của app.
+5. ~~Checkbox "Duy trì đăng nhập" có tác dụng thật (~29 ngày chênh lệch `expires_in`)~~ → **06/11/2026 preprod gỡ checkbox**,
+   mọi lần đăng nhập đều xin phiên dài hạn (TC_LOGIN_55).
+6. **Ngoài màn Đăng nhập, cùng commit ff0dbcdc8:** `App.vue` so `roles` trả về từ `get-info` với `localStorage.roles`; khác thì ghi
+   lại rồi `window.location.reload()` (tài khoản hết hạn bị cron hạ về `free` mà token cũ vẫn hợp lệ). Chưa viết test ở
+   đây vì thuộc phạm vi toàn app — nên thêm khi prev2 lên bản có commit này (đổi `roles` trong localStorage → kỳ vọng
+   trang tải lại 1 lần và `roles` khớp máy chủ, không tải lại liên tục).

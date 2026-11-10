@@ -1,8 +1,18 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { LoginPage } from '../pages/LoginPage';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
 
 const EMAIL = process.env.TEST_USER_EMAIL!;
 const PASSWORD = process.env.TEST_USER_PASSWORD!;
+// Chạy trên prev2 (bản build preprod — backend PRODUCTION, xem pages/Prev2Session.ts). Số lần đăng nhập thật / sai mật
+// khẩu thật giữ nguyên như khi chạy trên kfsp.vn (không tăng) để tránh khoá tài khoản test.
+test.use({ baseURL: PREV2_BASE_URL });
+
+/** Bản build còn checkbox "Duy trì đăng nhập" = chưa có commit ff0dbcdc8 (06/11/2026) của preprod. */
+async function isOldBuildWithPersistCheckbox(page: Page) {
+  return (await new LoginPage(page).persistCheckbox.count()) > 0;
+}
+
 const GENERIC_ERROR = 'Tài khoản hoặc mật khẩu không đúng. Mời quý khách kiểm tra lại. Cảm ơn.';
 
 test.describe('Đăng Nhập — Overview & UI', () => {
@@ -14,22 +24,33 @@ test.describe('Đăng Nhập — Overview & UI', () => {
     await expect(page.getByText('Hãy đăng nhập vào tài khoản của bạn')).toBeVisible();
     await expect(loginPage.usernameInput).toBeVisible();
     await expect(loginPage.passwordInput).toBeVisible();
-    await expect(loginPage.persistCheckbox).toBeVisible();
     await expect(loginPage.forgotPasswordLink).toBeVisible();
     await expect(loginPage.registerLink).toBeVisible();
     await expect(loginPage.loginButton).toBeVisible();
   });
 
-  test('TC_LOGIN_02: Hiển thị logo KungFuStocksPro', async ({ page }) => {
+  test('TC_LOGIN_02: Hiển thị logo trong thẻ đăng nhập + logo "KFSP" ở góc trên trái', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await expect(loginPage.logoLink.locator('img')).toBeVisible();
+    await expect(loginPage.cornerLogoLink.locator('img')).toBeVisible();
+    await expect(loginPage.cornerLogoLink).toHaveText('KFSP');
+    const box = await loginPage.cornerLogoLink.boundingBox();
+    expect(box!.x).toBeLessThan(60);
+    expect(box!.y).toBeLessThan(60);
+    await expect(loginPage.cornerLogoLink).toHaveCSS('position', 'fixed');
   });
 
-  test('TC_LOGIN_03: Click logo chuyển về trang chủ', async ({ page }) => {
+  test('TC_LOGIN_03: Click logo (trong thẻ và ở góc) chuyển về trang chủ /home', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
-    await expect(loginPage.logoLink).toHaveAttribute('href', '/home/#trang-chu');
+    await expect(loginPage.logoLink).toHaveAttribute('href', '/home');
+    await expect(loginPage.cornerLogoLink).toHaveAttribute('href', '/home');
+    await loginPage.cornerLogoLink.click();
+    await expect(page).toHaveURL(/\/home/);
+    await loginPage.goto();
+    await loginPage.logoLink.click();
+    await expect(page).toHaveURL(/\/home/);
   });
 
   test('TC_LOGIN_05: Textbox Tài khoản hiển thị đúng placeholder', async ({ page }) => {
@@ -50,12 +71,6 @@ test.describe('Đăng Nhập — Overview & UI', () => {
     await loginPage.goto();
     await loginPage.passwordInput.fill('bat-ky-mat-khau');
     await expect(loginPage.passwordInput).toHaveAttribute('type', 'password');
-  });
-
-  test('TC_LOGIN_35: Checkbox "Duy trì đăng nhập" mặc định KHÔNG tích', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await expect(loginPage.persistCheckbox).not.toBeChecked();
   });
 
   test('TC_LOGIN_39: Hiển thị link "Quên mật khẩu?"', async ({ page }) => {
@@ -189,42 +204,26 @@ test.describe('Đăng Nhập — Input sai với tài khoản thật (số lần
   });
 });
 
-test.describe('Đăng Nhập — Checkbox Duy trì đăng nhập', () => {
-  test('TC_LOGIN_36: Tích/bỏ tích checkbox chuyển trạng thái bình thường', async ({ page }) => {
+test.describe('Đăng Nhập — Phiên đăng nhập (đã gỡ checkbox "Duy trì đăng nhập")', () => {
+  // TC_LOGIN_35–38 (checkbox "Duy trì đăng nhập") đã xoá: preprod gỡ checkbox, web luôn xin phiên dài hạn (commit ff0dbcdc8).
+  test('TC_LOGIN_55: Không còn checkbox "Duy trì đăng nhập" — mọi lần đăng nhập gửi persist_login=true', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
-    await loginPage.persistCheckbox.check();
-    await expect(loginPage.persistCheckbox).toBeChecked();
-    await loginPage.persistCheckbox.uncheck();
-    await expect(loginPage.persistCheckbox).not.toBeChecked();
-  });
+    await expect(loginPage.loginButton).toBeVisible();
+    test.skip(await isOldBuildWithPersistCheckbox(page),
+      'Môi trường đang chạy bản build cũ còn checkbox — chưa có commit ff0dbcdc8 (06/11/2026) của preprod');
+    await expect(page.getByText('Duy trì đăng nhập')).toHaveCount(0);
 
-  test('TC_LOGIN_37/38: So sánh expires_in khi tích và không tích "Duy trì đăng nhập"', async ({ browser }) => {
-    async function loginAndReadExpiry(persist: boolean) {
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      const loginPage = new LoginPage(page);
-      await loginPage.goto();
-      if (persist) {
-        await loginPage.persistCheckbox.check();
-      }
-      await loginPage.login(EMAIL, PASSWORD);
-      await loginPage.expectLoggedIn();
-      const expiresIn = await page.evaluate(() => localStorage.getItem('expires_in'));
-      await context.close();
-      return expiresIn;
-    }
-
-    const withPersist = await loginAndReadExpiry(true);
-    const withoutPersist = await loginAndReadExpiry(false);
-
-    expect(withPersist, 'expires_in phải được lưu khi tích Duy trì đăng nhập').not.toBeNull();
-    expect(withoutPersist, 'expires_in phải được lưu ngay cả khi không tích').not.toBeNull();
-
-    test.info().annotations.push({
-      type: 'note',
-      description: `expires_in (tích) = ${withPersist} | expires_in (không tích) = ${withoutPersist}. So sánh 2 giá trị này để xác nhận checkbox có thực sự ảnh hưởng thời hạn phiên đăng nhập hay không.`,
+    // Giả lập /api/login: chỉ đọc body gửi đi, không đăng nhập thật.
+    let body: Record<string, unknown> | undefined;
+    await page.route('**/api/login', async (route) => {
+      body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
     });
+    await loginPage.login('0900000000', 'AnyPass123');
+    await expect.poll(() => body).toBeTruthy();
+    expect(body!.persist_login).toBe(true);
+    await loginPage.expectGenericError();
   });
 });
 

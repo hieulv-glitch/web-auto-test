@@ -8,7 +8,11 @@
   [board/Crypto.vue](../../stocks/src/views/dashboard/board/Crypto.vue) (tab "Crypto") +
   [board/Events.vue](../../stocks/src/views/dashboard/board/Events.vue) (tab "Sự kiện") +
   [marco/MarcoOverview.vue](../../stocks/src/views/dashboard/marco/MarcoOverview.vue) (tab "Vĩ mô").
-- **Domain test:** https://kfsp.vn/dashboard
+- **Domain test:** https://kfsp.vn/dashboard (qua `PREV2_BASE_URL` + `Prev2Session`; production = preprod mới nhất từ 06/11/2026)
+- **Cập nhật 09/11/2026 (nhánh B):** biểu đồ "Ảnh hưởng thị trường" chuyển từ sub-tab Top sang Diễn biến (20/10/2026,
+  commit 039a9cf71) → sửa TC_DASHBOARD_TT_02; sub-tab "NN & TD": phần Nước ngoài lấy dữ liệu qua socket
+  (`getforeignhistory`/`getforeign`, cập nhật 30 giây/lần — 28/10/2026), giao diện không đổi; TC_DASHBOARD_TT_14 (Free)
+  đã tự động hoá bằng `FREE_USER_*`.
 - **Nguồn testcase gốc (app):** Không áp dụng — app không có 5 tab thị trường kiểu này trên Dashboard. Toàn bộ
   🆕.
 - **Phương pháp sinh:** Đọc source code + kiểm kê độc lập bằng Playwright thật.
@@ -17,6 +21,9 @@
   đúng của dữ liệu tài chính/biểu đồ bên trong từng sub-tab (đó là phạm vi nghiệp vụ, cần domain riêng để xác
   minh, không phải mục tiêu của UI/E2E test).
 
+- **Xác minh trên UI thật (09/11/2026):** chạy trên **https://kfsp.vn** (biến `PREV2_BASE_URL` trong `.env`; production đã là
+  bản preprod mới nhất, deploy 06/11/2026 10:30 GMT) — 4 spec Dashboard pass 2 lần liên tiếp (`--workers=2`). Trước đó prev2
+  bị deploy đè bằng nhánh `feat/ibd_tobao` lúc 07:40 GMT nên không dùng làm môi trường xác nhận.
 ---
 
 ## Nhóm: Tab "Việt Nam" — 5 sub-tab (Diễn biến/Top/NN & TD/Độ rộng TT/Định giá)
@@ -37,7 +44,9 @@
 
 - **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass**
 - **Kết quả đo được:** Click "Top" → hiển thị bảng "Top khối lượng" (dropdown đổi tiêu chí Top + bảng Mã/Giá/
-  Thay đổi/Khối lượng/Biểu đồ) kèm biểu đồ "Ảnh hưởng thị trường". Mỗi sub-tab còn lại (NN & TD/Độ rộng TT/Định
+  Thay đổi/Khối lượng/Biểu đồ).
+- **Cập nhật 09/11/2026:** biểu đồ "Ảnh hưởng thị trường" giờ nằm dưới sub-tab "Diễn biến" (dưới biểu đồ Thanh khoản),
+  không còn ở "Top". Mỗi sub-tab còn lại (NN & TD/Độ rộng TT/Định
   giá) đều đổi đúng loại nội dung tương ứng khi click.
 
 ## Các bước thực hiện
@@ -45,6 +54,7 @@
 
 ## Kết quả mong đợi
 - [ ] Mỗi lần click, sub-tab được chọn chuyển active, nội dung đổi đúng loại dữ liệu, không lỗi JS.
+- [ ] "Ảnh hưởng thị trường" hiện ở "Diễn biến", không hiện ở "Top".
 
 ---
 
@@ -223,19 +233,18 @@ Nếu gặp timeout ở đúng test này khi chạy full suite, thử chạy l�
 
 # [TC_DASHBOARD_TT_14] Giới hạn tính năng với tài khoản Free
 
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Ghi chú:** Theo code, mọi section trừ GDP đều bọc `UpdateRequire` khi `$store.state.isAccountFree`. Tài
-  khoản test hiện tại KHÔNG phải tài khoản Free (không kích hoạt được nhánh này để verify trực tiếp) — xem
-  cùng hạn chế đã ghi nhận ở [cong-dong.md](cong-dong.md) TC_CONGDONG_55 (`FREE_USER_EMAIL` trong `.env` hiện
-  không đăng nhập được).
+- **Trạng thái:** 🆕 Testcase mới — **Đã tự động hoá 09/11/2026 (trước là ⚠️/fixme)**
+- **Ghi chú:** Theo code, mọi section trừ GDP đều bọc `UpdateRequire` khi `$store.state.isAccountFree`. Đã chạy thật
+  bằng `FREE_USER_*` trên prev2: đúng thiết kế.
 
 ## Các bước thực hiện
 1. Đăng nhập bằng tài khoản Free.
 2. Vào tab "Vĩ mô".
 
 ## Kết quả mong đợi
-- [ ] Các section Công nghiệp/Thương mại/Xuất nhập khẩu/Đầu tư/CPI hiển thị màn hình "Nâng cấp tài khoản"
-      (UpdateRequire) thay vì dữ liệu thật; riêng GDP vẫn hiển thị bình thường.
+- [ ] Các section Công nghiệp/Thương mại/Xuất nhập khẩu/Đầu tư/CPI hiển thị khung `UpdateRequire` ("Bạn cần nâng cấp
+      gói hội viên để sử dụng chức năng này" + nút "Nâng cấp ngay") thay vì biểu đồ; riêng GDP vẫn có biểu đồ.
+- [ ] Bấm "Nâng cấp ngay" → mở bảng "Chọn dịch vụ".
 
 ---
 
@@ -246,8 +255,7 @@ Nếu gặp timeout ở đúng test này khi chạy full suite, thử chạy l�
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| 🆕 Mới (riêng web) | 12 | Đã verify bằng automation hoặc quan sát thực tế trực tiếp |
-| ⚠️ Cần xác nhận thêm | 1 | TC_DASHBOARD_TT_14 — cần tài khoản Free hoạt động được |
+| 🆕 Mới (riêng web) | 13 | Đã verify bằng automation hoặc quan sát thực tế trực tiếp (TT_14 tự động hoá 09/11/2026) |
 
 (TC_DASHBOARD_TT_08 và TC_DASHBOARD_TT_13 verify qua đọc code, không tính vào 2 nhóm trên vì không cần chạy
 automation thêm — hành vi đã rõ ràng 100% từ source, rủi ro sai lệch thấp.)

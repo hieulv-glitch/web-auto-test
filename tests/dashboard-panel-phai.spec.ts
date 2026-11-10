@@ -1,16 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect as baseExpect, Page } from '@playwright/test';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
 
 const EMAIL = process.env.TEST_USER_EMAIL!;
 const PASSWORD = process.env.TEST_USER_PASSWORD!;
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+/** Đăng nhập prev2 bằng phiên đã cache (Prev2Session) rồi vào /dashboard. */
+async function loginFirst(page: Page) {
+  await new DashboardPage(page).open();
 }
+
+test.use({ baseURL: PREV2_BASE_URL });
+// prev2 (backend production) đổ dữ liệu thị trường qua socket — lúc tải nặng chậm hơn hẳn mốc 5 giây mặc định.
+const expect = baseExpect.configure({ timeout: 15_000 });
+test.describe.configure({ timeout: 90_000 });
 
 test.describe('Dashboard/Panel phải — IBD', () => {
   test('TC_DASHBOARD_PP_01: Hiển thị 3 sub-tab của IBD', async ({ page }) => {
@@ -151,72 +155,6 @@ test.describe('Dashboard/Panel phải — Watchlist', () => {
   });
 });
 
-test.describe('Dashboard/Panel phải — Cảnh báo', () => {
-  test('TC_DASHBOARD_PP_09: Hiển thị header Cảnh báo mặc định', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cảnh báo').click();
-    await page.waitForTimeout(600);
-
-    await expect(dashboard.panelSubTab('Cổ phiếu', dashboard.alertPanel)).toHaveClass(/active/);
-    await expect(dashboard.panelSubTab('Bộ lọc', dashboard.alertPanel)).toBeVisible();
-    await expect(dashboard.alertPanel.locator('.v3-alert-input')).toBeVisible();
-    await expect(dashboard.alertPanel.getByText('Lịch sử', { exact: true })).toBeVisible();
-    await expect(dashboard.alertPanel.locator('.v3-alert-table-header')).toContainText('Mã CK');
-    await expect(dashboard.alertPanel.locator('.v3-alert-table-header')).toContainText('Sửa/Xóa');
-  });
-
-  test('TC_DASHBOARD_PP_10: Chuyển sub-tab "Bộ lọc"', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cảnh báo').click();
-    await page.waitForTimeout(600);
-
-    await dashboard.panelSubTab('Bộ lọc', dashboard.alertPanel).click();
-    await page.waitForTimeout(500);
-    await expect(dashboard.panelSubTab('Bộ lọc', dashboard.alertPanel)).toHaveClass(/active/);
-    // Ghi nhận: thanh tìm kiếm/Lịch sử vẫn hiển thị ở tab "Bộ lọc" (chỉ nút Tạo mới/xóa hàng loạt mới ẩn theo
-    // code `v-if="activeTab === 0"`) — khác giả định ban đầu, đã sửa lại theo hành vi thực tế.
-    await expect(dashboard.alertPanel.locator('.v3-alert-input')).toBeVisible();
-    await expect(page.getByText('Tạo mới', { exact: true })).toHaveCount(0);
-  });
-
-  test('TC_DASHBOARD_PP_11: Tìm kiếm lọc danh sách cảnh báo', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cảnh báo').click();
-    await page.waitForTimeout(600);
-
-    const firstStock = page.locator('.v3-alert-stock').first();
-    const count = await firstStock.count();
-    test.skip(count === 0, 'Tài khoản test hiện không có cảnh báo cổ phiếu nào để verify tìm kiếm.');
-
-    const keyword = (await firstStock.textContent())?.trim() ?? '';
-    await dashboard.alertPanel.locator('.v3-alert-input').fill(keyword);
-    await page.waitForTimeout(500);
-    const rows = page.locator('.v3-alert-row');
-    const rowCount = await rows.count();
-    for (let i = 0; i < rowCount; i++) {
-      await expect(rows.nth(i).locator('.v3-alert-stock')).toContainText(keyword);
-    }
-  });
-
-  test('TC_DASHBOARD_PP_12: Chọn nhiều dòng hiện icon xóa hàng loạt', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cảnh báo').click();
-    await page.waitForTimeout(600);
-
-    const checkboxes = page.locator('.v3-alert-row input[type="checkbox"]');
-    const count = await checkboxes.count();
-    test.skip(count === 0, 'Tài khoản test hiện không có cảnh báo cổ phiếu nào để verify chọn nhiều dòng.');
-
-    await checkboxes.first().check();
-    await page.waitForTimeout(300);
-    await expect(page.locator('.v3-alert-badge')).toHaveText('1');
-  });
-});
-
 test.describe('Dashboard/Panel phải — Ghi chú', () => {
   test('TC_DASHBOARD_PP_13: Hiển thị header Ghi chú mặc định', async ({ page }) => {
     await loginFirst(page);
@@ -257,52 +195,16 @@ test.describe('Dashboard/Panel phải — Ghi chú', () => {
   });
 });
 
-test.describe('Dashboard/Panel phải — Cộng đồng', () => {
-  test('TC_DASHBOARD_PP_16: Hiển thị 3 tab, KHÔNG có tab "AI Cập Nhật"', async ({ page }) => {
-    await loginFirst(page);
+test.describe('Dashboard/Panel phải — Tài khoản Free', () => {
+  test('TC_DASHBOARD_PP_20: Free — panel Watchlist không có nút "Thêm mới" watchlist; panel Ghi chú vẫn mở được', async ({ page }) => {
     const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cộng đồng').click();
-    await page.waitForTimeout(800);
+    await dashboard.open('free');
+    await dashboard.rightTab('Watchlist').click();
+    await expect(dashboard.watchlistPanelHeader).toBeVisible();
+    await expect(dashboard.watchlistCategoryDropdown).toBeVisible();
+    await expect(dashboard.watchlistCreateButton).toHaveCount(0);
 
-    await expect(dashboard.panelSubTab('Mới nhất')).toHaveClass(/active/);
-    await expect(dashboard.panelSubTab('Quan tâm')).toBeVisible();
-    await expect(dashboard.panelSubTab('Phổ biến')).toBeVisible();
-    await expect(dashboard.panelSubTab('AI Cập Nhật')).toHaveCount(0);
-  });
-
-  test('TC_DASHBOARD_PP_17: KHÔNG hiển thị thanh soạn bài (compose box)', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cộng đồng').click();
-    await page.waitForTimeout(800);
-
-    await expect(page.getByPlaceholder('Bạn có nhận định gì muốn chia sẻ?')).toHaveCount(0);
-  });
-
-  test('TC_DASHBOARD_PP_18: Bài viết hiển thị đủ nút tương tác', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cộng đồng').click();
-    await page.waitForTimeout(800);
-
-    const firstPost = dashboard.socialPanel.locator('.list-item-wrapper > *').first();
-    await expect(firstPost).toBeVisible();
-    await expect(dashboard.socialPanel.getByText('Bình luận').first()).toBeVisible();
-    await expect(dashboard.socialPanel.getByText('Chia sẻ').first()).toBeVisible();
-  });
-
-  test('TC_DASHBOARD_PP_19: Chuyển tab Quan tâm/Phổ biến trong panel', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Cộng đồng').click();
-    await page.waitForTimeout(800);
-
-    await dashboard.panelSubTab('Quan tâm').click();
-    await page.waitForTimeout(600);
-    await expect(dashboard.panelSubTab('Quan tâm')).toHaveClass(/active/);
-
-    await dashboard.panelSubTab('Phổ biến').click();
-    await page.waitForTimeout(600);
-    await expect(dashboard.panelSubTab('Phổ biến')).toHaveClass(/active/);
+    await dashboard.rightTab('Ghi chú').click();
+    await expect(dashboard.rightTab('Ghi chú')).toHaveClass(/active/);
   });
 });

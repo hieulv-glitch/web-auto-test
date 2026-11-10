@@ -1,16 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect as baseExpect, Page } from '@playwright/test';
+import { PREV2_BASE_URL } from '../pages/Prev2Session';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
 
 const EMAIL = process.env.TEST_USER_EMAIL!;
 const PASSWORD = process.env.TEST_USER_PASSWORD!;
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+/** Đăng nhập prev2 bằng phiên đã cache (Prev2Session) rồi vào /dashboard. */
+async function loginFirst(page: Page) {
+  await new DashboardPage(page).open();
 }
+
+test.use({ baseURL: PREV2_BASE_URL });
+// prev2 (backend production) đổ dữ liệu thị trường qua socket — lúc tải nặng chậm hơn hẳn mốc 5 giây mặc định.
+const expect = baseExpect.configure({ timeout: 15_000 });
+test.describe.configure({ timeout: 90_000 });
 
 test.describe('Dashboard/Cột giữa — Bản đồ nhiệt: Bộ lọc', () => {
   test('TC_DASHBOARD_CG_01: Hiển thị 3 dropdown lọc mặc định', async ({ page }) => {
