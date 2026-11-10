@@ -11,3 +11,5 @@ screens/
 .dom-inspect/
 result_file/
 .auth/
+*.log
+*.stackdump
