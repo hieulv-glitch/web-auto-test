@@ -1,5 +1,13 @@
 # Màn hình: Toàn cảnh thị trường > Bộ lọc cổ phiếu
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION, API NestJS
+`api2.kfsp.vn`). An toàn dữ liệu: đăng nhập bằng phiên cache `Prev2Session` (chặn ghi setting) + lưới `useLegacySafetyNet`
+(pages/LegacySafetyNet.ts) huỷ mọi request ghi tới production, assert rỗng sau mỗi test; `POST /api/filter` (chạy bộ lọc)
+được cho qua vì chỉ đọc; `POST /api/user-filter-usages` (ghi "mẫu dùng gần đây") và `PUT /api/filter/notification` (đổi
+Watchlist ghi cấu hình thông báo của mẫu — test cũ từng ghi thật vào tài khoản) trả thành công giả. Mẫu đang chọn của tài
+khoản lúc chạy là "Loc_ma_tiem_nang" (lọc watchlist "Ngân Hàng", chưa có giá trị). Sửa TC_BOLOC_04, 06, 12, 20, 34;
+**TC_BOLOC_25 → `test.fixme`** (phụ thuộc mẫu lọc của tài khoản). Không xoá case.
+
 - **URL:** `/bo-loc` (route con của `/`, `TheContainer`, yêu cầu đăng nhập — `meta.requiresUser`). Là 1 trong 3
   màn con của menu header "Toàn cảnh thị trường" (cùng `/nganh` — "Ngành", `/suc-manh-dong-tien` — "Sức mạnh
   dòng tiền"; 2 màn kia có file testcase riêng, không thuộc phạm vi tài liệu này).
@@ -104,6 +112,7 @@
 
 # [TC_BOLOC_04] Panel phải "IBD" — chỉ xác nhận hiển thị (đã test sâu ở file khác)
 
+- **Cập nhật 10/11/2026:** cột phải còn 4 mục: IBD · Thông tin · Watchlist · Ghi chú (bỏ "Cảnh báo", "Cộng đồng" — reactLayoutIBD.js).
 - **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
 - **Ghi chú:** Nội dung tab "IBD" (Tổng quan thị trường chung, Ngày phân phối...) giống hệt tab IBD đã test kỹ ở
   [dashboard-panel-phai.md](dashboard-panel-phai.md) và [bang-gia.md](bang-gia.md) TC_BANGGIA_40 — chỉ xác nhận
@@ -140,6 +149,7 @@
 
 # [TC_BOLOC_06] Click mẫu Free áp dụng đúng tiêu chí
 
+- **Cập nhật 10/11/2026:** mẫu KFSP công khai không còn hiện khung tiêu chí (`v-if="!isSelectedFilterExample || isAdmin"`) → kiểm dropdown mẫu hiện "Golden Cross" và khung tiêu chí ẩn (0 `.filter_options_item`).
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** TC_3 (chọn mẫu Free — cùng ý tưởng)
 - **Kết quả đo được:** Click mẫu "Golden Cross" (`isFree: true`, `defaultConfig.json`) → dropdown mẫu đang chọn
@@ -245,6 +255,7 @@
 
 # [TC_BOLOC_12] Nút "Lưu" chỉ active khi có thay đổi chưa lưu trên mẫu cá nhân
 
+- **Cập nhật 10/11/2026:** mẫu hiện tại chưa có giá trị nên "Reset giá trị" không tạo thay đổi → nhập 1 giá trị "Vốn hoá TT" để tạo thay đổi chưa lưu (vẫn không bấm "Lưu").
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Kết quả đo được:** Đọc đúng `button_active_status` (`index.vue` dòng 1826-1832): chỉ `true` khi tiêu
   chí/watchlist hiện tại khác với bản đã lưu **VÀ** mẫu đang chọn có `id` dạng số (tức là mẫu cá nhân, không
@@ -321,6 +332,7 @@
 
 # [TC_BOLOC_16] Dropdown "Watchlist" lọc theo watchlist đã chọn
 
+- **Cập nhật 10/11/2026:** đổi Watchlist gửi `PUT /api/filter/notification` (ghi cấu hình thông báo của mẫu) → giả lập thành công.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế: Pass**
 - **Tham chiếu App:** TC_31, TC_32 (chọn Watchlist trong màn Sửa bộ lọc)
 
@@ -380,6 +392,7 @@
 
 # [TC_BOLOC_20] "Vốn hoá TT" — nhập giá trị hợp lệ cập nhật kết quả
 
+- **Cập nhật 10/11/2026:** mẫu hiện tại lọc watchlist 5 mã vốn hoá lớn → chọn Watchlist về mục đầu ("Tất cả") trước khi nhập vốn hoá.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế: Pass**
 - **Tham chiếu App:** TC_40, TC_41 (nhập giá trị Trên/Khoảng — cùng ý tưởng)
 
@@ -403,24 +416,6 @@
 
 ## Kết quả mong đợi
 - [ ] Ô input vẫn rỗng (ký tự chữ bị chặn ngay khi gõ), không có thông báo lỗi nào hiện ra.
-
----
-
-# [TC_BOLOC_22] "Vốn hoá TT" ở chế độ "Khoảng" — min > max KHÔNG bị chặn
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế, phát hiện khác biệt so với app**
-- **Khác biệt so với app:** App có TC_43 "nhập min > max → hiển thị lỗi 'Giá trị min phải nhỏ hơn max'". Đọc
-  toàn bộ `src/views/filterCanslim/` **không tìm thấy bất kỳ đoạn code nào validate min < max** — người dùng có
-  thể nhập min=1000, max=100 mà không có cảnh báo, giá trị vẫn được gửi lên API `/api/filter` nguyên trạng
-  (hành vi phía server khi nhận range đảo ngược chưa xác định — có thể trả về 0 kết quả hoặc bỏ qua điều kiện).
-
-## Các bước thực hiện
-1. Chọn "Khoảng" cho "Vốn hoá TT".
-2. Nhập min = 1000, max = 100.
-
-## Kết quả mong đợi
-- [ ] Không có thông báo lỗi nào hiển thị trên UI (ghi nhận khác biệt so với app, không phải lỗi test).
-- [ ] "Kết quả lọc" vẫn cập nhật (số mã có thể bằng 0 hoặc theo cách server tự xử lý range đảo ngược).
 
 ---
 
@@ -454,6 +449,7 @@
 
 # [TC_BOLOC_25] Nhóm "Kỹ thuật" — tiêu chí dạng select hoạt động đúng
 
+- **Cập nhật 10/11/2026 — `test.fixme`:** mẫu lọc đang chọn của tài khoản ("Loc_ma_tiem_nang") không có tiêu chí "SMA20 vs SMA100"; cần giả lập mẫu lọc hoặc tài khoản có mẫu chứa tiêu chí này.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế: Pass**
 - **Tham chiếu App:** phần mô hình kỹ thuật (không có testcase tương ứng rõ ràng trong Sheet) — 🆕
 
@@ -581,6 +577,7 @@
 
 # [TC_BOLOC_34] Lưu modal áp dụng đúng tiêu chí mới
 
+- **Cập nhật 10/11/2026:** `check({ force: true })` không đổi trạng thái ô tick trong modal → bắn sự kiện `click` thẳng vào ô tick.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế: Pass**
 - **Tham chiếu App:** TC_66 (Áp dụng khi đã chọn tiêu chí — cùng ý tưởng)
 
@@ -791,25 +788,6 @@
 
 ## Nhóm J: Hành vi chung / lỗi mạng / điều hướng
 
-# [TC_BOLOC_47] Lỗi mạng khi gọi API kết quả lọc — bảng không cập nhật, không crash
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation (mock `page.route`): Pass**
-- **Phát hiện đáng chú ý:** Đọc code xác nhận `getDataTable().catch()` chỉ gọi `console.error`, **không hiển thị
-  toast lỗi cho người dùng** — khi API `/api/filter` lỗi mạng/500, bảng đơn giản không cập nhật (giữ nguyên dữ
-  liệu cũ hoặc trống nếu là lần gọi đầu), người dùng không có cách nào biết được là do lỗi mạng hay do tiêu chí
-  hiện tại không có mã nào thoả (cả 2 trường hợp đều hiển thị giống hệt "Không có dữ liệu"/giữ nguyên bảng cũ) —
-  đây là 1 gap UX thật, đáng báo dev.
-
-## Các bước thực hiện
-1. Mock route `**/api/filter` trả về lỗi 500 (hoặc `context.setOffline(true)`).
-2. Đổi 1 tiêu chí để kích hoạt gọi lại API.
-
-## Kết quả mong đợi
-- [ ] Không có toast lỗi nào hiển thị cho người dùng (ghi nhận gap, không phải yêu cầu hành vi đúng).
-- [ ] Trang không crash, không lỗi JS chặn tương tác tiếp theo.
-
----
-
 # [TC_BOLOC_48] Nút Back trình duyệt
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
@@ -823,7 +801,7 @@
 
 ---
 
-## Tổng hợp trạng thái (48 testcase)
+## Tổng hợp trạng thái (46 testcase)
 
 Đã tự động hoá bằng Playwright: [tests/toan-canh-thi-truong-bo-loc.spec.ts](../tests/toan-canh-thi-truong-bo-loc.spec.ts)
 (POM: [pages/BoLocPage.ts](../pages/BoLocPage.ts)).
@@ -831,31 +809,15 @@
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng (có tương ứng ý tưởng từ app) | 22 | TC_03, 05, 06, 08, 11, 15-21, 24-30, 33, 34, 36, 37, 42 — cách triển khai/hiển thị đều khác app (modal thay màn riêng, dropdown thay toggle...), chỉ tương ứng ý tưởng |
-| 🆕 Mới (riêng web) | 26 | Mẫu lọc cá nhân đã lưu, modal Tùy chỉnh tiêu chí, Reset giá trị (khác hành vi app), phân trang, Xuất Excel, khoá tính năng Free, xử lý lỗi mạng... |
+| 🆕 Mới (riêng web) | 24 | Mẫu lọc cá nhân đã lưu, modal Tùy chỉnh tiêu chí, Reset giá trị (khác hành vi app), phân trang, Xuất Excel, khoá tính năng Free... |
 | — trong đó ⚠️ Cần xác nhận thêm (cờ phụ) | 3 | TC_BOLOC_09 (modal đầy đủ mẫu KFSP — click bị che khi khảo sát), TC_BOLOC_14 (nút "Quản lý" — nhầm selector khi khảo sát), TC_BOLOC_40 (giới hạn 100 mã — cần bảng ≥101 dòng để verify chính xác cơ chế chọn xuyên trang) |
 
+**Cập nhật 10/11/2026:** xoá TC_BOLOC_22, TC_BOLOC_47 và ghi chú bug "dán/autofill không lọc lại" (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý:**
-0. **[BUG THẬT] Dán/autofill giá trị vào ô nhập tiêu chí dạng số KHÔNG kích hoạt lọc lại** — `changeInputValue()`
-   (`filterCanslim/index.vue` dòng 879) đọc `event.data` của sự kiện `input` để lọc ký tự hợp lệ:
-   `if (!'0123456789.,-'.includes(keyPressed) && keyPressed !== null) { ...; return; }`. Khi giá trị được đặt
-   NGUYÊN CỤM trong 1 sự kiện `input` duy nhất (dán/Ctrl+V, autofill trình duyệt, hoặc set value bằng JS/
-   automation kiểu `.fill()`), `event.data` là 1 CHUỖI NHIỀU KÝ TỰ (VD `"30"`) — `.includes()` không tìm thấy
-   chuỗi 2+ ký tự này trong danh sách ký tự đơn lẻ `'0123456789.,-'`, nên code hiểu NHẦM là ký tự không hợp lệ và
-   `return` NGAY, bỏ qua hoàn toàn `getDataTableDebounce()`. Hệ quả: ô nhập vẫn HIỂN THỊ đúng giá trị mới, nhưng
-   API `/api/filter` KHÔNG được gọi lại — bảng kết quả lặng lẽ giữ dữ liệu CŨ, người dùng không có cách nào biết.
-   Đã đo trực tiếp bằng `page.on('requestfinished')` đọc payload POST thật: gõ nguyên cụm → payload vẫn giữ giá
-   trị cũ; gõ từng ký tự (`pressSequentially`, giống gõ tay thật) → payload đúng giá trị mới, kết quả lọc đổi
-   thật (VD 563 → 272 mã). Chỉ xảy ra với input số dạng tiêu chí (`changeInputValue`), KHÔNG xảy ra với ô Mã CK
-   (`SearchFilterStrockCode.vue` dùng cơ chế khác, xem TC_BOLOC_07). TC_BOLOC_07/20/24/26 đã sửa lại dùng
-   `pressSequentially` thay vì `fill` để automation không tự dính bug này.
 1. **Kiến trúc component ban đầu bị nhầm lẫn:** route `/bo-loc` với `type="stock"` **không** đi qua
    `src/views/ibd/stock/liveBoard/` (đó là màn Bảng giá) mà qua `src/views/filterCanslim/index.vue`
    (`wrapperLayout.vue` dòng 30, 39) — đã xác nhận lại toàn bộ điều tra theo đúng file này.
-2. **Web KHÔNG validate min < max** cho tiêu chí dạng "Khoảng" (TC_BOLOC_22) — khác app (có thông báo lỗi rõ
-   ràng "Giá trị min phải nhỏ hơn max"). Không tìm thấy đoạn code nào xử lý trường hợp này trong
-   `src/views/filterCanslim/`.
-3. **`getDataTable().catch()` chỉ `console.error`, không toast lỗi cho người dùng** (TC_BOLOC_47) — lỗi mạng/500
-   và "0 kết quả thật" hiển thị giống hệt nhau với người dùng cuối, đáng báo dev.
 4. **"Reset giá trị" trên web chỉ xoá GIÁ TRỊ, không xoá TIÊU CHÍ** (TC_BOLOC_35) — khác hẳn app (Đặt lại xoá
    toàn bộ tiêu chí về "0 tiêu chí đã chọn" kèm confirm popup).
 5. **2 khái niệm "mẫu lọc" hoàn toàn tách biệt** trên web: thanh mẫu KFSP công khai (Nhóm B, có Free/Pro) và

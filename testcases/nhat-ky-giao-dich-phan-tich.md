@@ -203,32 +203,17 @@
 
 ---
 
-# [TC_NKGD_PT_15] Sau khi Xuất Excel, bảng thêm 1 cột "Mã CK" thừa ở lần vẽ lại kế tiếp
-
-- **Trạng thái:** 🆕 Testcase mới — 🐞 bug (giữ từ TC_NKGD_LS_48 cũ, chưa sửa)
-- **Nguyên nhân:** computed `schema` gọi `this.fields_table.unshift({value:"identify", label:"Mã CK"})` — `fields_table` là
-  computed không có phụ thuộc reactive nên được cache mãi; `unshift` sửa thẳng mảng cache. Màn hình chưa đổi ngay, tới lần
-  vẽ lại kế tiếp (vd bấm sắp xếp) mới lộ cột thừa.
-
-## Các bước thực hiện
-1. Bấm "Xuất Excel"; rồi bấm tiêu đề "Mã" để bảng vẽ lại.
-
-## Kết quả mong đợi (đo được)
-- [ ] Ngay sau xuất: tiêu đề tầng 2 vẫn 15 cột. Sau khi bấm sắp xếp: 16 cột, cột đầu "Mã CK" (thừa).
-- [ ] Mong đợi đúng (cần dev sửa): luôn 15 cột.
-
----
-
-## Tổng hợp trạng thái (15 testcase, 16 test vì TC_04 chạy 2 giá trị)
+## Tổng hợp trạng thái (14 testcase, 15 test vì TC_04 chạy 2 giá trị)
 
 Tự động hoá: [tests/nhat-ky-giao-dich-phan-tich.spec.ts](../tests/nhat-ky-giao-dich-phan-tich.spec.ts).
+
+**Cập nhật 10/11/2026:** xoá TC_NKGD_PT_15 (bug được user chấp nhận) — tổng 15 → 14.
 
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
 | ✅ Áp dụng | 0 | |
-| 🆕 Mới (riêng web) | 15 | PT_01–15 |
+| 🆕 Mới (riêng web) | 14 | PT_01–14 |
 | ⚠️ Cần xác nhận thêm | 0 | |
 
 **Phát hiện đáng chú ý:**
-1. 🐞 **PT_15** — bug cột "Mã CK" thừa sau Xuất Excel vẫn còn trên giao diện mới.
-2. **PT_05** — lỗi API rủi ro bị nuốt, hiện "Lo ngại rủi ro" như kết quả thật.
+1. **PT_05** — lỗi API rủi ro bị nuốt, hiện "Lo ngại rủi ro" như kết quả thật.

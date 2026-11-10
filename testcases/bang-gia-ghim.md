@@ -334,6 +334,8 @@ không phải GET khác tới `*.kfsp.vn` → huỷ và test fail nếu có (`af
 
 Kết quả chạy 10/11/2026 trên kfsp.vn: 22/22 pass, không có `test.fixme`.
 
+**Cập nhật 10/11/2026:** xoá ghi chú interceptor axios trong `App.vue` đọc `error.response.status` khi mất mạng (phát hiện #3, bug được user chấp nhận). Số testcase không đổi (21).
+
 ## Phát hiện đáng chú ý
 
 1. **Bộ cũ TC_BANGGIA_36 lỗi thời trên preprod:** nút ghim mặc định bị ẩn (cột thu gọn), test cũ bấm thẳng icon ghim sẽ
@@ -341,7 +343,3 @@ Kết quả chạy 10/11/2026 trên kfsp.vn: 22/22 pass, không có `test.fixme`
 2. **Tải trang đầy đủ (F5) không gọi `refreshPinnedFromCloud`** dù code có gọi sau khi nạp danh sách watchlist — mã ghim
    lúc đó đã lấy từ lượt tải toàn bộ setting nên không sai dữ liệu; điều hướng trong app (TC_20) thì có đọc lại đúng.
    Chỉ ghi nhận, không phải bug.
-3. Mọi request bị lỗi mạng (ở đây là các lượt `/updateusersettings` test huỷ) làm console báo
-   `TypeError: Cannot read properties of undefined (reading 'status')` — interceptor axios dùng chung trong
-   `src/App.vue` (`let status_code = error.response.status`) không kiểm tra `error.response` khi không có phản hồi.
-   Người dùng chỉ gặp khi mất mạng; ngoài phạm vi tính năng ghim.

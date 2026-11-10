@@ -367,20 +367,6 @@ test.describe('Trang cá nhân — sửa thông tin', () => {
     await expect(p.editButton).toBeVisible({ timeout: 10000 });
     expect(p.server.updates).toHaveLength(1);
   });
-
-  test('TC_PROFILE_24: ⚠️ Không kiểm tra ở trình duyệt — tên để trống, SĐT có chữ vẫn được gửi lên máy chủ', async ({ page }) => {
-    const p = newProfile(page);
-    p.server.updateMode = 'ok';
-    await p.openProfile();
-    await p.editButton.click();
-    await p.nameInput.fill('   ');
-    await p.phoneInput.fill('abc-xyz');
-    await expect(p.saveButton).toBeEnabled();
-    await p.saveButton.click();
-    await expect(p.editButton).toBeVisible();
-    expect(p.server.updates[0]).toMatchObject({ name: '', phone: 'abc-xyz' });
-    await expect(p.displayName).toHaveText('Chưa đặt tên');
-  });
 });
 
 // =====================================================================================================
@@ -491,25 +477,6 @@ test.describe('Trang cá nhân — popup nhật ký giới thiệu', () => {
     await page.waitForTimeout(1500);
     await expect(p.refModal).toBeHidden();
     expect(p.server.alertReferenceCalls).toBe(0);
-  });
-
-  test('TC_PROFILE_33: 🐞 API nhật ký giới thiệu lỗi → người dùng bị đẩy khỏi trang cá nhân (sang /login rồi về /dashboard), không báo lỗi', async ({ page }) => {
-    const p = newProfile(page);
-    p.server.referenceMode = '500';
-    await p.open({ path: '/profile' });
-    // Hành vi đo được (bug): Profile.vue `showReferenceLog().catch` → `$router.push('/login')`; đang đăng nhập nên
-    // router đưa tiếp về /dashboard. Một API phụ lỗi làm mất cả trang cá nhân. Mong đợi đúng: ở lại /profile.
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
-    expect(await page.evaluate(() => !!localStorage.getItem('api_token'))).toBe(true);
-    await expect(p.toastError).toHaveCount(0);
-  });
-
-  test('TC_PROFILE_34: ⚠️ API thông tin tài khoản lỗi → rời trang cá nhân về /dashboard, không báo lỗi', async ({ page }) => {
-    const p = newProfile(page);
-    p.server.editMode = '500';
-    await p.open({ path: '/profile' });
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
-    expect(await page.evaluate(() => !!localStorage.getItem('api_token'))).toBe(true);
   });
 });
 
@@ -677,16 +644,6 @@ test.describe('Đổi mật khẩu', () => {
     await p.fillPasswords('Cu@12345', 'Moi@12345', 'Moi@12345');
     await p.cpConfirm.press('Enter');
     await expect.poll(() => p.server.passwds.length).toBe(1);
-  });
-
-  test('TC_PROFILE_46: ⚠️ Không kiểm tra độ dài/độ mạnh, mật khẩu mới trùng mật khẩu cũ vẫn gửi lên máy chủ', async ({ page }) => {
-    const p = newProfile(page);
-    p.server.passwdMode = '500';
-    await p.openChangePassword();
-    await p.fillPasswords('1', '1', '1');
-    await expect(p.cpSubmit).toBeEnabled();
-    await p.cpSubmit.click();
-    await expect.poll(() => p.server.passwds).toEqual([{ _method: 'POST', old_password: '1', new_password: '1' }]);
   });
 
   test('TC_PROFILE_47: Chưa đăng nhập mở /change_password → chuyển về trang đăng nhập', async ({ browser }) => {

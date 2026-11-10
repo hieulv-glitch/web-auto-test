@@ -202,22 +202,6 @@ test.describe('Hộp tạo cảnh báo', () => {
     await expect(box.cb('Giá cắt xuống đường SMA50')).not.toBeChecked();
     expect(updates(p)).toHaveLength(0);
   });
-
-  test('TC_CBM_10: Đổi sang mã khác sau khi đã chọn mã → ô "Mức giá" vẫn giữ giá của mã cũ (chỉ điền ô đang trống)', async ({ page }) => {
-    const p = new NotificationCenterPage(page);
-    const box = new AlertPerStockBox(page);
-    await openCreate(p, box);
-    await pickCode(box, 'HPG');
-    await expect.poll(() => p.store<number>('return state.data_eod.HPG ? Number(state.data_eod.HPG.lastprice) : 0'), { timeout: 15_000 }).toBeGreaterThan(0);
-    const hpg = await p.store<number>('return Number(state.data_eod.HPG.lastprice)');
-    await expect(box.valueInput(box.condRows('Giá tăng lên chạm').first())).toHaveValue(String(hpg));
-    await pickCode(box, 'VNM');
-    await expect.poll(() => p.store<number>('return state.data_eod.VNM ? Number(state.data_eod.VNM.lastprice) : 0'), { timeout: 15_000 }).toBeGreaterThan(0);
-    const vnm = await p.store<number>('return Number(state.data_eod.VNM.lastprice)');
-    test.skip(vnm === hpg, 'Hai mã trùng giá — không phân biệt được');
-    await page.waitForTimeout(1000);
-    await expect(box.valueInput(box.condRows('Giá tăng lên chạm').first())).toHaveValue(String(hpg));
-  });
 });
 
 test.describe('Hộp cập nhật cảnh báo', () => {

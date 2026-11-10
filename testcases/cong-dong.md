@@ -1,17 +1,23 @@
 # Màn hình: Cộng Đồng (Community)
 
 - **URL:** `/cong-dong` (mặc định — tab "AI Cập Nhật"), `/cong-dong/moi-nhat`, `/cong-dong/quan-tam`, `/cong-dong/pho-bien` (3 tab feed xã hội)
-- **Component chính:** [Community.vue](../../stocks/src/views/homepage/Community.vue) (tab AI Cập Nhật) · [News.vue](../../stocks/src/views/homepage/News.vue) → [community.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/community.vue) → [feed.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/feed.vue) → [post.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/post.vue) (3 tab feed xã hội)
+- **Component chính:** (từ 16/09/2026 cả 4 tab dùng chung [community.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/community.vue); `homepage/Community.vue` cũ đã xoá) · [News.vue](../../stocks/src/views/homepage/News.vue) → [community.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/community.vue) → [feed.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/feed.vue) → [post.vue](../../stocks/src/views/multiLayoutChart/TabCommunity/post.vue) (3 tab feed xã hội)
 - **Domain test:** https://kfsp.vn
 - **Nguồn testcase gốc (app):** Google Sheet, tab "Cộng Đồng" (81 testcase, tổ chức quanh 1 màn hình có 4 tab trong app).
-- **Phương pháp sinh:** Đọc source code + kiểm kê độc lập trên web thật (theo skill `gen-web-testcase`), không dịch 1-1 từ Sheet. Mọi hành động có thể ghi dữ liệu thật lên production (đăng bài, bình luận) đều được mock API — chỉ có 1 lượt Thích/Bỏ thích thật (rồi revert ngay) được thực hiện để verify, vì đây là hành động riêng tư, dễ hoàn tác.
+- **Phương pháp sinh:** Đọc source code + kiểm kê độc lập trên web thật (theo skill `gen-web-testcase`), không dịch 1-1 từ Sheet. Mọi hành động có thể ghi dữ liệu thật lên production (đăng/sửa/xoá bài, thích, theo dõi, bình luận, thông báo) đều được giả lập API — không còn thao tác ghi thật nào (xem "Cập nhật 10/11/2026").
+
+**Cập nhật 10/11/2026:** chạy lại trên `localhost:8080` (nhánh `preprod` 21d9d1d04 — backend PRODUCTION `api2.kfsp.vn`, NestJS). Chỉ sửa các case vỡ/sai:
+- **An toàn dữ liệu:** đăng nhập qua phiên cache `Prev2Session`; lưới `SafetyNet` (pages/CommunityPage.ts) huỷ mọi request không phải GET tới `*.kfsp.vn`/`*.vietpointer.vn`/`*.kungfustockspro.live` (trừ `/api/login`, `socket.io`; `/api/activitylog/*` trả giả), sau mỗi test assert không có request ghi nào chưa giả lập. TC_14, TC_28–31, TC_43–46 trước đây ghi THẬT (unfollow/follow, thích, đăng/sửa/xoá bài, dọn qua `api.kfsp.vn` Laravel đã bỏ) → nay giả lập toàn bộ.
+- Giao diện đổi: một hàng tab phẳng `.cd-main-tab` ("AI cập nhật" + 3 thẻ Thảo luận); ô "🔥 Từ khoá hot" = `TopicChips` (10 chủ đề); "Gợi ý" là `.sg-title`/`.sg-row`; số liệu thẻ hồ sơ là `.mf-stat`; `/cong-dong` dùng chung trang với 3 tab Thảo luận (`TabCommunity/community.vue`, 16/09).
+- Xoá TC_60 (cột phải cũ) → đã chuyển sang TC_CDMEDIA_15, TC_CDMEDIA_16.
+- Rà 12 `test.fixme` cũ: lý do của TC_05/06/07/38/50 vẫn đúng. TC_37/39/40/41/56 trước định làm bằng bình luận/theo dõi THẬT — nay không được nữa, phải giả lập `comment/store|edit|delete`, `like`, `follow` (TC_56 cần giả lập cả `suggestion-list` vì tài khoản test đang nhận `[]`). TC_52/53 vẫn làm trực tiếp được (thẻ hồ sơ: `.mf-user`, `.mf-stat`).
 
 ## ⚠️ Phát hiện kiến trúc quan trọng — đọc trước khi dùng tài liệu này
 
 Màn "Cộng Đồng" trên web **không phải 1 màn hình đơn với 4 tab như app mô tả**, mà là 2 trải nghiệm khác hẳn nhau dùng chung 1 entry point:
 
 1. **Tab "AI Cập Nhật"** (`/cong-dong`, mặc định, **không cần đăng nhập**) — feed tin tức/phân tích do AI tổng hợp (gọi Typesense search + API `/news/news-summary`). **Không có** thích/bình luận/chia sẻ/tạo bài — chỉ đọc.
-2. **3 tab "Mới nhất / Quan tâm / Phổ biến"** (`/cong-dong/moi-nhat`...) — đây mới là feed mạng xã hội thật khớp mô tả app: đăng bài (rich text, gắn mã CK, hashtag, tâm lý thị trường, ảnh), thích, bình luận (có reply, ảnh), chia sẻ, sửa/xóa/ghim bài của mình, bài ghim, gợi ý theo dõi... **Bắt buộc đăng nhập** — chưa đăng nhập mà bấm 1 trong 3 tab này sẽ hiện modal chặn, không điều hướng.
+2. **3 tab "Mới nhất / Quan tâm / Phổ biến"** (`/cong-dong/moi-nhat`...) — đây mới là feed mạng xã hội thật khớp mô tả app: đăng bài (rich text, gắn mã CK, hashtag, tâm lý thị trường, ảnh), thích, bình luận (có reply, ảnh), chia sẻ, sửa/xóa/ghim bài của mình, bài ghim, gợi ý theo dõi... **Bắt buộc đăng nhập** — chưa đăng nhập mà bấm 1 trong 3 tab này sẽ hiện modal chặn, không điều hướng (10/11/2026: không còn modal, trang tự tải lại về `/cong-dong` — xem 🐞 TC_CONGDONG_11).
 
 Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm các phần dùng chung (sidebar phải, responsive...).
 
@@ -33,24 +39,12 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 1. Mở `/cong-dong` khi chưa đăng nhập.
 
 ## Kết quả mong đợi
-- [ ] Hiển thị 4 tab: "AI Cập Nhật" (active), "Mới nhất", "Quan tâm", "Phổ biến".
-- [ ] Hiển thị banner "Bạn cần đăng nhập để tham gia thảo luận, chia sẻ ý kiến trên cộng đồng." + nút "Đăng nhập".
+- [ ] Hiển thị 4 tab: "AI cập nhật" (active), "Mới nhất", "Quan tâm", "Phổ biến".
 - [ ] Hiển thị ô tìm kiếm "Nhập từ khóa tìm kiếm" + danh sách tin tức (mỗi tin: giờ, thời gian tương đối, category, mô tả).
-- [ ] Sidebar trái: "🔥 TỪ KHÓA HOT" với danh sách hashtag.
-- [ ] Sidebar phải: banner quảng cáo + widget "Chỉ số quốc tế" + "Top tăng/giảm".
+- [ ] Sidebar trái: "🔥 Từ khoá hot" với danh sách chủ đề.
+- [ ] Cột phải: xem TC_CDMEDIA_15/16 (cột phải làm lại).
 
----
-
-# [TC_CONGDONG_02] Click "Đăng nhập" trên banner
-
-- **Trạng thái:** ✅ Áp dụng
-- **Tham chiếu App:** không có (web-only entry, nhưng tương đương ý nghĩa TC_36 của app)
-
-## Các bước thực hiện
-1. Chưa đăng nhập, ở `/cong-dong`, click nút "Đăng nhập" trong banner.
-
-## Kết quả mong đợi
-- [ ] Điều hướng tới `/login?redirect=/cong-dong`.
+**Cập nhật 10/11/2026:** bỏ kỳ vọng banner "Bạn cần đăng nhập để tham gia thảo luận…" (không còn trên trang) và widget "Chỉ số quốc tế"/"Top tăng/giảm" (cột phải làm lại); tab là `.cd-main-tab`, kiểm thêm tab "AI cập nhật" đang active.
 
 ---
 
@@ -128,6 +122,7 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 # [TC_CONGDONG_08] Hiển thị danh sách hashtag hot
 
 - **Trạng thái:** ✅ Áp dụng (điều chỉnh so với app)
+- **Cập nhật 10/11/2026:** ô này nay là `TopicChips.vue` (chép danh sách chủ đề của app): khách thấy **10 chủ đề** (thêm "Công bố thông tin"); đã đăng nhập có thêm "Dành cho bạn" ở đầu. Tiêu đề "🔥 Từ khoá hot".
 - **Tham chiếu App:** TC_11
 - **Khác biệt so với app:** Web có **9 hashtag** (không có mục "#Mới nhất"/"#KFSP AI" riêng như app — thay bằng "Tất cả" mặc định active), nằm ở **sidebar trái**, không phải thanh tab con ngang dưới header.
 
@@ -135,7 +130,7 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 1. Quan sát sidebar trái ở tab AI Cập Nhật.
 
 ## Kết quả mong đợi
-- [ ] Hiển thị "🔥 TỪ KHÓA HOT" + 9 hashtag: Tất cả (active mặc định), Thị trường chứng khoán, Tài chính quốc tế, Tài chính - ngân hàng, Kinh tế vĩ mô - Đầu tư, Doanh nghiệp, Bất động sản, Thời sự, Crypto.
+- [ ] (Khách) Hiển thị "🔥 Từ khoá hot" + 10 chủ đề: Tất cả (active mặc định), Thị trường chứng khoán, Tài chính quốc tế, Tài chính - ngân hàng, Kinh tế vĩ mô - Đầu tư, Doanh nghiệp, Bất động sản, Thời sự, Crypto, Công bố thông tin.
 
 ---
 
@@ -151,6 +146,8 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 - [ ] Hashtag chuyển trạng thái active (đổi màu nền).
 - [ ] Danh sách tin lọc lại theo category tương ứng, không điều hướng URL (lọc tại chỗ qua prop `category`).
 
+**Cập nhật 10/11/2026:** locator chủ đề đổi sang `.topic-card .topic-chip`; test kiểm thêm chip được bấm có class `active`.
+
 ---
 
 ## Nhóm C: Chuyển đổi 4 tab lớn & yêu cầu đăng nhập
@@ -162,21 +159,6 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 ## Kết quả mong đợi
 - [ ] Hiển thị 4 tab: "AI Cập Nhật", "Mới nhất", "Quan tâm", "Phổ biến".
-
----
-
-# [TC_CONGDONG_11] Click tab Mới nhất/Quan tâm/Phổ biến khi CHƯA đăng nhập
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế: đúng như code**
-- **Tham chiếu App:** TC_06, TC_07, TC_08
-- **Khác biệt so với app:** App cho vào xem tab (chỉ ẩn thanh soạn bài); web **chặn hoàn toàn** bằng modal, không đổi tab, không điều hướng URL.
-
-## Các bước thực hiện
-1. Chưa đăng nhập, click tab "Mới nhất" (hoặc Quan tâm/Phổ biến).
-
-## Kết quả mong đợi
-- [ ] Hiện modal "Thông báo": "Bạn cần đăng nhập để sử dụng chức năng này." + nút Đóng (đã verify chính xác).
-- [ ] URL và tab active KHÔNG đổi.
 
 ---
 
@@ -208,16 +190,13 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 # [TC_CONGDONG_14] Tab "Quan tâm" khi chưa follow/like ai
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation (unfollow tạm rồi follow lại)**
+- **Trạng thái:** ✅ Áp dụng — giả lập API (cập nhật 10/11/2026)
 - **Tham chiếu App:** TC_58
-- **Ghi chú:** Tự động hoá bằng cách unfollow tạm người tài khoản test đang follow, verify empty-state, rồi
-  follow lại NGAY qua trang cá nhân của người đó để khôi phục trạng thái ban đầu (không dùng sidebar "Gợi ý" để
-  follow lại vì danh sách đó xoay vòng ngẫu nhiên, không đảm bảo hiển thị đúng người — đã phát hiện qua thực
-  tế).
+- **Cập nhật 10/11/2026:** bản cũ unfollow/follow lại THẬT trên production → nay giả lập "chưa theo dõi ai": `profile/following` trả `[]`, `get-post-by-page?type=quan-tam` trả `[]`; không gọi API follow nào. Số liệu thẻ hồ sơ nay là `.mf-stat`.
 
 ## Kết quả mong đợi
-- [ ] Sau khi unfollow, tab Quan tâm hiển thị "Chưa theo dõi người nào" (đã verify đúng text qua source
-  `follow.vue`) hoặc danh sách bài rỗng nếu không còn like bài nào khác.
+- [ ] Tab Quan tâm (active) không có bài nào, không kẹt khung xương (web KHÔNG có dòng thông báo rỗng riêng cho tab này).
+- [ ] Bấm "Đang theo dõi" ở thẻ hồ sơ → hiển thị "Chưa theo dõi người nào" (`follow.vue`).
 
 ---
 
@@ -369,7 +348,7 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 # [TC_CONGDONG_28] Thích bài viết
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế trên dữ liệu thật (đã revert lại ngay sau khi test)**
+- **Trạng thái:** ✅ Áp dụng — giả lập API `/api/stocks/community/like` (cập nhật 10/11/2026, trước đây thích thật rồi revert)
 - **Tham chiếu App:** TC_47, TC_48
 
 ## Kết quả mong đợi
@@ -379,19 +358,11 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 # [TC_CONGDONG_29] Bỏ thích bài viết
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế**
+- **Trạng thái:** ✅ Áp dụng — giả lập API (cùng test với TC_28)
 - **Tham chiếu App:** TC_49
 
 ## Kết quả mong đợi
 - [ ] Click "Đã thích" lần nữa → trở về trạng thái "Thích" (tim rỗng) (đã verify chính xác).
-
----
-
-# [TC_CONGDONG_30] Click Thích liên tục nhanh
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Tham chiếu App:** TC_50
-- **Ghi chú:** Code không có debounce/disable riêng cho `likePost()` — nghi ngờ mỗi click đều gọi API riêng (khác kỳ vọng app "chỉ chuyển đổi 1 lần"). Cần đo bằng automation đếm số request.
 
 ---
 
@@ -526,31 +497,18 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 # [TC_CONGDONG_43] Hiển thị icon "..." trên bài viết của mình
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation (đăng 1 bài thật, tự xóa ngay sau)**
+- **Trạng thái:** ✅ Áp dụng — giả lập API (cập nhật 10/11/2026)
 - **Tham chiếu App:** TC_39, TC_40
+- **Cập nhật 10/11/2026:** TC_43/45/46 chạy chung 1 test (TC_44 đã xoá 10/11/2026), KHÔNG còn đăng/sửa/xoá bài thật: `post/store`, `PUT post/update`, `DELETE post/:id` đều giả lập; bài "của mình" (id 990100, `user_id` = tài khoản test) được chèn vào đầu dòng tin Mới nhất để các lần app tự tải lại vẫn thấy bài. Bỏ bước dọn qua `api.kfsp.vn` (Laravel đã bỏ).
 
 ## Kết quả mong đợi
 - [ ] Chỉ hiện icon "..." trên bài của chính mình (hoặc khi có quyền ghim). Click mở dropdown gồm: Tắt/Bật thông báo, Chỉnh sửa bài viết, (Ghim/Bỏ ghim nếu có quyền), Xóa bài viết.
 
 ---
 
-# [TC_CONGDONG_44] Tắt/Bật thông báo cho 1 bài viết
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation — PHÁT HIỆN khác giả định ban đầu**
-- **Ghi chú:** Click "Tắt thông báo" có gọi đúng `POST /community/update-notify` (đã verify qua network), NHƯNG
-  **nhãn trên dropdown KHÔNG đổi thành "Bật thông báo"** sau khi click (đã verify trực tiếp — nhãn giữ nguyên
-  "Tắt thông báo"), và **dropdown không tự đóng** sau khi click 1 mục (khác hành vi dropdown thông thường).
-  Nghi ngờ thiếu re-render UI sau khi đổi `source.notify_off` — nên báo lại cho dev kiểm tra.
-
-## Kết quả mong đợi
-- [ ] Gọi đúng API `POST /community/update-notify` khi click (đã verify).
-- [ ] ⚠️ Thực tế: nhãn UI không cập nhật ngay — cần dev xác nhận đây có phải bug hay chỉ cần F5 lại mới thấy đổi.
-
----
-
 # [TC_CONGDONG_45] Chỉnh sửa bài viết của mình
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation (sửa bài thật của tài khoản test)**
+- **Trạng thái:** ✅ Áp dụng — giả lập `PUT /api/stocks/community/post/update` (cập nhật 10/11/2026)
 - **Tham chiếu App:** 🆕
 - **Ghi chú:** Modal sửa dùng chung cấu trúc rich-text (Quill) với modal tạo bài mới, nút lưu là **"Lưu"** (không
   phải "Cập nhật bài viết" như suy đoán ban đầu).
@@ -563,7 +521,7 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 # [TC_CONGDONG_46] Xóa bài viết của mình
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation (xóa đúng bài test vừa tạo, có double-check qua API)**
+- **Trạng thái:** ✅ Áp dụng — giả lập `DELETE /api/stocks/community/post/:id` (cập nhật 10/11/2026)
 - **Tham chiếu App:** 🆕
 - **Ghi chú:** Có modal xác nhận "Thông báo" — nội dung đúng **"Bạn có muốn xóa bài viết này không?"**, 2 nút
   "Đóng"/"Xóa" — khác hành vi xóa bình luận (TC_CONGDONG_40, không có xác nhận).
@@ -645,19 +603,12 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 # [TC_CONGDONG_54] Hiển thị danh sách gợi ý theo dõi (tài khoản trả phí)
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify: tài khoản test thấy được gợi ý**
+- **Trạng thái:** ✅ Áp dụng — giả lập danh sách (cập nhật 10/11/2026)
 - **Tham chiếu App:** ngụ ý app TC_85 (free vs VIP)
+- **Cập nhật 10/11/2026:** "Gợi ý" nay là `.sg-title` (không còn heading), mỗi người là `.sg-row` + nút `.sg-follow` "Theo dõi". API `suggestion-list` của tài khoản test hiện trả `[]` (dữ liệu, không phải lỗi) → test giả lập 2 người gợi ý để kiểm tra hiển thị.
 
 ## Kết quả mong đợi
 - [ ] Hiển thị "Gợi ý" + danh sách user đề xuất, mỗi user có nút Theo dõi.
-
----
-
-# [TC_CONGDONG_55] Không hiển thị gợi ý theo dõi với tài khoản Free — **PHÁT HIỆN qua code**
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Tham chiếu App:** TC_85
-- **Ghi chú:** Code: `if (this.$store.state.isAccountFree) return;` — API gợi ý không được gọi luôn với tài khoản Free, sidebar "Gợi ý" ẩn hoàn toàn. Test đã viết sẵn, dùng `FREE_USER_EMAIL`/`FREE_USER_PASSWORD` trong `.env`, tự động `test.skip` với lý do rõ ràng nếu tài khoản đăng nhập thất bại. **Tài khoản Free đầu tiên được cung cấp (`levanhieu250204@gmail.com`) bị API `/api/login` từ chối với lỗi `400 "Tài khoản không tồn tại"`** — chưa verify được, cần bạn kiểm tra lại thông tin đăng nhập.
 
 ---
 
@@ -667,17 +618,6 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 ## Kết quả mong đợi
 - [ ] Click nút Theo dõi → gọi `POST /api/stocks/community/follow`, đổi trạng thái nút (Theo dõi ↔ Đang theo dõi).
-
----
-
-# [TC_CONGDONG_57] Phiên đăng nhập hết hạn khi tải gợi ý — 🐞 nghi vấn UX
-
-- **Trạng thái:** ✅ Áp dụng (mock 401) — **Đã verify qua code, khác app**
-- **Tham chiếu App:** TC_84
-- **Ghi chú:** Code xử lý: xóa token, hiện toast "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại" — nhưng dòng `this.$router.push("/login")` bị **comment out**, nghĩa là **không tự động điều hướng về trang đăng nhập**, người dùng vẫn đứng nguyên tại trang (có thể gây bối rối vì các hành động khác vẫn tưởng đã đăng nhập). Cần verify bằng mock response 401 cho API suggestion-list.
-
-## Kết quả mong đợi
-- [ ] Hiện toast phiên hết hạn nhưng KHÔNG tự điều hướng về `/login` (ghi nhận là điểm UX cần báo dev, không phải bug chặn dùng).
 
 ---
 
@@ -704,15 +644,6 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 ---
 
 ## Nhóm N: Sidebar phải & Khác
-
-# [TC_CONGDONG_60] Sidebar phải hiển thị widget thị trường
-
-- **Trạng thái:** 🆕 Testcase mới (app không mô tả)
-
-## Kết quả mong đợi
-- [ ] Hiển thị 2 banner quảng cáo + widget "Chỉ số quốc tế" (BRENT, CRUDE, GAS, GOLD, DJI, SPX, IXIC, SSEC, N225, HSI) + widget "Top tăng/giảm" (có bộ lọc sàn HSX/HNX/UPCOM và khung thời gian).
-
----
 
 # [TC_CONGDONG_61] Trang chính sách & điều khoản
 
@@ -743,15 +674,17 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 ---
 
-## Tổng hợp trạng thái
+## Tổng hợp trạng thái (55 testcase)
+
+**Cập nhật 10/11/2026:** xoá TC_CONGDONG_02, TC_CONGDONG_11 (gồm test TC_11b), TC_CONGDONG_30, TC_CONGDONG_44, TC_CONGDONG_55, TC_CONGDONG_57 (bug được user chấp nhận) — tổng 61 → 55, `test.fixme` 16 → 12; xoá ghi chú menu "..." không tự đóng.
 
 Đã tự động hoá bằng Playwright: [tests/cong-dong.spec.ts](../tests/cong-dong.spec.ts) (POM: [pages/CommunityPage.ts](../pages/CommunityPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| ✅ Áp dụng | 47 | Nhiều case đã verify trực tiếp bằng automation (thật hoặc mock) — bao gồm TC_14 (unfollow/follow lại thật), TC_43-46 (vòng đời bài viết thật, tự dọn dẹp), TC_26-27 (ảnh/offline) |
-| 🆕 Mới (riêng web) | 11 | Chủ yếu do compose rich-text (TC_23-25, đã verify mock), reply bình luận, pinned posts (TC_48/49 gộp thành 1 test thích ứng, đã verify), sidebar hồ sơ — app hoàn toàn không có |
-| ⚠️ Cần xác nhận thêm | 4 | TC_07 (bài mới qua socket), TC_30 (double-click), TC_50 (tài khoản có quyền ghim), TC_55 (tài khoản Free hợp lệ — tài khoản đầu tiên bị từ chối) — xem [TRACKER.md](../TRACKER.md) |
+| ✅ Áp dụng | 43 | Mọi thao tác ghi đều giả lập API (10/11/2026) — gồm TC_14 (chưa theo dõi ai), TC_28/29/31 (thích), TC_43/45/46 (vòng đời bài viết), TC_26-27 (ảnh/offline) |
+| 🆕 Mới (riêng web) | 10 | Chủ yếu do compose rich-text (TC_23-25, đã verify mock), reply bình luận, pinned posts (TC_48/49 gộp thành 1 test thích ứng, đã verify), sidebar hồ sơ — app hoàn toàn không có. TC_60 đã xoá 10/11/2026 (→ TC_CDMEDIA_15/16) |
+| ⚠️ Cần xác nhận thêm | 2 | TC_07 (bài mới qua socket), TC_50 (tài khoản có quyền ghim) — xem [TRACKER.md](../TRACKER.md) |
 
 **Phạm vi CHƯA làm sâu trong đợt này (có thể bổ sung sau qua Nhánh B của skill):**
 - Chi tiết đầy đủ trang "Profile" (view khi click vào thẻ hồ sơ) và trang "Follow" (danh sách followers/following) — mới chỉ test việc chuyển sang các view này, chưa test sâu nội dung bên trong từng view.
@@ -761,9 +694,3 @@ Vì lý do này, tài liệu chia theo đúng 2 khu vực trên, cộng thêm c�
 
 **🐞 Phát hiện đáng chú ý cần báo lại team dev:**
 1. Xóa bình luận không có bước xác nhận (khác xóa bài viết — có modal xác nhận), dễ xóa nhầm.
-2. Khi phiên đăng nhập hết hạn (401 ở API gợi ý theo dõi), chỉ hiện toast mà KHÔNG tự động điều hướng về `/login` (dòng code liên quan bị comment out).
-3. Nhãn "Tắt thông báo" trong menu "..." của bài viết KHÔNG tự cập nhật thành "Bật thông báo" sau khi click, dù
-   API `update-notify` vẫn được gọi đúng — nghi thiếu re-render UI (xem TC_CONGDONG_44).
-4. Dropdown menu "..." của bài viết KHÔNG tự đóng lại sau khi click 1 mục (khác hành vi dropdown chuẩn) — không
-   phải lỗi nghiêm trọng nhưng khác kỳ vọng UX thông thường.
-3. `likePost()` không có debounce/disable khi click liên tục — nghi ngờ gọi API nhiều lần giống lỗi double-submit đã gặp ở Đăng Nhập/Đăng Ký, cần đo cụ thể.

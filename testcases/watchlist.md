@@ -240,48 +240,6 @@
 
 ---
 
-# [TC_WATCHLIST_18] Lỗi tải danh mục → toast lỗi (🐞 chính tả)
-
-- **Trạng thái:** ✅ Áp dụng (bug còn nguyên)
-
-## Kết quả mong đợi
-- [ ] `get-list-category` trả 500:
-  - toast **"Có lỗi xảy ra. Vui loing thử lại sau!"** (sai chính tả "loing", `WatchListHeader.vue`);
-  - ô chọn trống;
-  - không có nút "Thêm mã".
-
----
-
-# [TC_WATCHLIST_19] 🐞 Watchlist rỗng phát sinh lỗi JS
-
-- **Trạng thái:** ✅ Áp dụng
-- **Cập nhật (09/11):** trước là ⚠️ (nghi vấn qua code). Nay **đã đo được** bằng watchlist giả 0 mã.
-- **Nguyên nhân:** watcher `itemsDataTable` trong `WatchListLeft.vue` gọi
-  `document.querySelector('nav[aria-label="pagination"]').classList…` mà không kiểm tra null. Bảng 0 dòng không có
-  thanh phân trang nên console báo `TypeError: Cannot read properties of null (reading 'classList')`.
-
-## Kết quả mong đợi (theo hành vi hiện tại)
-- [ ] Chọn "Auto Rỗng":
-  - bảng hiện "No items";
-  - console có lỗi `reading 'classList'`;
-  - chọn lại "Auto B" vẫn dùng bình thường.
-
----
-
-# [TC_WATCHLIST_20] Đang tải mã của watchlist — không có trạng thái đang tải
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Cập nhật (09/11):** đã đo bằng máy chủ chậm 4 giây.
-- **Kết quả đo được:** trong lúc chờ, bảng vẫn hiện mã của watchlist **cũ**, không spinner/skeleton (`isLoadingData`
-  không có UI). Người dùng dễ tưởng đang xem watchlist mới.
-
-## Kết quả mong đợi (theo hành vi hiện tại)
-- [ ] Chuyển "Auto A" → "Auto B" (chậm 4 giây):
-  - 1 giây sau vẫn thấy FPT, VNM, HPG, không spinner;
-  - sau đó là ACB, MBB.
-
----
-
 # [TC_WATCHLIST_58] Watchlist trên 14 mã có phân trang
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -606,18 +564,6 @@
 
 ---
 
-# [TC_WATCHLIST_48] Bấm đúp "Lưu" gửi 2 lần
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Cập nhật (09/11):** trước là ⚠️/fixme (nghi vấn qua code). Nay **đã đo được**.
-- **Kết quả đo được:** máy chủ chậm 2,5 giây, bấm đúp "Lưu" → **2 POST tạo watchlist**. `handleSave` không có cờ "đang
-  lưu", nên trên máy chủ thật có thể tạo 2 watchlist trùng tên.
-
-## Kết quả mong đợi (theo hành vi hiện tại)
-- [ ] Đúng 2 POST `/api/my-watchlist`, modal đóng.
-
----
-
 ## Nhóm H: Cột phải — Ghi chú & Bài viết
 
 # [TC_WATCHLIST_41] Icon "Xem ghi chú" lọc ghi chú theo mã
@@ -716,18 +662,6 @@
 
 ## Nhóm J: Khác
 
-# [TC_WATCHLIST_47] Giá trị mặc định `isAccountFree` không nhất quán (ghi nhận qua code)
-
-- **Trạng thái:** 🆕 Testcase mới (chỉ tài liệu, không có test tự động)
-- **Ghi chú:** trên preprod vẫn còn:
-  - `WatchListHeader.vue` dùng `store.state.isAccountFree || false`;
-  - `WatchListLeft.vue` (computed `isAccountFree`) dùng `|| true`.
-
-  Lúc store chưa có giá trị, header có thể hiện control trả phí trong khi bảng coi là Free. Khó tái tạo ổn định bằng
-  automation (race lúc tải store).
-
----
-
 # [TC_WATCHLIST_49] Giá tự cập nhật qua socket
 
 - **Trạng thái:** 🆕 Testcase mới — `test.fixme`
@@ -741,11 +675,12 @@ Tự động hoá: [tests/watchlist.spec.ts](../tests/watchlist.spec.ts), POM [p
 
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
-| ✅ Áp dụng | 31 | 01, 02, 06, 08, 09, 10, 12, 13, 14, 15, 17, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 32, 33, 34, 35, 36, 37, 38, 39, 41, 42, 43, 46 (một số là bug đo được) |
-| 🆕 Testcase mới | 25 | 03, 04, 05, 07, 11, 16, 40, 44, 45, 47, 49, 50–61 |
-| ⚠️ Cần xác nhận thêm | 2 | 20, 48 |
+| ✅ Áp dụng | 33 | 01, 02, 06, 08, 09, 10, 12, 13, 14, 15, 17, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 32, 33, 34, 35, 36, 37, 38, 39, 41, 42, 43, 46 |
+| 🆕 Testcase mới | 22 | 03, 04, 05, 07, 11, 16, 40, 44, 45, 49, 50–61 |
 
-Tổng 60 testcase. TC_31 đã xoá (checkbox Moderator không còn). Có 58 test tự động, 1 `fixme` (TC_49), TC_47 chỉ là tài liệu.
+Tổng 55 testcase. TC_31 đã xoá (checkbox Moderator không còn). Có 54 test tự động, 1 `fixme` (TC_49).
+
+**Cập nhật 10/11/2026:** xoá TC_WATCHLIST_18, TC_WATCHLIST_19, TC_WATCHLIST_20, TC_WATCHLIST_47, TC_WATCHLIST_48 (bug được user chấp nhận) — tổng 60 → 55.
 
 **Thay đổi so với bản 19/08/2026:**
 - Xoá TC_31.
@@ -756,11 +691,5 @@ Tổng 60 testcase. TC_31 đã xoá (checkbox Moderator không còn). Có 58 tes
 
 ## 🐞 Phát hiện đáng chú ý
 
-1. **TC_19 (bug, đã đo được):** watchlist 0 mã gây lỗi JS `reading 'classList'` (watcher phân trang không kiểm tra null).
-   Cùng kiểu lỗi ở tab PTCB "BCTC gốc".
-2. **TC_18:** toast còn sai chính tả "Vui loing" (`WatchListHeader.vue`).
-3. **TC_48 (đã đo được):** bấm đúp "Lưu" tạo watchlist 2 lần.
-4. **TC_20:** chuyển watchlist khi mạng chậm, bảng vẫn hiện mã của watchlist cũ, không có trạng thái đang tải.
-5. **TC_47:** `isAccountFree` mặc định khác nhau giữa header và bảng.
-6. **Toast thành công đã tắt toàn app** (`main.js`, 12/10/2026). Mọi spec cũ khác đang chờ toast "…thành công" sẽ fail
+1. **Toast thành công đã tắt toàn app** (`main.js`, 12/10/2026). Mọi spec cũ khác đang chờ toast "…thành công" sẽ fail
    khi chạy trên preprod.

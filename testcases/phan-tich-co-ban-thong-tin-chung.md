@@ -1,5 +1,10 @@
 # Màn hình: Phân tích cơ bản — Tab "Thông tin chung" — Khung/Shell + Sub-tab mặc định "Thông tin tài chính"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). Đăng nhập chuyển sang
+`FaAnalysisPage.login()` (phiên cache `Prev2Session`, chặn ghi setting) + lưới `FaSafetyNet`; bỏ bước reset về VNM
+cuối test. Icon "Tạo cảnh báo" (chuông) đã bị bỏ khỏi `Left.vue` (07/10, cảnh báo chuyển về "Trung tâm thông báo")
+→ **xoá TC_PTCB_TTC_08**, sửa TC_PTCB_TTC_01/10. Sửa TC_PTCB_TTC_03 (race đếm dòng). 27 → 26 testcase, không fixme.
+
 - **URL:** `/phan-tich-co-ban?mack=<mack>&tab=thong-tin-chung` (đây là tab MẶC ĐỊNH của màn "Phân tích cơ bản",
   không cần `?tab=` cũng vào được nhưng dùng tường minh cho rõ ràng).
 - **Component:** [stocks/src/views/faAnalysis/Common/index.vue](../../stocks/src/views/faAnalysis/Common/index.vue)
@@ -118,8 +123,8 @@ suốt màn hình này (xem mục 3 "Phát hiện đáng chú ý" của `phan-ti
 
 ## Kết quả mong đợi
 - [ ] Header hiển thị "CTCP Sữa Việt Nam (VNM) - HOSE" + giá hiện tại + % thay đổi (màu theo chiều tăng/giảm).
-- [ ] 3 icon bên phải giá: watchlist (star), "Tạo cảnh báo" (chuông), "Thêm giao dịch" (chỉ hiện với mã loại cổ
-      phiếu — xem TC_PTCB_TTC_09).
+- [ ] 2 icon bên phải giá: watchlist (star), "Thêm giao dịch" (chỉ hiện với mã loại cổ phiếu — xem
+      TC_PTCB_TTC_09). (Cập nhật 10/11/2026: icon chuông "Tạo cảnh báo" đã bỏ.)
 - [ ] Biểu đồ nến TradingView hiển thị (`#tv_chart_container`), thanh khung thời gian "1d 1m 3m 6m 1y 3y 5y" bên
       dưới biểu đồ, mặc định "1m" active.
 - [ ] Bảng "Thông tin chung" bên dưới biểu đồ hiển thị dữ liệu công ty.
@@ -148,6 +153,7 @@ suốt màn hình này (xem mục 3 "Phát hiện đáng chú ý" của `phan-ti
 - **Ghi chú:** 3 dòng này KHÔNG thuộc `cong_ty_tong_quan_items` (API `common-info`) mà hardcode trong template
   `Left.vue`, dữ liệu lấy qua socket `getdataanalysis()` (gọi trong `created()`, tự lặp lại mỗi 60 giây qua
   `setInterval`) — độc lập hoàn toàn với luồng tải bảng "Thông tin chung" phía trên.
+- **Cập nhật 10/11/2026:** 3 dòng này render trước khi `common-info` về → test chờ dòng "Tên công ty" rồi mới đếm.
 
 ## Các bước thực hiện
 1. Từ TC_PTCB_TTC_01, cuộn xuống cuối bảng "Thông tin chung".
@@ -220,21 +226,6 @@ suốt màn hình này (xem mục 3 "Phát hiện đáng chú ý" của `phan-ti
 
 ---
 
-# [TC_PTCB_TTC_08] Click icon "Tạo cảnh báo" mở modal "Tạo cảnh báo"
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** Modal TOÀN SITE khai báo trong `TheContainer.vue` (`isShowModalAlert`), dùng chung cơ chế với
-  các màn khác trong dự án — test chỉ verify modal MỞ ĐƯỢC, không đi sâu nội dung form bên trong (ngoài phạm vi
-  màn này).
-
-## Các bước thực hiện
-1. Click icon "Tạo cảnh báo" (chuông) ở header cột trái.
-
-## Kết quả mong đợi
-- [ ] Modal "Tạo cảnh báo" (`role="dialog"`) hiện ra.
-
----
-
 # [TC_PTCB_TTC_09] Icon "Thêm giao dịch" chỉ hiện với mã loại cổ phiếu, click mở modal "Thêm giao dịch"
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
@@ -242,29 +233,12 @@ suốt màn hình này (xem mục 3 "Phát hiện đáng chú ý" của `phan-ti
   — VNM thoả điều kiện. Modal TOÀN SITE (`isShowQuickTransactionFormModal`, title "Thêm giao dịch").
 
 ## Các bước thực hiện
-1. Với mã VNM, quan sát icon thứ 3 (sau star/chuông).
+1. Với mã VNM, quan sát icon thứ 2 (sau star).
 2. Click icon đó.
 
 ## Kết quả mong đợi
 - [ ] Icon "Thêm giao dịch" hiển thị (vì VNM là mã cổ phiếu).
 - [ ] Click mở modal "Thêm giao dịch" (`role="dialog"`).
-
----
-
-# [TC_PTCB_TTC_10] Free — click icon "Tạo cảnh báo"/"Thêm giao dịch" mở modal nâng cấp gói thay vì modal thật
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation với tài khoản Free thật: Pass**
-- **Ghi chú:** Xem phát hiện #4 — `showFormAdd()`/`openShowQuickTransactionFormModal()` đều check
-  `if (this.isAccountFree) { isShowModalMembership = true; return; }` TRƯỚC khi mở modal thật.
-
-## Các bước thực hiện
-1. Đăng nhập tài khoản Free.
-2. Click icon "Tạo cảnh báo".
-3. Đóng modal, click icon "Thêm giao dịch".
-
-## Kết quả mong đợi
-- [ ] Cả 2 lần click đều hiện modal "Thông báo" chứa text "Chức năng dành riêng cho hội viên" — KHÔNG mở modal
-      "Tạo cảnh báo"/"Thêm giao dịch" thật.
 
 ---
 
@@ -559,7 +533,7 @@ suốt màn hình này (xem mục 3 "Phát hiện đáng chú ý" của `phan-ti
 
 ---
 
-## Tổng hợp trạng thái (27 testcase — phạm vi khung/shell + sub-tab mặc định "Thông tin tài chính")
+## Tổng hợp trạng thái (25 testcase — phạm vi khung/shell + sub-tab mặc định "Thông tin tài chính")
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-thong-tin-chung.spec.ts](../tests/phan-tich-co-ban-thong-tin-chung.spec.ts) (POM:
@@ -569,11 +543,13 @@ section "Tab Thông tin chung — Shell + sub-tab Thông tin tài chính" ở cu
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 0 | Không có testcase nào map trực tiếp từ Sheet app (xem lý do ở đầu tài liệu) |
-| 🆕 Mới (riêng web) | 27 | TC_PTCB_TTC_01 → 27 |
+| 🆕 Mới (riêng web) | 25 | TC_PTCB_TTC_01 → 27 (đã xoá TC_PTCB_TTC_08, TC_PTCB_TTC_10 ngày 10/11/2026) |
 | ⚠️ Cần xác nhận thêm | 0 | — |
 
-Không có `test.fixme` nào trong file spec này — toàn bộ 27 testcase đều tự động hoá và pass được (không có
+Không có `test.fixme` nào trong file spec này — toàn bộ 25 testcase đều tự động hoá và pass được (không có
 tính năng kéo-thả/upload/download nào trong phạm vi khung/shell + sub-tab mặc định).
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TTC_10 (bug được user chấp nhận — modal nâng cấp gói không đóng bằng phím Esc).
 
 **Phát hiện đáng chú ý cần theo dõi:**
 1. **[XÁC NHẬN AN TOÀN] KHÔNG có bug race condition "trống vĩnh viễn" như tab "So sánh"/"Biểu đồ"** ở phạm vi
@@ -595,8 +571,7 @@ tính năng kéo-thả/upload/download nào trong phạm vi khung/shell + sub-ta
    pattern "gate không bọc toàn bộ widget" đã ghi nhận ở tab "Tài chính doanh nghiệp" (gate chỉ bọc vùng bảng,
    không bọc thanh sub-tab/select). Xem phát hiện #1b, TC_PTCB_TTC_25/26.
 4. **2 icon "Tạo cảnh báo"/"Thêm giao dịch" ở cột trái gate theo `isAccountFree` (khác cơ chế `features_disabled`
-   ở trên)** — mở modal nâng cấp gói "Chức năng dành riêng cho hội viên" thay vì modal thật. Xem phát hiện #4,
-   TC_PTCB_TTC_10.
+   ở trên)** — mở modal nâng cấp gói "Chức năng dành riêng cho hội viên" thay vì modal thật. Xem phát hiện #4.
 5. **Sub-tab tự viết tay, không đổi URL khi chuyển** — F5 giữa lúc đang ở sub-tab khác "Thông tin tài chính" sẽ
    mất sub-tab đang xem, quay về mặc định. Đổi mã CK KHÔNG ảnh hưởng sub-tab đang chọn. Cùng pattern đã ghi nhận
    xuyên suốt màn hình này (khung/shell TC_PTCB_13, tab Tài chính doanh nghiệp TC_PTCB_TCDN_35). Xem phát hiện

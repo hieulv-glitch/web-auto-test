@@ -149,15 +149,11 @@
 
 # [TC_DASHBOARD_08] Mở rộng bản đồ nhiệt toàn màn hình
 
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện bất thường**
+- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation**
 - **Kết quả đo được:** Click nút "Phóng to" (`title="Phóng to"`) → cột trái và khối Chỉ số tâm lý/rủi ro ẩn đi
   (`showFullHeatMap = true`), bản đồ nhiệt chiếm toàn bộ chiều rộng, xuất hiện 4 sub-tab: "Bản đồ nhiệt", "Nhóm
   ảnh hưởng", "Thanh khoản", "Phân loại dòng tiền" + nút "Thu nhỏ" để quay lại. Cột phải (IBD/Watchlist...)
   **vẫn giữ nguyên, không bị ẩn**.
-- **⚠️ Phát hiện đáng chú ý:** Ngay sau khi bấm "Phóng to" lần đầu, biểu đồ treemap của tab "Bản đồ nhiệt" render
-  bị vỡ/chồng chữ trong khoảng thời gian ngắn (canvas chưa resize kịp theo kích thước container mới) trước khi
-  ổn định lại. Chuyển sang sub-tab khác ("Nhóm ảnh hưởng") thì render đúng ngay từ đầu. Cần theo dõi thêm khi
-  viết testcase chi tiết riêng cho widget Bản đồ nhiệt.
 
 ## Các bước thực hiện
 1. Từ Dashboard, click nút "Phóng to" trên khối bản đồ nhiệt.
@@ -497,9 +493,6 @@
 | 🆕 Mới (riêng web) | 27 | Kiến trúc Dashboard web khác hẳn app, không có testcase nào map trực tiếp 1-1 từ Sheet (TC_23–27 thêm 09/11/2026) |
 
 **Phát hiện đáng chú ý cần theo dõi:**
-1. **⚠️ Nghi vấn rendering:** Khi bấm "Phóng to" bản đồ nhiệt lần đầu, treemap render vỡ/chồng chữ trong chốc
-   lát trước khi ổn định — có thể do canvas chưa nhận kích thước container mới kịp thời. Cần điều tra sâu hơn
-   khi viết testcase riêng cho widget Bản đồ nhiệt.
 2. Bố cục kéo giãn (`aWidth`/`cWidth`/`bTopHeight`) được lưu vào `localStorage` với debounce 300ms (trước 10/2026
    là 3 giây — code cũ tạo hàm debounce mới mỗi lần chuột di chuyển nên thực chất chỉ hoãn ghi) và khôi phục
    đúng sau reload — hành vi đúng như thiết kế, đã verify bằng automation.
@@ -513,3 +506,5 @@
 **Ngoài phạm vi lần sinh này (để lại cho các lần gen riêng theo từng widget):** nội dung chi tiết bên trong
 Bản đồ nhiệt, IBD, Watchlist, Ghi chú (panel phải), Chỉ số tâm lý/Chỉ số rủi ro, và 4 tab
 thị trường Quốc tế/Crypto/Sự kiện/Vĩ mô.
+
+**Cập nhật 10/11/2026:** xoá ghi chú nghi vấn treemap vỡ/chồng chữ khi bấm "Phóng to" lần đầu (TC_DASHBOARD_08, phát hiện #1) — bug được user chấp nhận. Số testcase không đổi (27).

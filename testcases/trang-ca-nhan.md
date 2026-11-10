@@ -320,21 +320,6 @@ hết) → không có hạn (miễn phí). Số ngày đếm theo ngày lịch; 
 - [ ] Nút đổi thành "Đang lưu…" và bị khoá, nút "Huỷ" cũng khoá.
 - [ ] Chỉ 1 request được gửi; xong thì về chế độ xem.
 
-# [TC_PROFILE_24] Không kiểm tra dữ liệu ở trình duyệt
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Kết quả đo được:** trình duyệt không chặn tên rỗng / chỉ có khoảng trắng hay SĐT có chữ — vẫn gửi `name: ''`,
-  `phone: 'abc-xyz'`; nếu máy chủ nhận thì tên hiển thị thành "Chưa đặt tên". Cần dev xác nhận backend có kiểm tra
-  (không thử thật được vì sẽ ghi vào tài khoản production).
-
-## Các bước thực hiện
-1. Ở chế độ sửa, Tên nhập "   ", SĐT "abc-xyz" → Lưu (máy chủ giả trả ok).
-
-## Kết quả mong đợi
-- [ ] (Hành vi hiện tại) nút Lưu bật, request gửi `name: ''`, `phone: 'abc-xyz'`, tên hiển thị "Chưa đặt tên".
-
----
-
 ## Nhóm: Trang cá nhân — ảnh đại diện & mã giới thiệu
 
 # [TC_PROFILE_25] Đổi ảnh đại diện thành công
@@ -432,34 +417,6 @@ Lúc mở trang, web đọc `/api/user-logs/reference`, lọc dòng `status = Ne
 
 ## Kết quả mong đợi
 - [ ] Không hiện popup, không gọi đánh dấu đã xem.
-
-# [TC_PROFILE_33] 🐞 API nhật ký giới thiệu lỗi → bị đẩy khỏi trang cá nhân
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (bug)
-- **Kết quả đo được:** `showReferenceLog().catch` → `$router.push('/login')`; đang đăng nhập nên router đưa tiếp về
-  `/dashboard`. Người dùng không xem được trang cá nhân, không có thông báo gì. Đây là API **phụ** (chỉ để hiện popup
-  giới thiệu) nhưng lỗi của nó làm mất cả trang. `disableReferenceLog().catch` cũng có cùng cách xử lý.
-- **Mong đợi đúng (đề xuất):** ở lại `/profile`, bỏ qua popup.
-
-## Các bước thực hiện
-1. `/api/user-logs/reference` trả 500, mở `/profile`.
-
-## Kết quả mong đợi
-- [ ] (Hành vi hiện tại) URL chuyển sang `/dashboard`, phiên đăng nhập còn nguyên, không có toast lỗi.
-
-# [TC_PROFILE_34] API thông tin tài khoản lỗi → rời trang
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Kết quả đo được:** `showInfo().catch` → `/login` → `/dashboard`, không báo lỗi. Ý đồ là xử lý token hết hạn, nhưng
-  mọi lỗi (500, mất mạng) đều bị coi như hết phiên mà không đăng xuất.
-
-## Các bước thực hiện
-1. `/api/users/{id}/edit` trả 500, mở `/profile`.
-
-## Kết quả mong đợi
-- [ ] (Hành vi hiện tại) URL chuyển sang `/dashboard`, phiên còn nguyên.
-
----
 
 ## Nhóm: Đổi mật khẩu
 
@@ -581,18 +538,6 @@ Lúc mở trang, web đọc `/api/user-logs/reference`, lọc dòng `status = Ne
 ## Kết quả mong đợi
 - [ ] Form được gửi (1 request).
 
-# [TC_PROFILE_46] Không kiểm tra độ dài/độ mạnh, mật khẩu mới trùng mật khẩu cũ
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Kết quả đo được:** trình duyệt chỉ kiểm "đủ 3 ô" và "xác nhận khớp" — mật khẩu "1", mật khẩu mới trùng mật khẩu
-  cũ vẫn gửi lên máy chủ. Cần dev xác nhận backend có kiểm tra (không thử thật được).
-
-## Các bước thực hiện
-1. Điền "1" / "1" / "1" → bấm "Đổi mật khẩu".
-
-## Kết quả mong đợi
-- [ ] (Hành vi hiện tại) nút bật và request gửi `old_password: "1"`, `new_password: "1"`.
-
 # [TC_PROFILE_47] Chưa đăng nhập mở /change_password → về trang đăng nhập
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -626,16 +571,12 @@ Lúc mở trang, web đọc `/api/user-logs/reference`, lọc dòng `status = Ne
 | Trạng thái | Số lượng |
 |---|---|
 | 🆕 Testcase mới | 44 |
-| ⚠️ Cần xác nhận thêm | 4 (TC_24, TC_33, TC_34, TC_46) |
-| **Tổng** | **48** (50 test Playwright — TC_22, TC_43 chạy 2 biến thể) |
+| **Tổng** | **44** (46 test Playwright — TC_22, TC_43 chạy 2 biến thể) |
+
+**Cập nhật 10/11/2026:** xoá TC_PROFILE_24, TC_PROFILE_33, TC_PROFILE_34, TC_PROFILE_46 (bug được user chấp nhận). 48 → 44 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **🐞 TC_33 — API phụ lỗi làm mất cả trang cá nhân:** `/api/user-logs/reference` (chỉ để hiện popup nhật ký giới
-   thiệu) lỗi → `Profile.vue` đẩy sang `/login` → router đưa về `/dashboard`, không báo gì. Tương tự TC_34 với API
-   thông tin tài khoản.
-2. **⚠️ Không kiểm tra dữ liệu ở trình duyệt (TC_24, TC_46):** tên rỗng, SĐT có chữ, mật khẩu 1 ký tự / trùng mật khẩu
-   cũ đều được gửi lên máy chủ — cần backend xác nhận có chặn.
 3. **App tự ghi dữ liệu mỗi lần vào trang:** `userDashboardPreference.mixin.js` gửi `POST
    save-user-dashboard-preference` ở mọi màn; nếu request lỗi, app bật toast "Lỗi cập nhật người dùng version dashboard"
    ở bất kỳ màn nào. Test giả lập thành công để toast này không che các toast cần kiểm tra.

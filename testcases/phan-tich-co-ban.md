@@ -1,5 +1,11 @@
 # Màn hình: Phân tích cơ bản — Khung/Shell (6 tab)
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod` 21d9d1d04, backend PRODUCTION). Tab thứ 6
+đổi tên "Bài viết & Phân tích" → **"BCTC gốc"** (cùng `?tab=tin-tuc`, cùng key khoá `fa_tai_lieu`) — sửa TC_PTCB_01,
+11, 12, 17. Đăng nhập chuyển sang `FaAnalysisPage.login()` (phiên cache `Prev2Session`, chặn ghi setting → `final_mack`
+của tài khoản dùng chung không còn bị test đổi) + lưới `FaSafetyNet` (huỷ mọi request ghi tới *.kfsp.vn, assert rỗng
+sau mỗi test). TC_PTCB_07 sửa cách gõ mã (gõ lại tới khi có gợi ý). Không có case xoá/fixme.
+
 - **URL:** `/phan-tich-co-ban/:macks*` (route con của `/`, yêu cầu đăng nhập — `meta.requiresUser: true`, xác
   nhận qua `stocks/src/router/index.js` dòng ~664).
 - **Component:** [src/views/faAnalysis/index.vue](../../stocks/src/views/faAnalysis/index.vue) (`name:
@@ -58,7 +64,7 @@
 ## Kết quả mong đợi
 - [ ] Ô tìm kiếm "Mã CK" hiển thị đúng mã đang xem (VNM).
 - [ ] Hiển thị đủ 6 tab đúng thứ tự: "Thông tin chung", "Tài chính doanh nghiệp", "4M & CANSLIM", "Biểu đồ",
-      "So sánh", "Bài viết & Phân tích".
+      "So sánh", "BCTC gốc".
 - [ ] Tab "Thông tin chung" active mặc định.
 - [ ] Không tràn/vỡ layout ở viewport desktop chuẩn (1280x800+).
 
@@ -146,6 +152,8 @@
 # [TC_PTCB_07] Đổi mã CK giữ nguyên tab đang xem
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** `store.state.list_mack` (socket) có lúc nạp chậm hơn mốc chờ 1,2s cố định → gợi ý rỗng,
+  test treo. Đổi sang `fa.fillSearchUntilSuggestion()` (gõ lại tới khi có gợi ý, tối đa 20s).
 - **Ghi chú:** `watch: "$store.state.mack"` trong `index.vue` reset TẤT CẢ `active_tab` về `false` rồi bật lại
   ĐÚNG `active_tab[type_tab]` hiện tại (không phải luôn reset về tab "Thông tin chung") — đổi mã CK ở bất kỳ
   tab nào cũng giữ nguyên tab đang xem, chỉ refresh dữ liệu theo mã mới.
@@ -160,33 +168,6 @@
 ---
 
 ## Nhóm: Deep-link qua URL
-
-# [TC_PTCB_08] ⚠️ [BUG] Deep-link qua path param `/phan-tich-co-ban/<mack>` KHÔNG load đúng mã
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, PHÁT HIỆN BUG THẬT: Pass (test xác nhận đúng
-  hành vi lỗi)**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** Deep-link qua path param (VD `/phan-tich-co-ban/HPG`, KHÔNG kèm
-  `?mack=`) **không load đúng mã trong URL** nếu tài khoản đã có `final_mack` lưu từ trước (mã CK xem gần
-  nhất) — bị ghi đè về mã cũ thay vì mã trong URL. Nguyên nhân (đọc từ `TheContainer.vue`): `mounted()` gọi
-  `getDataSaveSettings()` → API `getusersettings` → `.then()` gọi `setDataToLocalStorage(res.data)`, hàm này
-  (1) ghi MỌI key server trả về (kể cả `"final_mack"`) vào `localStorage` qua vòng lặp generic (dòng ~1344),
-  RỒI (2) **NGAY SAU ĐÓ** (dòng ~1380) đọc lại `localStorage.final_mack` và **ghi đè** `store.state.mack` —
-  điều kiện `if (!this.$route.query.mack && ...)` chỉ kiểm tra **query**, hoàn toàn không biết tới `:macks*`
-  (path param). `FAAnalysis.created()` CÓ đọc `this.macks` và set đúng mã ban đầu, nhưng bị `TheContainer`
-  ghi đè lại ngay sau đó. **Kết quả đo được:** xác nhận 100% qua automation (mock response API `getusersettings`
-  trả `final_mack = VNM` rồi truy cập `/phan-tich-co-ban/HPG` → hiển thị "VNM", không phải "HPG").
-- **Khuyến nghị:** Dùng `?mack=<mack>` (query param) cho MỌI liên kết sâu (deep-link) trỏ tới màn này thay vì
-  path param — query hoạt động đúng 100% (xem TC_PTCB_09) vì nằm trong điều kiện kiểm tra của
-  `TheContainer.vue`.
-
-## Các bước thực hiện
-1. Mock API `getusersettings` trả về `final_mack = { mack: "VNM" }`.
-2. Truy cập `/phan-tich-co-ban/HPG` (path param, không có `?mack=`).
-
-## Kết quả mong đợi (hành vi THẬT — bug)
-- [ ] Ô tìm kiếm hiển thị "VNM" (mã cũ bị ghi đè), KHÔNG phải "HPG" (mã trong URL).
-
----
 
 # [TC_PTCB_09] Truy cập `?mack=<mack>` load đúng mã theo query param
 
@@ -228,7 +209,7 @@
 
 ## Các bước thực hiện
 1. Click lần lượt qua cả 6 tab: Thông tin chung → Tài chính doanh nghiệp → 4M & CANSLIM → Biểu đồ → So sánh →
-   Bài viết & Phân tích.
+   BCTC gốc (cập nhật 10/11/2026: tên tab cuối đổi).
 
 ## Kết quả mong đợi
 - [ ] Mỗi lần click, đúng 1 tab active (nền tím, xem class `active-bg-tab`), nội dung đổi đúng loại dữ liệu
@@ -328,10 +309,13 @@
 
 ---
 
-# [TC_PTCB_17] Tab "Bài viết & Phân tích" hiện `ProtectedView` với tài khoản Free hiện tại
+# [TC_PTCB_17] Tab "BCTC gốc" hiện `ProtectedView` với tài khoản Free hiện tại
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation với tài khoản Free thật, phát hiện đáng chú ý:
   Pass**
+- **Cập nhật 10/11/2026:** tab "Bài viết & Phân tích" đổi tên thành "BCTC gốc" (vẫn key `fa_tai_lieu`). Đo lại
+  `features_disabled` của tài khoản Free: danh sách `fa_*` KHÔNG đổi → kết quả giữ nguyên {Biểu đồ: 0, So sánh: 0,
+  BCTC gốc: 1}.
 - **⚠️ Phát hiện đáng chú ý (khác giả định ban đầu, cùng pattern đã ghi nhận ở Bảng Giá TC_BANGGIA_49/50 và
   Nhật Ký GD TC_NKGD_09):** Đọc code, cả 3 tab "Biểu đồ"/"So sánh"/"Bài viết & Phân tích" đều CÓ cơ chế gate
   đúng (`featureName` trả về `fa_bieu_do_tc_*`/`fa_so_sanh`/`fa_tai_lieu`). Nhưng đo thật
@@ -343,12 +327,12 @@
 
 ## Các bước thực hiện
 1. Đăng nhập tài khoản Free.
-2. Click lần lượt tab "Biểu đồ", "So sánh", "Bài viết & Phân tích".
+2. Click lần lượt tab "Biểu đồ", "So sánh", "BCTC gốc".
 
 ## Kết quả mong đợi (hành vi THẬT đo được, tài khoản Free hiện tại)
 - [ ] Tab "Biểu đồ": hiển thị bình thường, KHÔNG có `ProtectedView`.
 - [ ] Tab "So sánh": hiển thị bình thường, KHÔNG có `ProtectedView`.
-- [ ] Tab "Bài viết & Phân tích": hiện đúng 1 `ProtectedView` (màn mờ "Bạn cần nâng cấp gói hội viên...").
+- [ ] Tab "BCTC gốc": hiện đúng 1 `ProtectedView` (màn mờ "Bạn cần nâng cấp gói hội viên...").
 
 ---
 
@@ -366,42 +350,42 @@
 
 ---
 
-## Tổng hợp trạng thái (18 testcase — chỉ phạm vi khung/shell)
+## Tổng hợp trạng thái (17 testcase — chỉ phạm vi khung/shell)
 
 Đã tự động hoá bằng Playwright: [tests/phan-tich-co-ban.spec.ts](../tests/phan-tich-co-ban.spec.ts)
 (POM: [pages/FaAnalysisPage.ts](../pages/FaAnalysisPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| ✅ Áp dụng | 4 | TC_PTCB_01, 03, 06, 11, 12 |
-| 🆕 Mới (riêng web) | 12 | TC_PTCB_02, 04, 05, 07, 08, 09, 10, 13, 14, 16, 17, 18 |
+| ✅ Áp dụng | 5 | TC_PTCB_01, 03, 06, 11, 12 |
+| 🆕 Mới (riêng web) | 11 | TC_PTCB_02, 04, 05, 07, 09, 10, 13, 14, 16, 17, 18 |
 | ⚠️ Cần xác nhận thêm | 1 | TC_PTCB_15 (tự skip khi không có badge, phụ thuộc dữ liệu quý báo cáo thật) |
 
+Kết quả chạy 10/11/2026 (localhost:8080, preprod 21d9d1d04): 18/18 pass (TC_PTCB_15 chạy thật — badge "BCTC Mới - Q3
+2026" có hiển thị), 0 fixme, không request ghi nào lọt lưới.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_08 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý cần theo dõi:**
-1. **[BUG] Deep-link qua path param `/phan-tich-co-ban/<mack>` bị ghi đè bởi `final_mack` từ `getusersettings`**
-   (TC_PTCB_08) — xác nhận 100% qua automation (mock API). Route hỗ trợ cả path param (`:macks*`) lẫn query
-   (`?mack=`) nhưng CHỈ query được `TheContainer.vue` xử lý đúng khi có `final_mack` đã lưu — khuyến nghị dùng
-   query cho mọi liên kết sâu, hoặc báo dev sửa điều kiện ở `TheContainer.vue` dòng ~1382 để cũng loại trừ khi
-   có path param.
-2. **Chuyển tab không cập nhật URL** (TC_PTCB_13) — F5 giữa lúc đang ở tab khác "Thông tin chung" sẽ mất tab
+1. **Chuyển tab không cập nhật URL** (TC_PTCB_13) — F5 giữa lúc đang ở tab khác "Thông tin chung" sẽ mất tab
    đang xem, quay về mặc định. Cùng pattern đã ghi nhận ở Nhật Ký GD (`TC_NKGD_06`).
-3. **Feature-gating hoạt động ở NHIỀU CẤP khác nhau trong cùng 1 trang** — cấp shell (`index.vue`, 3/6 tab: Biểu
+2. **Feature-gating hoạt động ở NHIỀU CẤP khác nhau trong cùng 1 trang** — cấp shell (`index.vue`, 3/6 tab: Biểu
    đồ/So sánh/Bài viết & Phân tích) VÀ cấp widget con riêng của 1 số tab không hề bị khóa ở cấp shell (VD "4M &
    CANSLIM" — xem ghi chú TC_PTCB_16). Khi sinh testcase cho từng tab con, PHẢI kiểm tra lại gating ở đúng cấp
    widget, không giả định dựa theo `featureName` cấp shell.
-4. **Dữ liệu `features_disabled` thật của tài khoản Free dùng chung hiện chỉ khóa 1 phần tính năng `fa_*`**
+3. **Dữ liệu `features_disabled` thật của tài khoản Free dùng chung hiện chỉ khóa 1 phần tính năng `fa_*`**
    (TC_PTCB_17) — KHÔNG khóa "Biểu đồ"/"So sánh" dù code hỗ trợ, dù `fa_4m_cansslim` (gating con của "4M &
    CANSLIM") LẠI có trong danh sách khóa. Cùng pattern đã ghi nhận nhiều lần ở các màn khác (Bảng Giá, Nhật Ký
    GD) — LUÔN đo thật `localStorage.features_disabled` thay vì suy đoán từ code khi viết testcase liên quan
    gói hội viên cho các tab con.
-5. **"Mã CK đang xem" (`final_mack`) là setting server-side theo TÀI KHOẢN**, không phải theo browser
+4. **"Mã CK đang xem" (`final_mack`) là setting server-side theo TÀI KHOẢN**, không phải theo browser
    session — mọi test ở màn này (và các màn khác dùng chung tài khoản test) có khả năng ảnh hưởng lẫn nhau khi
    chạy song song. Test nào cần giá trị xác định phải mock API thay vì dựa vào điều hướng thật (xem
    TC_PTCB_08).
-6. **Không có icon "yêu thích" (star)/thông báo (chuông) riêng cho mã CK ở màn này trên web** — khác app (có
+5. **Không có icon "yêu thích" (star)/thông báo (chuông) riêng cho mã CK ở màn này trên web** — khác app (có
    cả 2 icon trên header). Xác nhận qua đọc `index.vue` + DOM thật, không phải thiếu sót khi kiểm kê.
-7. **⚠️ ĐÍNH CHÍNH (2026-08-20, phát hiện khi sinh testcase riêng cho tab "4M & CANSLIM"):** ghi chú gốc ở mục
-   3 phía trên (TC_PTCB_16) từng mô tả gate riêng của tab "4M & CANSLIM" là "chỉ 2 biểu đồ radar bị mờ, phần
+6. **⚠️ ĐÍNH CHÍNH (2026-08-20, phát hiện khi sinh testcase riêng cho tab "4M & CANSLIM"):** ghi chú gốc ở mục
+   2 phía trên (TC_PTCB_16) từng mô tả gate riêng của tab "4M & CANSLIM" là "chỉ 2 biểu đồ radar bị mờ, phần
    thang điểm + lịch sử vẫn hiển thị bình thường" — đo lại bằng automation thật (kiểm tra DOM/network, không
    chỉ nhìn ảnh chụp) xác nhận SAI: `<ProtectedView v-if="disable_featureName">` trong `FourmAndCanslim.vue`
    bọc **TOÀN BỘ** component ở cấp ngoài cùng (`.chart-wrapper` đo được 0 phần tử khi bị gate), API tính điểm

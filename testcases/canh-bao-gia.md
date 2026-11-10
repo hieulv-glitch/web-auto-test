@@ -70,24 +70,6 @@ Giá nến vẫn lấy thật nên các mức giá trong test được tính t�
 ## Kết quả mong đợi
 - [ ] Giá là bội của bước giá: dưới 10.000đ → 10đ, 10.000–49.999đ → 50đ, từ 50.000đ → 100đ (`roundToPriceStep`).
 
-# [TC_CBG_03] Dòng tạo cảnh báo tô màu thương hiệu kèm icon chuông — chế độ tối
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞 bug)
-- **Tham chiếu App:** TC_100 (chế độ tối)
-- **Kết quả đo được:** chế độ sáng đúng `#7B3AEC`, chữ đậm 600, icon chuông cùng màu. **Chế độ tối vẫn là `#7B3AEC`**
-  (tím đậm trên nền tối, khó đọc) thay vì `#B98CFF` như code định nghĩa. Nguyên nhân: `highlightedAlertItem` dò
-  `document.body.classList.contains("c-dark-theme")`, nhưng lớp tối nằm ở `.c-app` (chính comment ở `openSmallMenu`
-  trong cùng file đã ghi điều này). Đã xác nhận `.c-app` có `c-dark-theme`, `body` thì không.
-
-## Các bước thực hiện
-1. Mở Biểu đồ ở chế độ sáng, chuột phải → xem dòng "Tạo cảnh báo…".
-2. Lặp lại ở chế độ tối.
-
-## Kết quả mong đợi
-- [ ] Sáng: chữ và icon chuông màu `#7B3AEC`, chữ đậm.
-- [ ] Tối: chữ và icon màu `#B98CFF`. **Hiện tại: vẫn `#7B3AEC`** — test assert hành vi đo được, khi dev sửa thì đổi
-  assert.
-
 # [TC_CBG_04] Bấm dòng menu ở trên giá hiện tại → hộp tạo cảnh báo, chiều "Giá tăng lên tới"
 
 - **Trạng thái:** ✅ Áp dụng
@@ -419,20 +401,6 @@ Giá nến vẫn lấy thật nên các mức giá trong test được tính t�
 ## Kết quả mong đợi
 - [ ] 1 POST với `user_alerts = []`, `old_user_alerts = [bản ghi]`; hộp đóng; chỉ còn đường trên.
 
-# [TC_CBG_32] Hộp sửa mở bằng cách bấm vào đường: không focus ô giá, Esc không đóng
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞 bug)
-- **Kết quả đo được:** sau khi bấm vào đường, `document.activeElement` vẫn là iframe biểu đồ; ô giá không được focus
-  (`focusInput` không giành được focus từ iframe), phím Esc rơi vào iframe nên không tới listener của hộp. Trái với
-  comment trong code "Esc closes the box wherever focus is". Mở hộp từ menu chuột phải (TC_07, TC_24) thì không bị.
-
-## Các bước thực hiện
-1. Bấm chuột trái vào đường trên. 2. Nhấn Esc. 3. Bấm vào ô giá, nhấn Esc.
-
-## Kết quả mong đợi
-- [ ] Ô giá được focus, Esc ở bước 2 đóng hộp. **Hiện tại:** ô giá không focus, bước 2 hộp vẫn mở; phải bấm vào hộp
-  rồi Esc (bước 3) mới đóng.
-
 # [TC_CBG_33] Đổi mã trên biểu đồ → đường đổi theo mã mới
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -542,20 +510,6 @@ Giá nến vẫn lấy thật nên các mức giá trong test được tính t�
 
 ## Kết quả mong đợi
 - [ ] Thẻ đóng; gửi lưu setting `chart_alert_intro_seen = "1"`.
-
-# [TC_CBG_42] Bước cuối bấm "Tạo cảnh báo VNM" → hộp không mở
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞 bug)
-- **Kết quả đo được:** lỗi JS `ReferenceError: openCreateBox is not defined` (console). `requestAlertIntro` trong
-  `chartPriceAlerts.js` gọi `openCreateBox(...)`, nhưng file chỉ có hàm `openPriceAlertCreate` — tên hàm bị đổi mà chỗ
-  gọi chưa đổi theo. Thẻ vẫn đóng và vẫn tính là đã xem → người dùng mất luôn lối tắt này. Sửa gợi ý: đổi thành
-  `openPriceAlertCreate(request.getMack(), 0, request.from)`.
-
-## Các bước thực hiện
-1. Đi tới bước 4/4, bấm "Tạo cảnh báo VNM".
-
-## Kết quả mong đợi
-- [ ] Thẻ đóng, hộp "Tạo cảnh báo giá" của VNM mở với giá hiện tại. **Hiện tại:** hộp không mở, console báo lỗi trên.
 
 # [TC_CBG_43] Đã xem rồi → thẻ không hiện
 
@@ -713,24 +667,18 @@ Giá nến vẫn lấy thật nên các mức giá trong test được tính t�
 |---|---|
 | ✅ Áp dụng | 17 |
 | 🆕 Testcase mới | 32 |
-| ⚠️ Cần xác nhận thêm | 5 (🐞 TC_03, TC_32, TC_42 · `test.fixme` TC_53, TC_54) |
-| **Tổng** | **54** |
+| ⚠️ Cần xác nhận thêm | 2 (`test.fixme` TC_53, TC_54) |
+| **Tổng** | **51** |
 
-52 case chạy tự động (pass 2 lần liên tiếp với `--workers=2`), 2 case `test.fixme`. Case 🐞 assert đúng hành vi đo
-được, nên khi dev sửa thì test sẽ fail — lúc đó đổi assert về hành vi đúng.
+49 case chạy tự động, 2 case `test.fixme`.
+
+**Cập nhật 10/11/2026:** xoá TC_CBG_03, TC_CBG_32, TC_CBG_42 và ghi chú ngoài lề về deep-link `/phan-tich-co-ban/VNM` (TC_PTCB_08) (bug được user chấp nhận). 54 → 51 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **🐞 Nút "Tạo cảnh báo <mã>" ở bước cuối thẻ giới thiệu không làm gì** (TC_42) — `ReferenceError: openCreateBox is
-   not defined`. Thẻ vẫn bị đánh dấu đã xem nên người dùng không có cơ hội bấm lại.
-2. **🐞 Hộp sửa mở bằng cách bấm vào đường không nhận phím Esc, ô giá không được focus** (TC_32) — focus kẹt trong iframe
-   biểu đồ. Gõ phím ngay sau khi mở hộp sẽ rơi vào biểu đồ chứ không vào ô giá.
-3. **🐞 Chế độ tối: dòng "Tạo cảnh báo…" vẫn dùng màu tím đậm của chế độ sáng** (TC_03) — dò lớp tối trên `body` thay vì
-   `.c-app`.
 4. **Chuột phải vào đường không hiện menu "Sửa cảnh báo giá" mà mở thẳng hộp sửa** (TC_29) — dòng menu đó trong code là
    code chết với biểu đồ TradingView (vẫn dùng ở biểu đồ lightweight-charts, TC_49).
 5. **prev2 hiện trỏ backend production** — tài khoản prev2 riêng không còn dùng được, mọi lệnh ghi trong test phải giả
    lập/chặn. Spec Replay & Chia khung (`TaReplayLayoutPage`) vẫn đọc `PREV2_USER_*` nên cần xem lại khi chạy lại màn đó.
 6. Khác app: web không có toast "Tạo cảnh báo thành công" / "Xoá thành công", không có popup xác nhận xoá, lỗi mất mạng
    dùng chung thông báo "Có lỗi xảy ra, vui lòng thử lại".
-7. Ngoài lề: deep-link `/phan-tich-co-ban/VNM` hiện header VHM nhưng biểu đồ VNM — chính là bug đã ghi ở TC_PTCB_08.

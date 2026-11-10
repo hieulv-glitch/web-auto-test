@@ -9,14 +9,26 @@
 - **Phương pháp sinh:** Đọc source code (`Register.vue`, `router/index.js`) + kiểm thử trực tiếp trên môi
   trường thật bằng Playwright. **An toàn:** mọi kịch bản có khả năng tạo tài khoản thật đều được mock API
   `/auth/register` (không đụng backend thật, không gửi OTP thật, không tạo dữ liệu rác trên production).
+- **Cập nhật 10/11/2026 (nhánh B, chạy trên localhost:8080 = nhánh `preprod` 21d9d1d04, gọi backend PRODUCTION):**
+  chỉ sửa các case sai so với code hiện tại, không kiểm kê lại toàn màn.
+  - 08/09/2026 (commit c6eb88219): modal OTP — kênh Email tắt (`allowEmailOtp: false`, mặc định kênh **Zalo**) → bỏ nút
+    "Xác thực bằng email/zalo" → **xoá TC_DANGKY_80**; thêm nút X "Đóng" (`.otp-close`), `closeOnBackdrop=false`;
+    xử lý lỗi gom qua `extractApiError()` → **bug TC_DANGKY_68 đã được sửa**. Sửa TC_03/68/77/78.
+  - 07/10/2026 (commit 26cfdbe01): logo đổi link `/` → `/home` → sửa TC_DANGKY_72.
+  - 26/10/2026 (commit 1db8b5534): API chuyển sang NestJS `$apiAdressNest` = `https://api2.kfsp.vn` — các endpoint
+    `/auth/register`, `/auth/vertify-otp`, `/auth/resend-otp`, `/auth/check-email`, `/auth/check-phone` (đều POST).
+  - **An toàn:** spec cài máy chủ giả ở mức context (`FakeRegisterServer` trong `pages/RegisterPage.ts`): register mặc
+    định bị huỷ, vertify/resend OTP luôn trả giả, check-email/phone trả giả `{exist:false}` (riêng TC_DANGKY_38 cho tra
+    cứu SĐT thật — chỉ đọc), mọi request ghi khác tới `*.kfsp.vn` bị huỷ và mỗi test assert không có request lạ nào.
 - **Quy ước trạng thái:** ✅ Áp dụng · 🆕 Testcase mới · ⚠️ Cần xác nhận thêm.
 
 ## ⚠️ Phát hiện lớn cần đọc trước
 
 So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đáng kể** ở nhiều điểm — không phải suy đoán,
-đã verify qua code + chạy thật:
+đã verify qua code + chạy thật. **10/11/2026 user xác nhận mục 1–4 KHÔNG phải bug** (chỉ là khác biệt validate so
+với app) — không báo dev, không tính vào danh sách bug; các testcase tương ứng (TC_06/07/08/11/21/22/33–36/42/44/45–53) đã xoá:
 
-1. **Không có validate định dạng cho Họ tên** — số, ký tự đặc biệt đều được chấp nhận làm tên.
+1. ~~**Không có validate định dạng cho Họ tên**~~ — số, ký tự đặc biệt đều được chấp nhận làm tên — **Không phải bug** (user xác nhận 10/11/2026): chỉ là khác biệt validate so với app, testcase đã xoá.
 2. **Regex số điện thoại rất lỏng** (`/^(\+?\d{7,15}|0\d{6,14})$/`) — chấp nhận cả số **không bắt đầu bằng 0**,
    **>10 chữ số**, **<10 chữ số** (miễn đủ 7-15 số), **sai đầu số** — tất cả đều KHÁC kỳ vọng của app.
 3. **Không có validate độ phức tạp mật khẩu** — chỉ cần ≥ 6 ký tự bất kỳ (chữ thường thuần, chữ hoa thuần, số
@@ -25,9 +37,8 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 4. **Regex email không chặn hết các case app mong đợi** — `abc..xyz@gmail.com` (dấu chấm liền nhau) và
    `.abc@gmail.com` (bắt đầu bằng dấu chấm) đều được coi là **hợp lệ** trên web.
 5. **Xử lý lỗi khi mất mạng AN TOÀN hơn Login** (dùng `?.` optional chaining đúng chỗ) — không crash JS.
-6. **🐞 Nghi vấn bug:** khi server trả lỗi mà response không có field `errors` (không theo đúng format thường
-   gặp), code `dataError?.errors.message[0]` sẽ ném lỗi JS `Cannot read properties of undefined` — đã verify
-   bằng cách mock response 500 dạng `{ success: false, message: '...' }` (không có `errors`).
+6. ~~**🐞 Bug:** response lỗi thiếu field `errors` → crash JS~~ — **đã sửa 08/09/2026** (`extractApiError()`), xem
+   TC_DANGKY_68.
 7. Đăng ký thành công **không chuyển thẳng về Đăng nhập** như 1 dòng mô tả cũ trong sheet — mà hiện **modal
    xác thực OTP** (Email hoặc Zalo) ngay trên cùng trang, đúng như 1 testcase khác trong sheet đã ghi nhận.
 
@@ -86,7 +97,7 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ## Kết quả mong đợi
 - [ ] Gọi API đăng ký thành công.
-- [ ] Hiện modal "Nhập mã OTP Email" (hoặc Zalo tùy `otpSendType` server trả về).
+- [ ] Hiện modal "Nhập mã OTP Zalo" (mặc định) hoặc "Nhập mã OTP Email" nếu server trả `otpSendType: 'email'`.
 
 ---
 
@@ -123,14 +134,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_06] Họ tên chỉ chứa khoảng trắng
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app (giống ghi chú gốc trong sheet)**
-- **Tham chiếu App:** TC_09
-- **Ghi chú:** Code chỉ check `!this.name` (falsy) — chuỗi toàn khoảng trắng là truthy nên **KHÔNG bị chặn**,
-  không có logic trim. App cũng tự ghi nhận cùng vấn đề này ("Nhập các khoảng trông nhấn đăng kí không báo
-  lỗi").
-
 ## Các bước thực hiện
 1. Nhập Họ tên là các khoảng trắng.
 2. Click "Gửi đăng ký".
@@ -141,13 +144,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_07] Họ tên là ký tự số
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_10
-- **Ghi chú:** Code không có regex kiểm tra định dạng nội dung tên — chỉ check rỗng. Số/ký tự bất kỳ đều được
-  chấp nhận.
-
 ## Các bước thực hiện
 1. Nhập Họ tên là số (VD: `123456`).
 2. Click "Gửi đăng ký".
@@ -156,11 +152,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG hiển thị cảnh báo "Họ và tên không hợp lệ" như app — được coi là hợp lệ về mặt client.
 
 ---
-
-# [TC_DANGKY_08] Họ tên là ký tự đặc biệt
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_07
-- **Tham chiếu App:** TC_11
 
 ## Các bước thực hiện
 1. Nhập Họ tên là ký tự đặc biệt (VD: `@#$%^&*`).
@@ -201,12 +192,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] Cần xác nhận: có tự động cắt khoảng trắng hay giữ nguyên khi lưu.
 
 ---
-
-# [TC_DANGKY_11] Giới hạn ký tự tối đa Họ tên
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng code review**
-- **Tham chiếu App:** TC_15
-- **Ghi chú:** Không có thuộc tính `maxlength` trên textbox Họ tên.
 
 ## Các bước thực hiện
 1. Nhập Họ tên > 50 ký tự.
@@ -341,12 +326,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_21] Email có dấu chấm liền nhau
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_28
-- **Ghi chú:** Regex web (`/^[^\s@]+@[^\s@]+\.[^\s@]+$/`) không cấm dấu chấm liền nhau ở phần local.
-
 ## Các bước thực hiện
 1. Nhập Email có dấu chấm liền nhau (VD: `abc..xyz@gmail.com`).
 
@@ -354,12 +333,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG hiển thị lỗi (khác kỳ vọng app "Email không hợp lệ") — web coi là hợp lệ.
 
 ---
-
-# [TC_DANGKY_22] Email bắt đầu bằng dấu chấm
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_29
-- **Ghi chú:** Cùng lý do TC_DANGKY_21 — regex không cấm dấu chấm ở đầu phần local.
 
 ## Các bước thực hiện
 1. Nhập Email bắt đầu bằng dấu chấm (VD: `.abc@gmail.com`).
@@ -511,12 +484,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_33] Điện thoại > 10 ký tự
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN QUAN TRỌNG: khác app**
-- **Tham chiếu App:** TC_41
-- **Ghi chú:** Regex `0\d{6,14}` cho phép tới 15 chữ số sau số 0. `09871234567` (11 số) vẫn khớp regex.
-
 ## Các bước thực hiện
 1. Nhập Điện thoại 11 chữ số bắt đầu bằng 0 (VD: `09871234567`).
 
@@ -524,12 +491,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG hiển thị lỗi (khác kỳ vọng app "Số điện thoại không hợp lệ") — được coi là hợp lệ.
 
 ---
-
-# [TC_DANGKY_34] Điện thoại < 10 ký tự
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_42
-- **Ghi chú:** Regex chỉ yêu cầu tối thiểu 7 số tổng cộng (0 + 6 số). `098712345` (9 số) vẫn khớp.
 
 ## Các bước thực hiện
 1. Nhập Điện thoại 9 chữ số (VD: `098712345`).
@@ -539,13 +500,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_35] Điện thoại không bắt đầu bằng 0
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify trực tiếp: KHÁC app**
-- **Tham chiếu App:** TC_43
-- **Ghi chú:** Nhánh regex `\+?\d{7,15}` không yêu cầu bắt đầu bằng 0 — đã verify live, không có cảnh báo nào
-  xuất hiện.
-
 ## Các bước thực hiện
 1. Nhập Điện thoại không bắt đầu bằng 0 (VD: `1987123456`).
 
@@ -553,12 +507,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG hiển thị lỗi (khác kỳ vọng app "Số điện thoại không hợp lệ") — đã verify là hợp lệ trên web.
 
 ---
-
-# [TC_DANGKY_36] Điện thoại có đầu số không hợp lệ
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_44
-- **Ghi chú:** Regex không kiểm tra đầu số nhà mạng hợp lệ của Việt Nam, chỉ kiểm tra định dạng số học.
 
 ## Các bước thực hiện
 1. Nhập Điện thoại đầu số không hợp lệ (VD: `0123456789`).
@@ -638,14 +586,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_42] Mật khẩu chỉ chứa khoảng trắng
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: phụ thuộc độ dài**
-- **Tham chiếu App:** TC_54
-- **Ghi chú:** Không có regex chặn khoảng trắng thuần. Nếu < 6 dấu cách → báo lỗi độ dài "Mật khẩu cần ít nhất
-  6 ký tự."; nếu ≥ 6 dấu cách → KHÔNG có lỗi gì (khác app kỳ vọng "Mật khẩu không hợp lệ" trong mọi trường
-  hợp).
-
 ## Các bước thực hiện
 1. Nhập Mật khẩu là 8 dấu cách.
 2. Click "Gửi đăng ký".
@@ -670,12 +610,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_44] Mật khẩu > 20 ký tự
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_56
-- **Ghi chú:** Không có giới hạn trên (`maxlength` hay validate) cho độ dài mật khẩu.
-
 ## Các bước thực hiện
 1. Nhập Mật khẩu > 20 ký tự.
 
@@ -683,13 +617,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG hiển thị cảnh báo giới hạn ký tự (khác app) — vẫn được coi là hợp lệ nếu ≥ 6 ký tự.
 
 ---
-
-# [TC_DANGKY_45] Mật khẩu chỉ chữ thường — **PHÁT HIỆN LỚN**
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation (mock API): web CHO PHÉP**
-- **Tham chiếu App:** TC_57
-- **Ghi chú:** KHÔNG có regex kiểm tra độ phức tạp mật khẩu trên web — hoàn toàn khác 8 testcase app (TC57-64)
-  yêu cầu đủ hoa/thường/số/ký tự đặc biệt.
 
 ## Các bước thực hiện
 1. Nhập Mật khẩu chỉ chữ thường, ≥ 6 ký tự (VD: `abcdefgh`).
@@ -701,11 +628,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_46] Mật khẩu chỉ chữ hoa
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45 (không có complexity check)
-- **Tham chiếu App:** TC_58
-
 ## Các bước thực hiện
 1. Nhập Mật khẩu chỉ chữ hoa, ≥ 6 ký tự (VD: `ABCDEFGH`).
 
@@ -713,11 +635,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG bị chặn (khác app).
 
 ---
-
-# [TC_DANGKY_47] Mật khẩu chỉ số
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45
-- **Tham chiếu App:** TC_59
 
 ## Các bước thực hiện
 1. Nhập Mật khẩu chỉ số, ≥ 6 ký tự (VD: `12345678`).
@@ -727,11 +644,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_48] Mật khẩu chỉ ký tự đặc biệt
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45
-- **Tham chiếu App:** TC_60
-
 ## Các bước thực hiện
 1. Nhập Mật khẩu chỉ ký tự đặc biệt, ≥ 6 ký tự (VD: `@#$%^&*!`).
 
@@ -739,11 +651,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG bị chặn (khác app).
 
 ---
-
-# [TC_DANGKY_49] Mật khẩu thiếu chữ hoa
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45
-- **Tham chiếu App:** TC_61
 
 ## Các bước thực hiện
 1. Nhập Mật khẩu thiếu chữ hoa (VD: `abc@1234`).
@@ -753,11 +660,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_50] Mật khẩu thiếu chữ thường
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45
-- **Tham chiếu App:** TC_62
-
 ## Các bước thực hiện
 1. Nhập Mật khẩu thiếu chữ thường (VD: `ABC@1234`).
 
@@ -765,11 +667,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG bị chặn (khác app).
 
 ---
-
-# [TC_DANGKY_51] Mật khẩu thiếu số
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45
-- **Tham chiếu App:** TC_63
 
 ## Các bước thực hiện
 1. Nhập Mật khẩu thiếu số (VD: `Abcdefg@`).
@@ -779,11 +676,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_52] Mật khẩu thiếu ký tự đặc biệt
-
-- **Trạng thái:** ✅ Áp dụng — hành vi giống TC_DANGKY_45
-- **Tham chiếu App:** TC_64
-
 ## Các bước thực hiện
 1. Nhập Mật khẩu thiếu ký tự đặc biệt (VD: `Abcd1234`).
 
@@ -791,12 +683,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - [ ] KHÔNG bị chặn (khác app).
 
 ---
-
-# [TC_DANGKY_53] Mật khẩu có ký tự Unicode (tiếng Việt có dấu)
-
-- **Trạng thái:** ✅ Áp dụng — **PHÁT HIỆN: khác app**
-- **Tham chiếu App:** TC_66
-- **Ghi chú:** Không có regex chặn ký tự Unicode trong mật khẩu.
 
 ## Các bước thực hiện
 1. Nhập Mật khẩu có dấu tiếng Việt, ≥ 6 ký tự (VD: `Mậtkhẩu@1`).
@@ -973,21 +859,6 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_65] Click liên tục nhiều lần
-
-- **Trạng thái:** ✅ Áp dụng — cần đo bằng automation (mock API để không tạo tài khoản thật)
-- **Tham chiếu App:** TC_79
-
-## Các bước thực hiện
-1. Nhập dữ liệu hợp lệ.
-2. Click "Gửi đăng ký" nhiều lần liên tục thật nhanh.
-
-## Kết quả mong đợi
-- [ ] Đo số lần gọi API `/auth/register` — kỳ vọng lý tưởng chỉ 1 lần; code không có state
-  `loading`/`:disabled` trên button nên nhiều khả năng giống Login (gọi API nhiều lần).
-
----
-
 # [TC_DANGKY_66] Loading khi đăng ký
 
 - **Trạng thái:** ✅ Áp dụng — cần đo bằng automation
@@ -1019,20 +890,20 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 # [TC_DANGKY_68] Đăng ký khi server lỗi (500, response thiếu field `errors`)
 
-- **Trạng thái:** ✅ Áp dụng — **🐞 BUG xác nhận qua automation**
+- **Trạng thái:** ✅ Áp dụng — **Bug cũ đã được sửa (verify 10/11/2026)**
 - **Tham chiếu App:** TC_82
-- **🐞 Phát hiện:** Mock response 500 dạng `{ success: false, message: '...' }` (không có field `errors`) →
-  ném lỗi JS **`Cannot read properties of undefined (reading 'message')`** tại dòng
-  `dataError?.errors.message[0]` trong `register()`. Nếu backend thực tế luôn trả kèm `errors` thì không phát
-  sinh, nhưng code không an toàn với response không đúng format — cần báo dev.
+- **Cập nhật:** trước đây mock 500 `{ success: false, message: '...' }` làm crash JS `Cannot read properties of
+  undefined (reading 'message')` tại `dataError?.errors.message[0]`. Commit c6eb88219 (08/09/2026) thay bằng
+  `extractApiError()` (chịu được cả 2 dạng lỗi backend) → nay không crash, toast lỗi hiện `message` của server.
 
 ## Các bước thực hiện
-1. Mock API `/auth/register` trả 500 với body không có field `errors`.
+1. Mock API `/auth/register` trả 500 với body `{ success: false, message: 'Internal Server Error' }` (không có `errors`).
 2. Nhập dữ liệu hợp lệ, click "Gửi đăng ký".
 
 ## Kết quả mong đợi
-- [ ] **Thực tế (bug):** Lỗi JS `Cannot read properties of undefined (reading 'message')`.
-- [ ] **Kỳ vọng đúng:** Nên hiển thị "Có lỗi xảy ra, vui lòng thử lại sau" mà không crash.
+- [ ] KHÔNG có lỗi JS runtime.
+- [ ] Toast lỗi hiển thị "Internal Server Error" (message server; không có message thì "Lỗi đăng ký tài khoản, vui
+  lòng thử lại sau"). Modal OTP không mở.
 
 ---
 
@@ -1080,14 +951,14 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 # [TC_DANGKY_72] Click logo chuyển về trang chủ
 
-- **Trạng thái:** 🆕 Testcase mới (app test icon back, web dùng logo — khác cả target so với Login)
-- **Ghi chú:** Logo ở Đăng Ký trỏ về **`/`** (khác Login trỏ về `/home/#trang-chu`).
+- **Trạng thái:** 🆕 Testcase mới (app test icon back, web dùng logo)
+- **Cập nhật:** 07/10/2026 (commit 26cfdbe01) logo đổi link `/` → **`/home`** (giống logo màn Đăng nhập).
 
 ## Các bước thực hiện
 1. Click logo "KungFuStocksPro".
 
 ## Kết quả mong đợi
-- [ ] Điều hướng tới `/`.
+- [ ] Logo có `href="/home"`, click điều hướng tới `/home`.
 
 ---
 
@@ -1158,28 +1029,36 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation (mock)**
 - **Mô tả:** Modal hiện ngay sau khi đăng ký thành công, trên cùng trang `/register`.
 
+- **Cập nhật:** 08/09/2026 (commit c6eb88219) — kênh Email tắt (`allowEmailOtp: false`) nên **không còn** link đổi
+  kênh "Xác thực bằng zalo/email"; mặc định kênh Zalo; thêm nút X "Đóng" ở góc phải trên; header/footer CoreUI bị
+  ẩn; `closeOnBackdrop=false` (click nền ngoài không đóng).
+
 ## Các bước thực hiện
-1. Đăng ký thành công (xem TC_DANGKY_03).
+1. Đăng ký thành công (xem TC_DANGKY_03), server không trả `otpSendType`.
+2. Click vùng nền ngoài modal, rồi click nút X "Đóng".
 
 ## Kết quả mong đợi
-- [ ] Hiển thị tiêu đề "Nhập mã OTP Email" (hoặc "...Zalo" tùy kênh).
+- [ ] Hiển thị tiêu đề "Nhập mã OTP Zalo".
 - [ ] Ô nhập 6 số, đếm ngược "Gửi lại mã sau: 00:59s".
-- [ ] Link đổi kênh xác thực ("Xác thực bằng zalo"/"...email").
-- [ ] 4 icon liên hệ hỗ trợ: Zalo, Facebook, Telegram, Gmail.
+- [ ] KHÔNG có nút đổi kênh xác thực.
+- [ ] "Liên hệ hỗ trợ" + 4 link: Zalo (`zalo.me`), Facebook (`facebook.com/kfsp.official`), Telegram
+  (`t.me/KFSPTEAM`), Gmail (`mailto:kfspteam@kfsp.vn`).
+- [ ] Click nền ngoài: modal vẫn mở. Click nút X "Đóng": modal đóng.
 
 ---
 
 # [TC_DANGKY_78] Nút "Gửi lại mã" chỉ bật sau khi hết đếm ngược
 
 - **Trạng thái:** 🆕 Testcase mới
-- **Mô tả:** Theo code, nút "Gửi lại mã" có `:disabled="countdown > 0"`, ban đầu `countdown = 60`.
+- **Mô tả:** Trong lúc `countdown > 0` (ban đầu 60) chỉ hiện dòng "Gửi lại mã sau: 00:xxs"; nút "Gửi lại mã" dùng
+  `v-else` nên **ẩn hẳn** (không phải disable) cho tới khi đếm ngược về 0. Bấm → `POST /auth/resend-otp` (kênh zalo).
 
 ## Các bước thực hiện
 1. Mở modal OTP.
 2. Quan sát nút gửi lại mã trong lúc đếm ngược.
 
 ## Kết quả mong đợi
-- [ ] Nút "Gửi lại mã" bị disable/ẩn trong lúc đếm ngược; hiện lại và bấm được khi đếm ngược về 0.
+- [ ] Nút "Gửi lại mã" ẩn trong lúc đếm ngược; hiện ra và bấm được khi đếm ngược về 0.
 
 ---
 
@@ -1197,33 +1076,21 @@ So với testcase gốc của app, form Đăng Ký trên web **lỏng hơn đán
 
 ---
 
-# [TC_DANGKY_80] Chuyển đổi kênh xác thực Email ↔ Zalo
-
-- **Trạng thái:** 🆕 Testcase mới
-- **Tham chiếu:** liên quan gián tiếp app TC_53 (module Đăng Nhập có OTP theo cách khác — không trùng)
-
-## Các bước thực hiện
-1. Trong modal OTP, click "Xác thực bằng zalo" (hoặc email, tùy kênh đang hiển thị).
-
-## Kết quả mong đợi
-- [ ] Đổi tiêu đề modal sang kênh mới, reset ô OTP, reset đếm ngược gửi lại mã.
-
----
-
-## Tổng hợp trạng thái (83 testcase gốc → 80 testcase sau khi lược bỏ 8, thêm 5 mới)
+## Tổng hợp trạng thái (83 testcase gốc → 57 testcase; TC_DANGKY_80 đã xoá 10/11/2026; cùng ngày xoá thêm 21 case validate lỏng hơn app — TC_06/07/08/11/21/22/33–36/42/44/45–53 — vì user xác nhận không phải bug; xoá TC_DANGKY_65 vì bug được chấp nhận)
 
 Đã tự động hoá bằng Playwright: [tests/dang-ky.spec.ts](../tests/dang-ky.spec.ts) (POM:
 [pages/RegisterPage.ts](../pages/RegisterPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| ✅ Áp dụng | 73 | Bao gồm ~15 case phát hiện hành vi khác app (đã verify qua code + automation) |
-| 🆕 Mới (riêng web) | 7 | Link gói dịch vụ, logo, và cả nhóm Modal OTP (app không kiểm tra) |
+| ✅ Áp dụng | 49 | Đã bỏ các case chỉ kiểm tra web validate lỏng hơn app |
+| 🆕 Mới (riêng web) | 5 | Link gói dịch vụ, logo, và cả nhóm Modal OTP (app không kiểm tra) |
 | ⚠️ Cần xác nhận thêm | 3 | Cần email test thật đã đăng ký (check tồn tại email), hoặc môi trường phụ để test trim |
 
 **🐞 Phát hiện đáng chú ý cần báo lại team dev:**
-1. Validate Số điện thoại quá lỏng — chấp nhận số không bắt đầu bằng 0, sai độ dài, sai đầu số (TC_DANGKY_33-36).
-2. Không có validate độ phức tạp mật khẩu — chỉ cần ≥ 6 ký tự bất kỳ (TC_DANGKY_45-53), khác hẳn 8 case app yêu cầu.
-3. Regex email không chặn hết case biên (dấu chấm liền nhau/mở đầu) (TC_DANGKY_21-22).
-4. **Bug xác nhận:** response lỗi thiếu field `errors` → crash JS `Cannot read properties of undefined (reading 'message')` (TC_DANGKY_68) — khác Login (Login crash khi mất mạng do thiếu `error.response`; Register lại an toàn ở đúng chỗ đó nhưng lại crash ở chỗ khác khi response không đúng format).
-5. Không chống double-submit (tương tự Login) — cần đo cụ thể qua automation (TC_DANGKY_65).
+1. ~~Validate Số điện thoại quá lỏng~~ — chấp nhận số không bắt đầu bằng 0, sai độ dài, sai đầu số — **Không phải bug** (user xác nhận 10/11/2026): chỉ là khác biệt validate so với app, testcase đã xoá.
+2. ~~Không có validate độ phức tạp mật khẩu~~ — chỉ cần ≥ 6 ký tự bất kỳ — **Không phải bug** (user xác nhận 10/11/2026): chỉ là khác biệt validate so với app, testcase đã xoá.
+3. ~~Regex email không chặn hết case biên~~ (dấu chấm liền nhau/mở đầu) — **Không phải bug** (user xác nhận 10/11/2026): chỉ là khác biệt validate so với app, testcase đã xoá.
+4. ~~**Bug xác nhận:**~~ **ĐÃ SỬA 08/09/2026:** response lỗi thiếu field `errors` → crash JS `Cannot read properties of undefined (reading 'message')` (TC_DANGKY_68) — khác Login (Login crash khi mất mạng do thiếu `error.response`; Register lại an toàn ở đúng chỗ đó nhưng lại crash ở chỗ khác khi response không đúng format).
+
+**Cập nhật 10/11/2026:** xoá TC_DANGKY_65 (bug được user chấp nhận); xoá ghi chú nghi vấn "Gửi lại mã" khi mất mạng và chữ cái trong ô OTP (bug được user chấp nhận).

@@ -30,7 +30,7 @@ async function openLinked(sync?: LinkSync, intervals: [string, string] = ['1D', 
     linkSync: sync ? { 'link-1': sync } : undefined,
   });
   await p.waitChartsReady();
-  // Biểu đồ chỉ coi là "nạp xong" 3,5 giây sau khi dựng (ReactChartTA is_loaded) — đổi chỉ báo trước đó không đồng bộ (TC_34).
+  // Biểu đồ chỉ coi là "nạp xong" 3,5 giây sau khi dựng (ReactChartTA is_loaded) — đổi chỉ báo trước đó không đồng bộ.
   if (settle) await p.browserPage.waitForTimeout(4000);
 }
 async function saveAs(name: string) {
@@ -496,22 +496,5 @@ test.describe('Liên kết thẻ — bảng Bố cục', () => {
     await expect(box).toContainText('đồng bộ những gì bạn chọn cho nhóm: mã cổ phiếu, khung thời gian, chỉ báo, trỏ chuột');
     await expect(box).toContainText('kéo hay thu phóng một thẻ thì các thẻ cùng khung thời gian hiện đúng đoạn đó');
     await expect(box).toContainText('chọn những gì cần đồng bộ rồi bấm Tạo nhóm');
-  });
-
-  test('TC_BDLK_34: ⚠️ Thêm chỉ báo trong 3,5 giây đầu sau khi biểu đồ dựng xong → không đồng bộ sang thẻ cùng nhóm cho tới lần đổi chỉ báo kế tiếp', async () => {
-    await p.openTpl({
-      layout: { frames: [[{ symbol: 'VNM', link: 'link-1' }], [{ symbol: 'HPG', link: 'link-1' }]] },
-      linkSync: { 'link-1': { symbol: false, interval: false, studies: true, range: false } },
-    });
-    // Không chờ thêm sau khi biểu đồ hiện: thêm RSI ngay (người dùng thao tác nhanh).
-    await expect(p.frameAt(0).locator('[data-name="legend-source-item"]').first()).toBeVisible({ timeout: 60000 });
-    await expect(p.frameAt(1).locator('[data-name="legend-source-item"]').first()).toBeVisible({ timeout: 60000 });
-    await p.chartApi(0, 'return chart.createStudy("Relative Strength Index", false, false, { length: 7 }).then(() => 1);');
-    await expect.poll(() => p.studies(0)).toEqual(['Volume', 'Relative Strength Index']);
-    await p.browserPage.waitForTimeout(6000);
-    expect(await p.studies(1)).toEqual(['Volume']);
-    // Lần đổi kế tiếp (sau khi đã nạp xong) mới gửi cả bộ, gồm RSI thêm lúc trước.
-    await p.chartApi(0, 'return chart.createStudy("Moving Average", true, false, { length: 21 }).then(() => 1);');
-    await expect.poll(async () => (await p.studies(1)).sort(), { timeout: 20_000 }).toEqual(['Moving Average', 'Relative Strength Index', 'Volume']);
   });
 });

@@ -1,14 +1,48 @@
-import { Page, Locator } from '@playwright/test';
+import { Page, Locator, BrowserContext, Route } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { Prev2Session, Prev2Account } from './Prev2Session';
+
+/**
+ * ⚠️ AN TOÀN DỮ LIỆU: localhost:8080 (nhánh preprod) gọi backend PRODUCTION (`$apiAdressNest` = https://api2.kfsp.vn,
+ * NestJS từ commit 1db8b5534). API ghi của màn Cộng đồng (đọc từ source 10/11/2026):
+ *   POST   /api/stocks/community/post/store          đăng bài (addNewPost.vue)
+ *   PUT    /api/stocks/community/post/update         sửa bài (post.vue, PinnedPost.vue)
+ *   DELETE /api/stocks/community/post/:id            xoá bài
+ *   POST   /api/stocks/community/update-notify       tắt/bật thông báo bài
+ *   PATCH  /api/stocks/community/post/pin|un-pin/:id ghim / bỏ ghim
+ *   POST   /api/stocks/community/like                thích bài / bình luận
+ *   POST   /api/stocks/community/follow              theo dõi / bỏ theo dõi (post.vue, follow.vue, menuFeedCard.vue, userSuggestions.vue)
+ *   POST   /api/stocks/community/comment/store|edit|delete   bình luận
+ * `SafetyNet` (cài ở mức context → phủ cả tab mới): mọi request KHÔNG phải GET/HEAD/OPTIONS tới *.kfsp.vn /
+ * *.vietpointer.vn / *.kungfustockspro.live đều bị HUỶ và ghi vào `blocked` (spec assert rỗng sau mỗi test), trừ:
+ *   - `/api/login` (tạo phiên đăng nhập, không đổi dữ liệu) và `socket.io` (kênh giá realtime, long-polling POST);
+ *   - `/api/activitylog/*` (app tự ghi nhật ký xem trang) → trả giả thành công, không tới server.
+ * Test nào cần quan sát luồng ghi thành công thì tự `page.route` giả lập đúng API đó (route đăng ký sau được hỏi trước).
+ */
+export class SafetyNet {
+  static readonly HOST = /(^|\.)(kfsp\.vn|vietpointer\.vn|kungfustockspro\.live)$/;
+  readonly blocked: string[] = [];
+
+  async install(context: BrowserContext) {
+    await context.route((u) => SafetyNet.HOST.test(u.hostname), (route) => this.handle(route));
+  }
+
+  private async handle(route: Route) {
+    const r = route.request();
+    const m = r.method();
+    if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return route.fallback();
+    if (/socket\.io|\/api\/login(\?|$)/.test(r.url())) return route.fallback();
+    if (/\/api\/activitylog\//.test(r.url())) return route.fulfill({ json: { success: true } });
+    this.blocked.push(`${m} ${r.url().split('?')[0]}`);
+    return route.abort();
+  }
+}
 
 export class CommunityPage extends BasePage {
   readonly tabAiUpdate: Locator;
   readonly tabMoiNhat: Locator;
   readonly tabQuanTam: Locator;
   readonly tabPhoBien: Locator;
-  readonly loginBanner: Locator;
-  readonly loginBannerButton: Locator;
-  readonly blockedModalText: Locator;
   readonly searchInput: Locator;
   readonly hotKeywordsSidebar: Locator;
   readonly composeBoxCollapsed: Locator;
@@ -21,19 +55,19 @@ export class CommunityPage extends BasePage {
   readonly hotKeywordsList: Locator;
   readonly profileCard: Locator;
   readonly suggestionsSidebarHeading: Locator;
+  readonly suggestionRows: Locator;
 
   constructor(page: Page) {
     super(page);
-    this.tabAiUpdate = page.locator('.button-type-feed', { hasText: 'AI Cập Nhật' });
-    this.tabMoiNhat = page.locator('.button-type-feed', { hasText: 'Mới nhất' });
-    this.tabQuanTam = page.locator('.button-type-feed', { hasText: 'Quan tâm' });
-    this.tabPhoBien = page.locator('.button-type-feed', { hasText: 'Phổ biến' });
-    this.loginBanner = page.getByText('Bạn cần đăng nhập để tham gia thảo luận');
-    this.loginBannerButton = page.locator('.btn-login');
-    this.blockedModalText = page.getByText('Bạn cần đăng nhập để sử dụng chức năng này');
+    // Một hàng tab phẳng `CommunityTabs.vue` (từ 14/09/2026): "AI cập nhật" + 3 thẻ Thảo luận.
+    this.tabAiUpdate = page.locator('.cd-main-tab', { hasText: /AI cập nhật/i });
+    this.tabMoiNhat = page.locator('.cd-main-tab', { hasText: 'Mới nhất' });
+    this.tabQuanTam = page.locator('.cd-main-tab', { hasText: 'Quan tâm' });
+    this.tabPhoBien = page.locator('.cd-main-tab', { hasText: 'Phổ biến' });
     this.searchInput = page.getByPlaceholder('Nhập từ khóa tìm kiếm');
-    this.hotKeywordsSidebar = page.locator('.top-hashtag-categories');
-    this.hotKeywordsList = page.locator('.top-hashtag-categories .item-categories');
+    // Ô "🔥 Từ khoá hot" = `TopicChips.vue` (thay topHashTagCategories.vue từ 16/09/2026), mỗi chủ đề là 1 nút `.topic-chip`.
+    this.hotKeywordsSidebar = page.locator('.topic-card');
+    this.hotKeywordsList = page.locator('.topic-card .topic-chip');
     this.composeBoxCollapsed = page.getByPlaceholder('Bạn có nhận định gì muốn chia sẻ?');
     this.openModal = page.locator('.modal.show.d-block');
     // Editor rich-text (Quill) — contenteditable, KHÔNG có thuộc tính placeholder chuẩn.
@@ -41,7 +75,9 @@ export class CommunityPage extends BasePage {
     this.composeModalSubmitButton = this.openModal.getByText('Đăng bài ngay', { exact: true });
     this.firstPost = page.locator('.wrapper-item').first();
     this.profileCard = page.locator('.menu-feed-card:visible');
-    this.suggestionsSidebarHeading = page.getByRole('heading', { name: 'Gợi ý', exact: true });
+    // userSuggestions.vue (làm lại 14/09/2026): tiêu đề là `.sg-title` (không còn thẻ heading), mỗi người gợi ý là `.sg-row`.
+    this.suggestionsSidebarHeading = page.locator('.sg-title', { hasText: /^Gợi ý$/ });
+    this.suggestionRows = page.locator('.sg-row');
   }
 
   stockCodeInput(): Locator {
@@ -50,6 +86,12 @@ export class CommunityPage extends BasePage {
 
   hashtagInput(): Locator {
     return this.openModal.getByPlaceholder('Thêm hashtag');
+  }
+
+  /** Đăng nhập bằng phiên cache của `Prev2Session` (tự chặn ghi setting) rồi mở thẳng thẻ cần test. */
+  async login(tab: 'moi-nhat' | 'quan-tam' | 'pho-bien' = 'moi-nhat', account: Prev2Account = 'paid') {
+    await new Prev2Session(this.page).open({ account, path: `/cong-dong/${tab}` });
+    await this.page.waitForLoadState('networkidle');
   }
 
   async gotoAiFeed() {
@@ -87,37 +129,8 @@ export class CommunityPage extends BasePage {
   }
 
   followStatItem(): Locator {
-    return this.profileCard.locator('li', { hasText: 'Đang theo dõi' });
-  }
-
-  /** Nút Theo dõi/Đang theo dõi trong list Follower/Following (ItemUser.vue) — dùng để UNFOLLOW. */
-  followButtonInList(userName: string): Locator {
-    return this.page.locator('.button-interact-name', { hasText: userName })
-      .locator('xpath=following-sibling::div[contains(@class,"button-interact")]').first();
-  }
-
-  /** Nút Theo dõi trong sidebar "Gợi ý" (userSuggestions.vue) — danh sách này XOAY VÒNG NGẪU NHIÊN, không đảm bảo
-   * chứa đúng người cần tìm — chỉ dùng khi biết chắc người đó đang hiển thị, KHÔNG dùng để phục hồi trạng thái. */
-  sidebarSuggestionFollowButton(userName: string): Locator {
-    return this.page.locator('.user-item', { hasText: userName }).locator('.button-interact').first();
-  }
-
-  /** Cách đáng tin cậy để follow lại 1 tác giả cụ thể: bấm vào tên họ trên 1 bài viết có thật của họ trong
-   * feed (nếu đang hiển thị) để vào trang cá nhân, rồi bấm nút Theo dõi ở đó — không phụ thuộc sidebar gợi ý
-   * ngẫu nhiên. Trả về true nếu follow thành công. */
-  async followAuthorViaProfile(authorName: string): Promise<boolean> {
-    const authorLink = this.page.locator('.font-name', { hasText: authorName }).first();
-    if (!(await authorLink.count())) return false;
-    await authorLink.click();
-    await this.page.waitForLoadState('networkidle');
-    const followBtn = this.page.locator('.button-type-feed', { hasText: 'Theo dõi' }).first();
-    const text = (await followBtn.textContent().catch(() => null))?.trim();
-    if (text === 'Theo dõi') {
-      await followBtn.click();
-      await this.page.waitForTimeout(600);
-      return true;
-    }
-    return text === 'Đang theo dõi'; // đã follow sẵn từ trước, coi như thành công
+    // menuFeedCard.vue (làm lại 14/09/2026): số liệu là `.mf-stat`, không còn `li`.
+    return this.profileCard.locator('.mf-stat', { hasText: 'Đang theo dõi' });
   }
 
   async openComposeModal() {

@@ -251,21 +251,6 @@ không cần `--workers=1` như các spec PTKT cũ.
 ## Kết quả mong đợi
 - [ ] Thanh dời theo chuột (toạ độ x, y đều giảm ~300px).
 
-# [TC_PTKT_RP_19] Mất mạng khi đang Replay không làm hỏng trang
-
-- **Trạng thái:** 🆕 Testcase mới
-- **Kết quả đo được:** khi offline và chọn ngày ngoài dữ liệu đã nạp (02/01/2019), thanh nhận ngày, nút chính
-  chuyển ngay sang "Đã tới nến mới nhất", **không có thông báo lỗi mạng nào** (xem mục Phát hiện).
-
-## Các bước thực hiện
-1. Mở Replay, ngắt mạng (`context.setOffline(true)`), đổi ngày sang 02/01/2019, bấm Chạy.
-2. Bật mạng lại, bấm ✕.
-
-## Kết quả mong đợi
-- [ ] Không có lỗi JS (`pageerror`); thanh vẫn thao tác được; ✕ đóng thanh bình thường.
-
----
-
 ## Nhóm: Replay — chọn biểu đồ chiếu lại
 
 # [TC_PTKT_RP_20] Bảng "Biểu đồ: n/m" hiển thị đúng khung và thẻ
@@ -334,22 +319,6 @@ không cần `--workers=1` như các spec PTKT cũ.
 ## Kết quả mong đợi
 - [ ] Mọi ô đã chọn dừng ở cùng mốc; ô nến tuần chỉ gồm các phiên tới mốc.
 - [ ] Thẻ vừa mở vào lượt tại đúng mốc đang chiếu; thẻ bị bỏ tick về dữ liệu hiện tại, các ô khác vẫn chiếu.
-
-# [TC_PTKT_RP_26] Bấm ra ngoài đóng bảng chọn biểu đồ
-
-- **Trạng thái:** 🆕 Testcase mới
-- **Khác biệt ghi nhận:** 2 chỗ bấm **không** đóng bảng: (1) vùng biểu đồ (bên trong iframe TradingView), vì
-  `onOutside` chỉ nghe `mousedown` trên document của trang ngoài; (2) nút dọc "Thông tin" của menu phải
-  (flexlayout), vì `onOutside` nghe ở pha bubble còn bảng Bố cục nghe ở pha capture — cùng cú bấm đó bảng Bố cục
-  đóng được (TC_28). Xem mục Phát hiện.
-
-## Các bước thực hiện
-1. Mở bảng "Biểu đồ: n/m", bấm vào nội dung panel bên phải (tiêu đề "Giao dịch").
-
-## Kết quả mong đợi
-- [ ] Bảng chọn đóng.
-
----
 
 ## Nhóm: Bố cục — chia khung
 
@@ -851,23 +820,16 @@ không cần `--workers=1` như các spec PTKT cũ.
 
 | Trạng thái | Số lượng |
 |---|---|
-| 🆕 Testcase mới | 61 |
+| 🆕 Testcase mới | 59 |
 | ⚠️ Cần xác nhận thêm | 1 (TC_PTKT_RP_25) |
-| **Tổng** | **62** |
+| **Tổng** | **60** |
 
 Cập nhật 09/11/2026: 64 → 62 TC (xoá TC_02, 03, 04, 56; thêm TC_65, 66; sửa TC_01, 05, 41, 42, 48 + tên thẻ toàn bộ). Chạy trên kfsp.vn.
 
+**Cập nhật 10/11/2026:** xoá TC_PTKT_RP_19, TC_PTKT_RP_26 và ghi chú bug "bấm Chạy khi biểu đồ chưa nạp xong" (bug được user chấp nhận). 62 → 60 TC.
+
 ## Phát hiện đáng chú ý
 
-1. **Bảng "Biểu đồ: n/m" (và danh sách tốc độ) của Replay không đóng khi bấm vào biểu đồ hoặc nút menu dọc
-   phải** (TC_26): `ChartReplayBar.onOutside` nghe `mousedown` ở pha bubble trên document trang ngoài — cú bấm
-   trong iframe TradingView không tới, cú bấm vào nút dọc flexlayout bị chặn trước khi tới. Bảng Bố cục
-   (`ChartLayoutPicker`, nghe pha capture) đóng đúng với cùng cú bấm. Lệch hành vi nhỏ, cần dev xác nhận.
-2. **Bấm Chạy khi biểu đồ chưa nạp xong thì không có phản hồi gì**: Replay chỉ nhận các ô đã có `tvWidget` +
-   `replayFeed`; chưa có ô nào sẵn sàng thì nút Chạy bấm được nhưng không bắt đầu, không báo. Gặp thật khi chạy
-   song song (trang tải chậm): bấm Chạy xong 20 giây nút vẫn ghi "Chạy". Người dùng mạng chậm có thể tưởng nút hỏng.
-3. **Mất mạng khi Replay không có thông báo lỗi** (TC_19): offline + chọn ngày ngoài vùng dữ liệu đã nạp → thanh
-   báo ngay "Đã tới nến mới nhất" như thể hết dữ liệu, người dùng không biết là do mất mạng. Không crash JS.
 4. **Đổi bố cục khi đang chiếu thì đóng hẳn thanh Replay** (TC_34), CHANGELOG chỉ ghi "các ô về dữ liệu hiện
    tại". Ghi theo hành vi thật, cần dev xác nhận là chủ đích.
 5. **Đổi ngày khi đang chạy thì chiếu lại từ ngày mới nhưng chuyển sang dừng** (TC_14). Có thể là chủ đích.

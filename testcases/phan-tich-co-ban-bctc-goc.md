@@ -77,21 +77,6 @@
 
 ## Nhóm: Lọc theo ngày
 
-# [TC_PTCB_BCTC_05] Lọc theo khoảng ngày (lọc theo NĂM)
-
-- **Trạng thái:** ✅ Áp dụng
-- **Ghi chú:** `ReportRaw` chỉ so sánh **năm** của BCTC với năm của Từ ngày / Đến ngày (`item.year >= from.year &&
-  <= to.year`). Ngày/tháng cụ thể bị bỏ qua. Lọc ở trình duyệt, không gọi lại API.
-
-## Các bước thực hiện
-1. Từ ngày 15/06/2023, Đến ngày 01/02/2024, bấm "Tìm kiếm".
-
-## Kết quả mong đợi
-- [ ] Còn đúng 8 BCTC của năm 2024 và 2023 (kể cả quý 1/2023, nằm trước 15/06/2023), vẫn theo thứ tự mới nhất trước.
-- [ ] Không có request `get-document` mới.
-
----
-
 # [TC_PTCB_BCTC_06] Bộ lọc chỉ áp dụng khi bấm "Tìm kiếm"
 
 - **Trạng thái:** ✅ Áp dụng
@@ -99,30 +84,6 @@
 ## Kết quả mong đợi
 - [ ] Đổi 2 ô ngày thành năm 2025 → bảng chưa đổi (15 dòng).
 - [ ] Bấm "Tìm kiếm" → còn 4 BCTC năm 2025.
-
----
-
-# [TC_PTCB_BCTC_07] Từ ngày = Đến ngày → không lọc
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Kết quả đo được:** `ReportRaw` chỉ lọc khi `from_date != to_date`. Chọn đúng 1 ngày (vd 05/05/2024) thì bộ lọc bị bỏ
-  qua và bảng hiện lại mọi năm. Người dùng chọn "1 ngày" sẽ thấy dữ liệu không liên quan. Cần dev xác nhận có cố ý
-  không (mặc định cả 2 ô cùng là hôm nay nên có thể dùng điều kiện này để nhận biết "chưa lọc").
-
-## Kết quả mong đợi (theo hành vi hiện tại)
-- [ ] Lọc năm 2025 (4 dòng), rồi tìm 05/05/2024 → 05/05/2024 → bảng về 15 dòng như mặc định.
-
----
-
-# [TC_PTCB_BCTC_08] Khoảng ngày không có BCTC → bảng trống
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Cập nhật:** thay TC_PTCB_BVPT_04.
-- **Kết quả đo được:** khi rỗng bảng không có dòng chữ nào (`no-items-view` là một `<p>` trống), người dùng không biết
-  là "không có dữ liệu" hay "đang tải".
-
-## Kết quả mong đợi
-- [ ] Tìm 2030 → 2031: 0 dòng, `tbody` không có chữ, thanh phân trang không hiện.
 
 ---
 
@@ -182,30 +143,6 @@
 
 ---
 
-# [TC_PTCB_BCTC_14] Tải chậm không có trạng thái đang tải
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Cập nhật:** thay TC_PTCB_BVPT_17. `is_loading` vẫn không được dùng trong template.
-
-## Kết quả mong đợi (theo hành vi hiện tại)
-- [ ] API chậm 12 giây → bảng trống, không spinner, rồi hiện 15 dòng khi có dữ liệu.
-
----
-
-# [TC_PTCB_BCTC_15] 🐞 Lỗi JS "reading 'classList'" mỗi lần mở tab
-
-- **Trạng thái:** 🆕 Testcase mới (bug đo được)
-- **Kết quả đo được:** console báo `TypeError: Cannot read properties of null (reading 'classList')` ngay khi mở tab.
-- **Nguyên nhân:** watcher `list_document_computed` trong `ReportRaw.vue` có `immediate: true`, nên chạy lúc `created()`
-  khi bảng chưa được vẽ. `document.querySelector('.report-raw nav[aria-label="pagination"]')` trả `null`, rồi
-  `paginationNav.classList.remove(...)` ném lỗi. Bảng vẫn hiện bình thường sau đó (Vue nuốt lỗi watcher).
-  Cùng kiểu lỗi với Watchlist rỗng (TC_WATCHLIST_19).
-
-## Kết quả mong đợi (theo hành vi hiện tại)
-- [ ] Bảng hiện đủ dữ liệu, console có lỗi `reading 'classList'`.
-
----
-
 ## Nhóm: Phân quyền & hiển thị
 
 # [TC_PTCB_BCTC_16] Tài khoản Free bị khoá tab
@@ -238,16 +175,17 @@
 
 ---
 
-## Tổng hợp trạng thái (18 testcase)
+## Tổng hợp trạng thái (13 testcase)
 
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
-| ✅ Áp dụng | 11 | 02, 04, 05, 06, 09, 10, 12, 13, 16, 17, 18 |
+| ✅ Áp dụng | 10 | 02, 04, 06, 09, 10, 12, 13, 16, 17, 18 |
 | 🆕 Testcase mới | 3 | 01, 03, 11 |
-| 🆕 Bug đo được | 1 | 15 |
-| ⚠️ Cần xác nhận thêm | 3 | 07, 08, 14 |
+| ⚠️ Cần xác nhận thêm | 0 | — |
 
 Không có `test.fixme`.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_BCTC_05, TC_PTCB_BCTC_07, TC_PTCB_BCTC_08, TC_PTCB_BCTC_14, TC_PTCB_BCTC_15 (bug được user chấp nhận).
 
 **TC cũ đã bỏ (không còn trên UI):**
 - TC_PTCB_BVPT_02: thẻ con "Sự kiện" là dead code.
@@ -255,10 +193,3 @@ Không có `test.fixme`.
 - TC_PTCB_BVPT_09 đến 11: khu Báo cáo phân tích.
 
 Các nội dung này đã chuyển sang `/thong-tin-su-kien` và đã có test ở `testcases/thong-tin-su-kien.md`.
-
-## Phát hiện đáng chú ý
-
-1. 🐞 **TC_15:** lỗi JS `reading 'classList'` mỗi lần mở tab (watcher `immediate` chạy trước khi bảng được vẽ).
-2. ⚠️ **TC_07:** chọn Từ ngày = Đến ngày thì bộ lọc bị bỏ qua.
-3. ⚠️ **TC_05:** lọc theo năm, không theo ngày: chọn 15/06/2023 vẫn ra BCTC quý 1/2023.
-4. ⚠️ **TC_08, TC_14:** bảng rỗng không có chữ báo, đang tải không có spinner, hai trạng thái trông giống hệt nhau.

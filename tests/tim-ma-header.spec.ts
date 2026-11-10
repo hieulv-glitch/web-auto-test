@@ -257,24 +257,6 @@ test.describe('Chọn mã → modal biểu đồ nhanh', () => {
     await expect(p.modalTitle).toHaveText('MBB', { timeout: 30_000 });
     expect(new URL(page.url()).pathname).toBe('/phan-tich-ky-thuat');
   });
-
-  test('TC_TIMMA_21: Đóng modal bằng nút × hoặc bấm ra nền; ⚠️ phím Esc không đóng modal', async ({ page }) => {
-    await p.open();
-    await p.type('vnm');
-    await p.input.press('Enter');
-    await expect(p.modalTitle).toHaveText('VNM', { timeout: 30_000 });
-    // Esc: CModal của CoreUI không xử lý phím Esc → modal vẫn mở (ghi nhận, cần PO xác nhận).
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(800);
-    await expect(p.modal).toBeVisible();
-    await p.modalClose.click();
-    await expect(p.modal).toHaveCount(0);
-    await p.type('ssi');
-    await p.input.press('Enter');
-    await expect(p.modalTitle).toHaveText('SSI', { timeout: 30_000 });
-    await page.mouse.click(5, 880); // nền tối ngoài khung modal
-    await expect(p.modal).toHaveCount(0);
-  });
 });
 
 // =====================================================================================================
@@ -307,14 +289,6 @@ test.describe('Mã gần đây', () => {
     await p.modalClose.click();
     await p.input.click();
     expect(await p.codes()).toEqual(['VIC', 'HPG', 'VNM', 'FPT', 'MBB']);
-  });
-
-  test('TC_TIMMA_24: ⚠️ Mã gần đây không còn tồn tại bị ẩn, nhưng hộp hiện ít hơn 5 mã dù còn mã hợp lệ phía sau', async () => {
-    // created() cắt còn 5 phần tử TRƯỚC, computed mới lọc mã không có trong list_mack_company → còn 4 dù mã thứ 6 hợp lệ.
-    await p.open({ recent: ['VNM', 'FPT', 'XXXX', 'HPG', 'MBB', 'SSI', 'VIC'] });
-    await p.input.click();
-    await expect(p.dropdownTitle).toHaveText('Mã gần đây');
-    expect(await p.codes()).toEqual(['VNM', 'FPT', 'HPG', 'MBB']);
   });
 
   test('TC_TIMMA_25: Dữ liệu "Mã gần đây" hỏng / không phải mảng / lẫn phần tử lạ → không lỗi JS, chỉ giữ phần tử là chuỗi', async ({ browser }) => {

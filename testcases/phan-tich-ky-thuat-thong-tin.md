@@ -1,5 +1,14 @@
 # Màn hình: Phân tích kỹ thuật — Panel "Thông tin"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). An toàn dữ liệu:
+đăng nhập bằng `safeLoginTa()` (pages/LegacySafetyNet.ts — phiên cache `Prev2Session`, chặn mọi ghi setting, ghi lại ở
+`settingWrites`) với **bố cục cố định** thay bố cục thật của tài khoản (trả phí: 1 khung, thẻ ACB + HPG; Free: 1 thẻ ACB)
++ lưới `useLegacySafetyNet` huỷ mọi request ghi khác tới production (POST chỉ đọc được cho qua: `news-related-by-mack`,
+`stock-signals/*`), assert rỗng sau mỗi test. Không còn ghi gì lên tài khoản → bỏ mode `serial`/yêu cầu `--workers=1`,
+bỏ các bước "trả lại mã gốc"; viewport 1600×900 (thanh công cụ TradingView nay thêm nút "Mẫu chỉ báo"/"Lưu", ở 1280px
+thanh công cụ trên/dưới biểu đồ bị co, một số nút bị ẩn). Icon chuông ở header panel "Thông tin" đã bỏ (commit "Cập nhật cảnh báo
+giá trên biểu đồ") → **xoá TC_PTKT_TT_02** (đã chuyển sang bộ canh-bao-gia).
+
 - **URL:** `/phan-tich-ky-thuat` — tài liệu con của [phan-tich-ky-thuat.md](phan-tich-ky-thuat.md).
 - **Component:** panel phải mục "Thông tin" render `TabInfo` (`ReactTabInfo.vue`) → chọn 1 trong 2 nhánh theo
   `is_index` (mã thuộc `["VNINDEX","HNXINDEX","UPCOMINDEX","VN30","HNX30","VN100"]`):
@@ -41,6 +50,7 @@
 
 # [TC_PTKT_TT_01] Header hiển thị đúng thông tin giá mã cổ phiếu thường
 
+- **Cập nhật 10/11/2026:** bỏ kiểm icon chuông (đã bỏ khỏi header panel).
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** tương ứng "thông tin mã + màu giá" trong Sheet
 - **Ghi chú:** Chỉ mã CÓ ĐỘ DÀI 3 KÝ TỰ (`mack.length === 3`, phân biệt với mã phái sinh dài hơn như VN30F1M)
@@ -56,24 +66,6 @@
 - [ ] Dòng "HOSE: ACB" (hoặc sàn tương ứng) cũng là link tới cùng URL.
 - [ ] Icon chuông (đặt cảnh báo) hiển thị cạnh dòng board:mã.
 - [ ] % thay đổi hiển thị kèm icon tooltip (ⓘ).
-
----
-
-# [TC_PTKT_TT_02] Click icon chuông mở đúng modal theo gói hội viên
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** `showModalAlert()` trong `HeaderInfo.vue`: tài khoản Free → `store.state.isShowModalPackage =
-  true` (modal mời nâng cấp); tài khoản thường → `store.state.isShowModalAlert = true` kèm
-  `store.state.mackAlert = mack` (modal đặt cảnh báo giá — đã có chi tiết ở 1 màn khác, ở đây chỉ verify MỞ
-  đúng, không chi tiết nội dung).
-
-## Các bước thực hiện
-1. Với tài khoản chính, click icon chuông ở header panel "Thông tin".
-2. Đăng nhập tài khoản Free, lặp lại.
-
-## Kết quả mong đợi
-- [ ] Tài khoản chính: modal đặt cảnh báo giá mở ra.
-- [ ] Tài khoản Free: modal mời nâng cấp gói hội viên mở ra (KHÔNG phải modal đặt cảnh báo).
 
 ---
 
@@ -114,6 +106,7 @@
 
 # [TC_PTKT_TT_05] Mini chart "Biểu đồ" hiển thị trong panel
 
+- **Cập nhật 10/11/2026:** chờ canvas mini chart tới 15s (vẽ muộn).
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Ghi chú:** Biểu đồ ECharts nhỏ trong ngày (`option_chart_price_vol`), CanvasRenderer — chỉ verify canvas tồn
   tại/hiển thị, không assert nội dung vẽ bên trong.
@@ -322,6 +315,7 @@
 
 # [TC_PTKT_TT_18] Tài khoản Free — khối "Định giá" mã chỉ số hiện ảnh tĩnh
 
+- **Cập nhật 10/11/2026:** bỏ bước đổi lại mã gốc (bố cục cố định, ghi bị chặn).
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation với tài khoản Free thật: Pass**
 - **Ghi chú:** Cùng cơ chế `isAccountFree` + `ProtectedView :url` như TC_PTKT_TT_13, nhưng đây là gate RIÊNG của
   `CommonInfoIndex.vue` (ảnh `dinh_gia_ta.png`) — độc lập với gate "NN & TD" cấp tab ngoài (TC_PTKT_TT_20).
@@ -351,6 +345,7 @@
 
 # [TC_PTKT_TT_20] Tài khoản Free — tab "NN & TD" mã chỉ số gate theo featureName
 
+- **Cập nhật 10/11/2026:** bỏ bước đổi lại mã gốc (bố cục cố định, ghi bị chặn).
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation với tài khoản Free thật: Pass**
 - **Ghi chú:** `Orderboard/Indexcode/index.vue`: `featureName` trả `'ta_nn_td'` khi `type_tab == 'foreign_
   transaction'`, gate qua `features_disabled.hasOwnProperty('ta_nn_td')` — CƠ CHẾ KHÁC HẲN gate của mã cổ phiếu
@@ -408,7 +403,7 @@ Thông tin" trong [pages/TechnicalChartPage.ts](../pages/TechnicalChartPage.ts))
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 7 | TC_PTKT_TT_01, 05, 06, 07, 08, 09, 21 |
-| 🆕 Mới (riêng web) | 15 | TC_PTKT_TT_02, 03, 04, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22 |
+| 🆕 Mới (riêng web) | 14 | TC_PTKT_TT_03, 04, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22 |
 | ⚠️ Cần xác nhận thêm | 0 | |
 
 **Phát hiện đáng chú ý:**

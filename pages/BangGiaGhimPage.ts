@@ -67,8 +67,9 @@ export class BangGiaGhimPage extends BangGiaPage {
     await this.page.route((u) => /(^|\.)kfsp\.vn$/.test(u.hostname), async (route) => {
       const r = route.request();
       if (r.method() === 'GET' || r.method() === 'OPTIONS' || /socket\.io|\/api\/login(\?|$)/.test(r.url())) return route.fallback();
-      // POST chỉ đọc (trang Watchlist dùng khi điều hướng qua lại — TC_BGGHIM_20).
-      if (/\/api\/(filter|watchlist\/canslim-fourm\/by-mack|stocks\/count-stock-by-mack)(\?|$)/.test(r.url())) return route.fallback();
+      // POST chỉ đọc (trang Watchlist dùng khi điều hướng qua lại — TC_BGGHIM_20; tab "Watchlist" ở panel phải tải
+      // tin tức liên quan bằng `news/news-related-by-mack` — TC_BANGGIA_43).
+      if (/\/api\/(filter|watchlist\/canslim-fourm\/by-mack|stocks\/count-stock-by-mack|news\/news-related-by-mack)(\?|$)/.test(r.url())) return route.fallback();
       this.blocked.push(`${r.method()} ${r.url().split('?')[0]}`);
       // Nhật ký hoạt động (mở modal biểu đồ…) — trả thành công giả để web khỏi báo lỗi.
       if (/\/api\/activitylog\//.test(r.url())) return route.fulfill({ json: { success: true } });

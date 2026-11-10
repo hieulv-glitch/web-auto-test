@@ -1,5 +1,15 @@
 # Màn hình: Phân tích kỹ thuật — Khung/Shell
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). An toàn dữ liệu:
+đăng nhập bằng `safeLoginTa()` (pages/LegacySafetyNet.ts — phiên cache `Prev2Session`, chặn mọi ghi setting, ghi lại ở
+`settingWrites`) với **bố cục cố định** thay bố cục thật của tài khoản (trả phí: 1 khung, thẻ ACB + HPG; Free: 1 thẻ ACB)
++ lưới `useLegacySafetyNet` huỷ mọi request ghi khác tới production (POST chỉ đọc được cho qua: `news-related-by-mack`,
+`stock-signals/*`), assert rỗng sau mỗi test. Không còn ghi gì lên tài khoản → bỏ mode `serial`/yêu cầu `--workers=1`,
+bỏ các bước "trả lại mã gốc"; viewport 1600×900 (thanh công cụ TradingView nay thêm nút "Mẫu chỉ báo"/"Lưu", ở 1280px
+thanh công cụ trên/dưới biểu đồ bị co, một số nút bị ẩn). Modal đóng thẻ đổi tên "Xóa đồ thị" → **"Đóng đồ thị"** (nút "Huỷ"/"Xác
+nhận") và CHỈ hiện khi thẻ có nội dung người dùng thêm hoặc chưa hiện lần nào (thẻ trống đóng ngay). Cột phải bỏ mục
+"Cảnh báo" (đã chuyển sang bộ canh-bao-gia) và "Cộng đồng". Menu header "Phân tích kỹ thuật" đổi tên "Biểu đồ".
+
 - **URL:** `/phan-tich-ky-thuat` (route con của `/`, yêu cầu đăng nhập — `meta.requiresUser: true`, xác nhận qua
   `stocks/src/router/index.js` dòng ~674).
 - **Component:** [src/views/multiLayoutChart/index.vue](../../stocks/src/views/multiLayoutChart/index.vue) render
@@ -85,6 +95,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_03] Điều hướng vào màn từ menu header
 
+- **Cập nhật 10/11/2026:** mục menu header đổi tên "Phân tích kỹ thuật" → "Biểu đồ" (`mainMenu.js`).
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** Link "Phân tích kỹ thuật" luôn hiển thị cố định trên header chính (xác nhận qua
   `.aria.txt`), không cần chọn mã CK trước như 1 số màn khác (Phân tích cơ bản/Bảng giá).
@@ -136,6 +147,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_06] Đóng tab — modal xác nhận, bấm "Đóng" để hủy
 
+- **Cập nhật 10/11/2026:** modal tên "Đóng đồ thị", nút "Huỷ"; đóng thẻ HPG gốc (chưa mở lần nào) để modal chắc chắn hiện.
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** Modal "Xóa đồ thị" (`index.vue`) hiện ra khi bấm nút "x" trên tab (trừ khi
   `localStorage.doNotRemindToday` đã set đúng ngày hôm nay — xem TC_PTKT_08). Bấm "Đóng" chỉ ẩn modal, KHÔNG dispatch
@@ -156,6 +168,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_07] Đóng tab — xác nhận "Xóa"
 
+- **Cập nhật 10/11/2026:** nút xác nhận nay là "Xác nhận"; đóng thẻ HPG gốc (chưa mở) để modal hiện.
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 
 ## Các bước thực hiện
@@ -174,6 +187,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_08] Checkbox "Không hỏi lại hôm nay" hiển thị đúng trong modal xóa
 
+- **Cập nhật 10/11/2026:** đóng thẻ HPG gốc (chưa mở) để modal "Đóng đồ thị" hiện.
 - **Trạng thái:** ⚠️ Cần xác nhận thêm — **chỉ verify hiển thị, KHÔNG kích hoạt thật**
 - **Ghi chú:** Cố ý KHÔNG tick + xác nhận checkbox này trong bộ test tự động, vì hành vi lưu
   `localStorage.doNotRemindToday` + `saveSetting` ảnh hưởng **MỌI lần xóa tab khác trong cùng ngày** của tài
@@ -193,6 +207,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_09] Giới hạn số tab biểu đồ tối đa — tài khoản Free
 
+- **Cập nhật 10/11/2026:** tài khoản Free bấm "+" không còn toast "tối đa 1 tab" mà mở popup "Chọn dịch vụ" (`isShowModalPackage`).
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation với tài khoản Free thật: Pass**
 - **Ghi chú:** `max_count_chart_ta` = 1 cho tài khoản Free (`store.state.isAccountFree`), 15 cho tài khoản thường,
   30 cho `moderator` (đọc `localStorage.roles`). Vượt giới hạn → `showToast(message_max_count_chart_ta)`, KHÔNG
@@ -251,6 +266,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_12] Lưu cấu hình sau khi tải lại trang (F5)
 
+- **Cập nhật 10/11/2026:** ghi setting bị chặn nên không F5 kiểm lại được — assert lượt ghi `layout_multi_ta` (bị chặn) có đủ số thẻ + thẻ VNINDEX.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** tương ứng nhóm "lưu cấu hình" trong Sheet (app: indicator/annotation/timeframe giữ khi
   thoát-mở lại)
@@ -270,6 +286,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_13] Chuyển đổi giữa các mục menu dọc phải
 
+- **Cập nhật 10/11/2026:** cột phải chỉ còn AI Chart · Thông tin · Watchlist · Ghi chú — bỏ "Cảnh báo" (chuyển sang canh-bao-gia) và "Cộng đồng".
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** Panel phải là 1 `border` FlexLayout riêng, 6 tab cố định (`enableClose: false`, `enableDrag:
   false`): "AI Chart"/"Thông tin"/"Watchlist"/"Cảnh báo"/"Ghi chú"/"Cộng đồng". **Không viết testcase chi tiết**
@@ -290,6 +307,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_14] Nút Back trình duyệt điều hướng rời khỏi trang
 
+- **Cập nhật 10/11/2026:** tăng timeout (mở trang PTKT trên localhost mất 15–25s).
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 
 ## Các bước thực hiện
@@ -303,6 +321,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_15] Click "Thông tin FA" trong panel phải điều hướng sang Phân tích cơ bản
 
+- **Cập nhật 10/11/2026:** tăng timeout (mở trang PTKT trên localhost mất 15–25s).
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** Link mở **tab mới** (`target="_blank"`) trỏ `/phan-tich-co-ban?mack=<mã>` — chỉ verify điều hướng
   đúng URL, nội dung trang đích đã có testcase riêng ở `testcases/phan-tich-co-ban*.md`.
@@ -319,6 +338,7 @@ lần load sau tab "đã xóa" quay trở lại.
 
 # [TC_PTKT_16] Bật/tắt Dark mode đổi theme toàn bộ màn hình
 
+- **Cập nhật 10/11/2026:** bấm nhãn `label.c-switch` (click force vào input không đổi theme); bỏ bước tắt lại (ghi `darkMode` bị chặn).
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Ghi chú:** `ReactChartTA.vue` có `watch: themeChart` riêng — khi đổi dark mode, TradingView widget tự
   `save()` → `changeTheme()` → `load()` lại state cũ, áp `override_config_dark`/`override_config_light`

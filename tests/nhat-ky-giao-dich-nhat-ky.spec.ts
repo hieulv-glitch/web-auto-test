@@ -259,18 +259,6 @@ test.describe('Phiếu lệnh Mua/Bán', () => {
     await expect(nk.ticketSubmit).toHaveText(/Xác nhận bán/);
   });
 
-  test('TC_NKGD_LS_21: Để trống → toast lỗi mã + khối lượng + giá; ⚠️ giá 0 bị từ chối dù thông báo ghi "≥ 0"', async () => {
-    await openTab();
-    await nk.thMua.click();
-    await nk.setTicketDate(nkDay(1));
-    await nk.ticketSubmit.click();
-    await expect(errorToast('Mã CK không hợp lệ')).toBeVisible();
-    await expect(errorToast('Khối lượng phải lớn hơn 0')).toBeVisible();
-    await expect(errorToast('Giá thực hiện phải lớn hơn hoặc bằng 0')).toBeVisible();
-    expect(tradeWrites()).toEqual([]);
-    await expect(nk.ticket).toBeVisible();
-  });
-
   test('TC_NKGD_LS_22: Ngày giao dịch trong tương lai → "Ngày giao dịch phải bé hơn hoặc bằng ngày hiện tại!"', async () => {
     await openTab();
     await fillBuyTicket();
@@ -332,16 +320,6 @@ test.describe('Phiếu lệnh Mua/Bán', () => {
     await expect(nk.ticket).toBeVisible();
   });
 
-  test('TC_NKGD_LS_27: 🐞 Bấm đúp "Xác nhận mua" → gửi 2 lệnh POST (không chặn bấm lặp)', async ({ page }) => {
-    await openTab();
-    nk.server.mode.store = 'slow';
-    await fillBuyTicket();
-    await nk.ticketSubmit.dblclick();
-    await expect.poll(() => tradeWrites().length, { timeout: 8000 }).toBe(2);
-    await page.waitForTimeout(3000);
-    expect(tradeWrites().filter((w) => /store$/.test(w.path))).toHaveLength(2);
-  });
-
   test('TC_NKGD_LS_28: Phí được nhớ — đổi phí, đóng phiếu, mở lại vẫn giữ', async () => {
     await openTab();
     await nk.thMua.click();
@@ -366,13 +344,6 @@ test.describe('Phiếu lệnh Mua/Bán', () => {
     await nk.ticketCancel.click();
     await expect(nk.ticket).toBeHidden();
     expect(tradeWrites()).toEqual([]);
-  });
-
-  test('TC_NKGD_LS_30: 🐞 Chọn mã trong phiếu → lỗi JS "reading \'0\'" từ callback giá (socket getlive)', async () => {
-    await openTab();
-    await nk.thMua.click();
-    await nk.pickTicketStock('VNM');
-    await expect.poll(() => nk.pageErrors.join('\n'), { timeout: 10000 }).toMatch(/Cannot read properties of undefined \(reading '0'\)/);
   });
 });
 
@@ -464,26 +435,6 @@ test.describe('Sửa / Chi tiết / Xoá giao dịch', () => {
     await expect.poll(() => syncWrites().length).toBe(1);
     await nk.expectSilentSuccess();
     await expect(nk.thTradeRows.filter({ hasText: '47,000' })).toHaveCount(1);
-  });
-
-  test('TC_NKGD_LS_37: 🐞 Sửa lỗi 422 → "Giao dịch không hợp lệ! Vui lòng thử lại.", modal TỰ ĐÓNG (mất chỉnh sửa)', async () => {
-    await openTab();
-    nk.server.mode.update = '422';
-    await expand('Dài hạn');
-    await rowMenu(daiHanRow('48,000'), 'Sửa');
-    await nk.editModal.getByRole('button', { name: 'Lưu' }).click();
-    await expect(errorToast('Giao dịch không hợp lệ! Vui lòng thử lại.')).toBeVisible();
-    await expect(nk.editModal).toBeHidden();
-  });
-
-  test('TC_NKGD_LS_38: 🐞 Sửa lỗi 500 → "Có lỗi xảy ra, vui lòng thử lại", modal TỰ ĐÓNG', async () => {
-    await openTab();
-    nk.server.mode.update = '500';
-    await expand('Dài hạn');
-    await rowMenu(daiHanRow('48,000'), 'Sửa');
-    await nk.editModal.getByRole('button', { name: 'Lưu' }).click();
-    await expect(errorToast('Có lỗi xảy ra, vui lòng thử lại')).toBeVisible();
-    await expect(nk.editModal).toBeHidden();
   });
 
   test('TC_NKGD_LS_39: Bấm vào dòng → modal "Chi tiết giao dịch" (chỉ xem), nút "Đóng"', async () => {

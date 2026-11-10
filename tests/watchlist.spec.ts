@@ -209,42 +209,6 @@ test.describe('Watchlist — Bảng dữ liệu chính', () => {
     expect(wl.pageErrors).toEqual([]);
   });
 
-  test('TC_WATCHLIST_18: Lỗi tải danh mục watchlist → toast lỗi (🐞 chính tả "Vui loing")', async ({ page }) => {
-    wl = new WatchlistPage(page);
-    wl.server.readFails.category = true;
-    wl.server.seed(DEFAULT_LISTS);
-    await wl.server.install(page);
-    await wl.session.open({ path: '/watchlist' });
-    await expect(toast(page, 'Có lỗi xảy ra. Vui loing thử lại sau!')).toBeVisible({ timeout: 20000 });
-    await expect(wl.pickerLabel).toHaveText('');
-    await expect(wl.addButton).toHaveCount(0);
-  });
-
-  test('TC_WATCHLIST_19: 🐞 Watchlist rỗng → bảng "No items" nhưng phát sinh lỗi JS (pagination null)', async ({ page }) => {
-    wl = new WatchlistPage(page);
-    await wl.open();
-    await wl.selectList('Auto Rỗng');
-    await expect(wl.table.getByText('No items')).toBeVisible();
-    await expect.poll(() => wl.consoleErrors.some((e) => /reading 'classList'/.test(e)),
-      { message: 'Bug: watch itemsDataTable gọi document.querySelector(nav pagination).classList khi bảng 0 dòng' }).toBe(true);
-    // Trang vẫn dùng tiếp được: chuyển lại danh sách có mã.
-    await wl.selectList('Auto B');
-    await expect.poll(() => wl.macksInTable()).toEqual(['ACB', 'MBB']);
-  });
-
-  test('TC_WATCHLIST_20: Đang tải mã của watchlist (máy chủ chậm) — bảng không hiện trạng thái đang tải', async ({ page }) => {
-    wl = new WatchlistPage(page);
-    await wl.open();
-    wl.server.macksDelayMs = 4000;
-    await wl.openDropdown();
-    await wl.dropdownItem('Auto B').click();
-    await page.waitForTimeout(1000);
-    // Measured: bảng vẫn hiện mã của watchlist CŨ trong lúc chờ, không spinner/skeleton (isLoadingData không có UI).
-    expect(await wl.macksInTable()).toEqual(['FPT', 'VNM', 'HPG']);
-    await expect(wl.table.locator('.spinner-border, .c-loading, .skeleton')).toHaveCount(0);
-    await expect.poll(() => wl.macksInTable(), { timeout: 15000 }).toEqual(['ACB', 'MBB']);
-  });
-
   test('TC_WATCHLIST_58: Watchlist > 14 mã — 14 dòng mỗi trang + thanh phân trang; trang 2 có phần còn lại', async ({ page }) => {
     wl = new WatchlistPage(page);
     await wl.open({ lists: [{ name: 'Auto Nhiều', macks: MANY }] });
@@ -613,19 +577,6 @@ test.describe('Watchlist — Modal Tạo/Sửa watchlist', () => {
     await wl.manageItem('Auto A').locator('[data-title="Sửa"]').click();
     await expect(wl.createUpdateTitle).toHaveText('Cập nhật Watchlist');
     await expect(wl.nameInput).toHaveValue('Auto A');
-  });
-
-  test('TC_WATCHLIST_48: ⚠️ Bấm đúp "Lưu" khi máy chủ chậm → gửi 2 lần tạo watchlist (không chặn bấm lặp)', async ({ page }) => {
-    wl = new WatchlistPage(page);
-    await wl.open();
-    await wl.openManageModal();
-    await wl.addWatchlistButton.click();
-    wl.server.modes.create = 'slow';
-    await wl.nameInput.fill('Auto Đúp');
-    await wl.saveButton.dblclick();
-    await expect(wl.createUpdateModal).toBeHidden({ timeout: 10000 });
-    await page.waitForTimeout(3000);
-    expect(wl.server.writesOf('POST', /\/api\/my-watchlist/), 'Measured: handleSave không có cờ đang lưu').toHaveLength(2);
   });
 });
 

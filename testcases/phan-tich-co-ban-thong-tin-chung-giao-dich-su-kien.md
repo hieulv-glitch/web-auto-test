@@ -1,5 +1,10 @@
 # Màn hình: Phân tích cơ bản — Tab "Thông tin chung" — Sub-tab "Thông tin giao dịch" + "Sự kiện"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). Đăng nhập chuyển sang
+`FaAnalysisPage.login()` (phiên cache `Prev2Session`, chặn ghi setting) + lưới `FaSafetyNet`; bỏ bước reset về VNM
+cuối test. API `get-list-event` hiện chỉ trả VNM 1 sự kiện loại "Cổ tức" → TC_PTCB_TTC_GDSK_06/10/11 chuyển sang
+dùng nhóm "Cổ tức".
+
 - **URL:** `/phan-tich-co-ban?mack=<mack>&tab=thong-tin-chung`, sau đó click sub-tab con "Thông tin giao dịch"
   hoặc "Sự kiện" (bên trong thanh 7 sub-tab của `Right.vue`) — KHÔNG có query param riêng cho sub-tab con (cùng
   cách xác nhận đã dùng ở tài liệu 2/4: `Right.vue data(): type_tab` là state cục bộ, không đọc `$route.query`).
@@ -20,8 +25,7 @@
     tiền"/"Cổ tức bằng cổ phiếu", feature key riêng `fa_bieu_do_co_tuc`).
   - Cả 2 sub-tab đọc dữ liệu từ **CÙNG API** `GET /api/stocks/common-info` cho phần bảng (`cong_ty_giao_dich`,
     KHÔNG đọc `store.state.list_mack_company`) — RIÊNG `list_events` (nguồn của cả bảng "Sự kiện" LẪN 2 biểu đồ
-    `ChartEvents`) đến từ API RIÊNG `GET /get-list-event` (`getListEvents()` trong `Common/index.vue`) — xem
-    phát hiện #4 (bug mới, khác cơ chế API của "Thông tin giao dịch").
+    `ChartEvents`) đến từ API RIÊNG `GET /get-list-event` (`getListEvents()` trong `Common/index.vue`).
 - **⚠️ [ĐÍNH CHÍNH quan trọng so với đề bài gốc] `ChartPriceEvents.vue`/`ChartTradingViewEvents.vue` KHÔNG THUỘC
   PHẠM VI sub-tab "Sự kiện" — 2 file này chỉ được `Left.vue` import/render (biểu đồ nến + khung thời gian đã phủ
   ĐẦY ĐỦ ở tài liệu 1/4, TC_PTCB_TTC_04/05/06/09), hoàn toàn KHÔNG xuất hiện trong `Right.vue` cho
@@ -71,39 +75,9 @@ sub-tab "Thông tin giao dịch", không có biểu đồ nào về mua/bán n�
 dụng có chủ đích, cùng feature key gate `fa_co_dong_va_gd_co_dong_bieu_do` — xem phát hiện #1b của tài liệu
 1/4), nhưng là điểm dễ gây nhầm lẫn khi viết testcase nếu không đọc kỹ source. Xem TC_PTCB_TTC_GDSK_03.
 
-**#2. Cột ngày trong `TableInfoTransaction.vue` hiển thị RAW format `YYYY-MM-DD` từ API — method `formatDate()`
-(định dạng lại `DD-MM-YYYY` qua `moment`) tồn tại trong code nhưng KHÔNG được gọi ở bất kỳ đâu trong template
-(dead code, template dùng thẳng `{{ item.ngay_bat_dau }}`/`{{ item.ngay_ket_thuc }}`/`{{ item.ngay_thuc_hien
-}}`).** Đo thật DOM xác nhận format `2026-07-14` (không phải `14-07-2026`) — KHÁC hẳn quy ước `DD-MM-YYYY` dùng
-nhất quán ở các bảng khác trong màn hình này (VD bảng "Sự kiện" cùng tài liệu, cột "Ngày" hiển thị đúng
-`DD-MM-YYYY`). Không phải lỗi crash/sai dữ liệu (vẫn đọc được, chỉ khác định dạng ngày mong đợi), nhưng là điểm
-không nhất quán UI đáng báo dev. Xem TC_PTCB_TTC_GDSK_02.
-
-**#3. Mã không có giao dịch nội bộ nào (VD ETF `E1VFVN30`) — bảng "Thông tin giao dịch" trống hoàn toàn, KHÔNG
-có thông báo "Không có dữ liệu" — CÙNG PATTERN đã ghi nhận ở `TableShareHolder.vue` (tài liệu 2/4, phát hiện
-#2).** `TableInfoTransaction.vue` render `<tbody>` phẳng từ `v-for`, không có `v-if`/slot xử lý mảng rỗng. Đo
-thật: `cong_ty_giao_dich_items` trả về mảng rỗng cho `E1VFVN30` → 0 dòng, không có text thông báo nào. Xem
-TC_PTCB_TTC_GDSK_04.
-
-**#4. [BUG mới, xác nhận qua automation] Free — đổi mã CK khi đang ở sub-tab "Sự kiện" KHÔNG refresh dữ liệu —
-bảng "Sự kiện" giữ NGUYÊN dữ liệu của mã CŨ, không có bất kỳ cảnh báo nào cho người dùng.** Đọc source
-`Common/index.vue`: `getListEvents()` (nguồn DUY NHẤT của `list_events`, dùng CHUNG cho cả bảng "Sự kiện" lẫn 2
-biểu đồ `ChartEvents`) được gọi KHÔNG ĐIỀU KIỆN trong `created()` (mọi tài khoản, kể cả Free) nhưng trong
-`watch: stockcode()` (trigger khi đổi mã CK) lại bị bọc trong `if (!this.$store.state.isAccountFree) { ... }` —
-**bất đối xứng có chủ đích cho lần tải ĐẦU vs lần đổi mã SAU, gần như chắc chắn là sai sót logic** (không có lý
-do nghiệp vụ nào để cho Free xem sự kiện của mã ban đầu nhưng chặn cập nhật khi đổi mã). Đo network + DOM thật
-xác nhận (mã VNM → đổi sang HPG):
-
-- Tài khoản trả phí: đổi mã gọi ĐÚNG 1 request `GET /get-list-event?stockcode=HPG&...`, dòng đầu bảng cập nhật
-  đúng "HPG: Thông báo về việc giao dịch chứng khoán thay đổi đăng ký niêm yết".
-- Tài khoản Free: đổi mã gọi **0 request** `get-list-event`, dòng đầu bảng "Sự kiện" (sub-tab "Niêm yết") VẪN
-  hiển thị dữ liệu CŨ của VNM ("VNM: Thông báo về việc niêm yết và giao dịch cổ phiếu thay đổi niêm yết") dù mã
-  đang xem đã là HPG — người dùng Free thấy dữ liệu sự kiện SAI mã mà không có dấu hiệu cảnh báo nào (khác hẳn
-  `ProtectedView`/`features_disabled` quen thuộc — sub-tab "Sự kiện" của tài khoản Free hiện tại KHÔNG bị khoá
-  gói hội viên nên hoàn toàn truy cập bình thường, càng dễ khiến người dùng tin nhầm dữ liệu đang xem đúng mã).
-- Cùng pattern "bug ẩn do gọi API có điều kiện theo `isAccountFree`" đã ghi nhận ở tài liệu 2/4 (donut "Nước
-  ngoài" sub-tab "Cổ đông") nhưng ở đây HẬU QUẢ hiển thị SAI RÕ RÀNG qua DOM text thật (không bị giới hạn bởi
-  canvas như bug donut), dễ assert bằng automation hơn nhiều. Xem TC_PTCB_TTC_GDSK_20.
+**#2, #3, #4:** đã xoá 10/11/2026 (cột ngày hiển thị RAW `YYYY-MM-DD`; bảng "Thông tin giao dịch" trống không thông
+báo với mã ETF; tài khoản Free đổi mã CK không refresh bảng "Sự kiện" — user chấp nhận, xoá
+TC_PTCB_TTC_GDSK_02/04/20).
 
 **#5. Sub-tab con của `Events.vue` ("Niêm yết"/"Cổ tức, thưởng và phát hành thêm"/"Đại hội cổ đông") KHÔNG bị
 reset khi đổi mã CK — CÙNG PATTERN đã ghi nhận ở `Profile.vue` (tài liệu 2/4, phát hiện #3).** `Right.vue` chỉ
@@ -143,22 +117,6 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 
 ---
 
-# [TC_PTCB_TTC_GDSK_02] 🆕 [Phát hiện] Dữ liệu bảng đúng định dạng — ngày hiển thị RAW `YYYY-MM-DD` (dead code
-  `formatDate()`)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **⚠️ Phát hiện đáng chú ý:** xem phát hiện #2 đầu tài liệu.
-
-## Các bước thực hiện
-1. Từ TC_PTCB_TTC_GDSK_01, quan sát các cột "Ngày bắt đầu"/"Ngày kết thúc"/"Ngày thực hiện" của dòng đầu.
-
-## Kết quả mong đợi
-- [ ] Số lượng cổ phiếu (cột "Mua"/"Bán") có dấu phẩy ngăn cách hàng nghìn khi có giá trị.
-- [ ] Các cột ngày hiển thị format `YYYY-MM-DD` (VD `2026-07-14`) — KHÔNG phải `DD-MM-YYYY` như quy ước chung
-      của các bảng khác trong màn hình (ghi nhận khác biệt, khuyến nghị báo dev, không coi là lỗi chặn dùng).
-
----
-
 # [TC_PTCB_TTC_GDSK_03] 🆕 [Phát hiện] Panel bên phải tái sử dụng `ChartAnalysis.vue` — nội dung donut cơ cấu sở
   hữu KHÔNG liên quan giao dịch nội bộ
 
@@ -172,22 +130,6 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 - [ ] Nhãn "Tổng quan" + "Cổ đông lớn" hiển thị (giống hệt sub-tab "Cổ đông") — KHÔNG có biểu đồ/nhãn nào liên
       quan tới "giao dịch nội bộ"/mua-bán của lãnh đạo.
 - [ ] Có đúng 2 `<canvas>`, không lỗi console.
-
----
-
-# [TC_PTCB_TTC_GDSK_04] 🆕 [Phát hiện] Mã không có giao dịch nội bộ (ETF) — bảng trống hoàn toàn, KHÔNG có thông
-  báo
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **⚠️ Phát hiện đáng chú ý:** xem phát hiện #3 đầu tài liệu — cùng pattern đã ghi nhận ở `TableShareHolder.vue`
-  (tài liệu 2/4).
-
-## Các bước thực hiện
-1. Deep-link `/phan-tich-co-ban?mack=E1VFVN30&tab=thong-tin-chung`, click sub-tab "Thông tin giao dịch".
-
-## Kết quả mong đợi
-- [ ] `<tbody>` của bảng có 0 dòng.
-- [ ] KHÔNG có bất kỳ text "Không có dữ liệu"/thông báo tương đương nào hiển thị.
 
 ---
 
@@ -214,6 +156,7 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 - **Trạng thái:** ✅ Áp dụng — **Tham chiếu App:** TC 247, 248 (Sheet) — **Đã verify bằng automation: Pass**
 - **Khác biệt so với app:** app hiển thị dạng timeline (đường dọc + chấm tròn); web hiển thị dạng bảng
   `CDataTable`. Thứ tự 3 sub-tab con GIỐNG app (Niêm yết → Cổ tức → Đại hội cổ đông).
+- **Cập nhật 10/11/2026:** "Niêm yết" của VNM rỗng → kiểm định dạng ngày ở dòng nhóm "Cổ tức".
 
 ## Các bước thực hiện
 1. Từ tab "Thông tin chung" (mã VNM), click sub-tab "Sự kiện".
@@ -243,27 +186,12 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 
 ---
 
-# [TC_PTCB_TTC_GDSK_08] Click "Đại hội cổ đông" — list đổi đúng
-
-- **Trạng thái:** ✅ Áp dụng — **Tham chiếu App:** TC 250 (Sheet) — **Đã verify bằng automation: Pass**
-- **Ghi chú:** `list_events_filtered` lọc `eventtypeid == 5`.
-
-## Các bước thực hiện
-1. Click "Đại hội cổ đông".
-
-## Kết quả mong đợi
-- [ ] Sub-tab con "Đại hội cổ đông" active.
-- [ ] Nội dung bảng đổi khác — các dòng nội dung liên quan ĐHĐCĐ (VD "Thông báo về ngày đăng ký cuối cùng tổ
-      chức ĐHĐCĐ...").
-
----
-
 # [TC_PTCB_TTC_GDSK_09] Click lại "Niêm yết" — quay về đúng nội dung ban đầu
 
 - **Trạng thái:** ✅ Áp dụng — **Tham chiếu App:** TC 251 (Sheet) — **Đã verify bằng automation: Pass**
 
 ## Các bước thực hiện
-1. Từ TC_PTCB_TTC_GDSK_08 (đang ở "Đại hội cổ đông"), click lại "Niêm yết".
+1. Mở sub-tab "Sự kiện", click sub-tab con "Đại hội cổ đông", rồi click lại "Niêm yết".
 
 ## Kết quả mong đợi
 - [ ] Sub-tab con "Niêm yết" active trở lại, nội dung bảng quay về danh sách sự kiện niêm yết (giống
@@ -276,6 +204,7 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 - **Trạng thái:** ✅ Áp dụng — **Tham chiếu App:** TC 256 (Sheet) — **Đã verify bằng automation: Pass**
 - **Khác biệt so với app:** app điều hướng sang MÀN chi tiết riêng; web mở MODAL (`isShowModal`,
   `getContentEvents()` gọi `GET /get-content-event`) — không điều hướng URL.
+- **Cập nhật 10/11/2026:** click dòng của nhóm "Cổ tức" (nhóm "Niêm yết" của VNM đang rỗng).
 
 ## Các bước thực hiện
 1. Từ TC_PTCB_TTC_GDSK_06, click vào dòng đầu tiên trong bảng (sub-tab con "Niêm yết").
@@ -289,6 +218,7 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 # [TC_PTCB_TTC_GDSK_11] Đóng modal "Chi tiết sự kiện" bằng nút "×"
 
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** mở modal từ dòng nhóm "Cổ tức" (như TC_PTCB_TTC_GDSK_10).
 
 ## Các bước thực hiện
 1. Mở modal "Chi tiết sự kiện" (như TC_PTCB_TTC_GDSK_10).
@@ -441,29 +371,6 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 
 ---
 
-## Nhóm: Gate/bug theo tài khoản (Free) — dữ liệu, không phải overlay che
-
-# [TC_PTCB_TTC_GDSK_20] 🆕 [Phát hiện bug] Free — đổi mã CK KHÔNG refresh bảng "Sự kiện" (dữ liệu SAI mã, không
-  cảnh báo)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation với tài khoản Free thật, phát hiện đáng chú ý:
-  Pass**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** xem phát hiện #4 đầu tài liệu — đo network xác nhận 0 request
-  `get-list-event` sau khi đổi mã (tài khoản trả phí gọi đúng 1 lần), DOM xác nhận dòng đầu bảng vẫn hiển thị dữ
-  liệu mã CŨ.
-
-## Các bước thực hiện
-1. Đăng nhập tài khoản Free.
-2. Click sub-tab "Sự kiện" (mã VNM), ghi nhận dòng đầu bảng (sub-tab con "Niêm yết").
-3. Theo dõi network, đổi mã CK qua ô tìm kiếm sang "HPG".
-
-## Kết quả mong đợi
-- [ ] KHÔNG có request nào tới `/get-list-event` được gửi sau bước 3.
-- [ ] Dòng đầu bảng "Sự kiện" SAU khi đổi mã VẪN hiển thị nội dung của VNM (mã CŨ) — KHÔNG cập nhật theo HPG,
-      KHÔNG có cảnh báo/loading nào báo dữ liệu đang sai mã.
-
----
-
 ## Nhóm: Tương tác chung
 
 # [TC_PTCB_TTC_GDSK_21] Chuyển qua lại "Thông tin giao dịch" ↔ "Sự kiện" nhiều lần không lỗi console
@@ -496,7 +403,7 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 
 ---
 
-## Tổng hợp trạng thái (22 testcase — phạm vi sub-tab "Thông tin giao dịch" + "Sự kiện")
+## Tổng hợp trạng thái (18 testcase — phạm vi sub-tab "Thông tin giao dịch" + "Sự kiện")
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.spec.ts](../tests/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.spec.ts)
@@ -505,41 +412,33 @@ hiện #1b).** Đo thật với tài khoản Free hiện tại:
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| ✅ Áp dụng | 6 | TC_PTCB_TTC_GDSK_06, 07, 08, 09, 10, 11 (nhóm "Sự kiện" map được với TC 247-256 Sheet) |
-| 🆕 Mới (riêng web) | 16 | TC_PTCB_TTC_GDSK_01, 02, 03, 04, 05, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 |
+| ✅ Áp dụng | 5 | TC_PTCB_TTC_GDSK_06, 07, 09, 10, 11 (nhóm "Sự kiện" map được với TC 247-256 Sheet) |
+| 🆕 Mới (riêng web) | 13 | TC_PTCB_TTC_GDSK_01, 03, 05, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22 |
 | ⚠️ Cần xác nhận thêm | 0 | — |
 
-Không có `test.fixme` nào trong file spec này — toàn bộ 22 testcase đều tự động hoá và pass được (kể cả
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TTC_GDSK_02, TC_PTCB_TTC_GDSK_04, TC_PTCB_TTC_GDSK_08, TC_PTCB_TTC_GDSK_20 (bug được user chấp nhận) → không còn `test.fixme`.
+
+Không có `test.fixme` nào — toàn bộ 18 testcase đều tự động hoá và pass được (kể cả
 TC_PTCB_TTC_GDSK_12, dùng `page.route()` mock response rỗng cho API chỉ-đọc, an toàn 100% cho tài khoản dùng
 chung).
 
 **Phát hiện đáng chú ý cần theo dõi:**
-1. **[BUG mới] Free — đổi mã CK KHÔNG refresh bảng "Sự kiện"** — `getListEvents()` gọi KHÔNG điều kiện ở
-   `created()` nhưng bị bọc `if (!isAccountFree)` ở `watch: stockcode()`, bất đối xứng có vẻ là sai sót logic.
-   Hậu quả: tài khoản Free thấy dữ liệu sự kiện của mã CŨ sau khi đổi mã, không có cảnh báo. Dễ assert bằng
-   automation hơn hẳn bug donut "Nước ngoài" (tài liệu 2/4) vì hậu quả hiển thị qua DOM text thật, không bị giới
-   hạn canvas. Xem phát hiện #4, TC_PTCB_TTC_GDSK_20.
-2. **[ĐÍNH CHÍNH so với đề bài gốc] `ChartPriceEvents.vue`/`ChartTradingViewEvents.vue` KHÔNG thuộc sub-tab "Sự
+1. **[ĐÍNH CHÍNH so với đề bài gốc] `ChartPriceEvents.vue`/`ChartTradingViewEvents.vue` KHÔNG thuộc sub-tab "Sự
    kiện"** — 2 file này chỉ được `Left.vue` render (biểu đồ nến chính, đã phủ đầy đủ tài liệu 1/4). `Right.vue`
    cho `type_tab == 'event'` CHỈ render `Events.vue` + `ChartEvents.vue`. Modal phóng to P/E-P/B (dead code đã
    ghi nhận tài liệu 1/4) cũng thuộc `Left.vue`, không phải phạm vi tài liệu này. Xem mục "Component" đầu tài
    liệu, TC_PTCB_TTC_GDSK_15.
-3. **Panel bên phải sub-tab "Thông tin giao dịch" tái sử dụng Y HỆT `ChartAnalysis.vue` của "Cổ đông"** — nội
+2. **Panel bên phải sub-tab "Thông tin giao dịch" tái sử dụng Y HỆT `ChartAnalysis.vue` của "Cổ đông"** — nội
    dung donut cơ cấu sở hữu không liên quan gì tới giao dịch nội bộ. Không phải bug (tái sử dụng có chủ đích,
    cùng feature key gate), nhưng dễ gây nhầm lẫn khi đọc source lần đầu. Xem phát hiện #1, TC_PTCB_TTC_GDSK_03.
-4. **Cột ngày `TableInfoTransaction.vue` hiển thị RAW `YYYY-MM-DD`** do method `formatDate()` (định dạng lại
-   `DD-MM-YYYY`) tồn tại trong code nhưng không được gọi ở template — dead code, khác quy ước ngày dùng nhất
-   quán ở các bảng khác trong màn hình. Xem phát hiện #2, TC_PTCB_TTC_GDSK_02.
-5. **Mã không có giao dịch nội bộ (ETF) — bảng "Thông tin giao dịch" trống hoàn toàn, không thông báo** — cùng
-   pattern đã ghi nhận ở `TableShareHolder.vue` (tài liệu 2/4). Xem phát hiện #3, TC_PTCB_TTC_GDSK_04.
-6. **Sub-tab con của `Events.vue` không bị reset khi đổi mã CK** — cùng pattern `Profile.vue` (tài liệu 2/4).
+3. **Sub-tab con của `Events.vue` không bị reset khi đổi mã CK** — cùng pattern `Profile.vue` (tài liệu 2/4).
    Xem phát hiện #5, TC_PTCB_TTC_GDSK_13.
-7. **Verify đầy đủ 2 cấp gate `features_disabled` cho cả 2 sub-tab** — "Thông tin giao dịch" chỉ bị khoá 1 cấp
+4. **Verify đầy đủ 2 cấp gate `features_disabled` cho cả 2 sub-tab** — "Thông tin giao dịch" chỉ bị khoá 1 cấp
    (nội dung chính, khớp đúng ví dụ minh hoạ đã dùng ở tài liệu 1/4), "Sự kiện" không bị khoá cấp nào với tài
    khoản Free hiện tại. Xem phát hiện #6, TC_PTCB_TTC_GDSK_16/17/18/19.
-8. **Không có API mutate nào trong phạm vi 2 sub-tab này** — toàn bộ chỉ đọc (`common-info`, `get-list-event`,
+5. **Không có API mutate nào trong phạm vi 2 sub-tab này** — toàn bộ chỉ đọc (`common-info`, `get-list-event`,
    `get-content-event`), an toàn tuyệt đối cho tài khoản test dùng chung.
-9. **TC ID 13-82 của Sheet app ("Tab Giao dịch") mô tả 1 màn hình HOÀN TOÀN KHÁC** (widget giá realtime/sổ
+6. **TC ID 13-82 của Sheet app ("Tab Giao dịch") mô tả 1 màn hình HOÀN TOÀN KHÁC** (widget giá realtime/sổ
    lệnh/khớp lệnh/phân loại giao dịch) — không tồn tại trên web ở phạm vi tab "Thông tin chung" này, không map
    được testcase nào. `TableInfoTransaction.vue` thể hiện khái niệm "giao dịch nội bộ" hoàn toàn khác.
 

@@ -412,21 +412,6 @@ là payload thật của `GET /api/market-bulletin/latest` ngày 06/11/2026.
 - [ ] `PUT /api/filter/notification` `{id:12, is_active:true, frequency:60, my_watchlist_id:"all"}`.
 - [ ] Lỗi → toast, công tắc trả lại.
 
-# [TC_TB_31] Đổi tần suất — lưu lỗi thì ô vẫn hiện giá trị chưa lưu
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞)
-- **Kết quả đo được:** lưu "1 ngày/lần" thành công, sau đó cho máy chủ trả 500 và chọn "5 phút/lần" → có toast lỗi nhưng ô
-  vẫn hiện "5 phút/lần", trong khi giá trị đang lưu là "1 ngày/lần" (mục Tất cả cài đặt vẫn ghi "1 ngày/lần").
-  Nguyên nhân: `changeFilterFreq` không trả ô về khi lỗi, `:value="filter_freq"` không đổi nên Vue 2 không vẽ lại `<select>`
-  (các công tắc khác trong file đã tự trả lại bằng tay, riêng ô này thì chưa).
-
-## Các bước thực hiện
-1. Chọn "1 ngày/lần". 2. Cho `update-frequency` trả 500, chọn "5 phút/lần".
-
-## Kết quả mong đợi
-- [ ] Bước 1 gửi `PUT /api/filter/update-frequency` `{frequency:"1440"}`.
-- [ ] Bước 2: toast lỗi và ô trở lại "1 ngày/lần" (**hiện tại: vẫn "5 phút/lần"** — test đang assert hành vi đo được).
-
 # [TC_TB_32] Tài khoản Free chỉ bật được bộ lọc đầu tiên
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -651,8 +636,6 @@ là payload thật của `GET /api/market-bulletin/latest` ngày 06/11/2026.
 # [TC_TB_50] Mở chuông
 
 - **Trạng thái:** 🆕 Testcase mới
-- **Ghi chú:** chip "Chung" không bao giờ có số dù badge tổng có tính phần Chung (code bỏ khoá `notifications`) — đã ghi
-  trong `TRUNG_TAM_THONG_BAO_BACKEND.md`, coi như chủ đích.
 
 ## Các bước thực hiện
 1. Mở chuông ở `/watchlist`.
@@ -762,21 +745,6 @@ là payload thật của `GET /api/market-bulletin/latest` ngày 06/11/2026.
 ## Kết quả mong đợi
 - [ ] Chuông tự sang chip bật đầu tiên (IBD) và hiện dòng IBD.
 - [ ] Tắt cả 7: không chip nào được chọn, 7 chip bị khoá, panel trống.
-
-# [TC_TB_60] Cảnh báo về qua socket không tăng số đếm
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞)
-- **Kết quả đo được:** gọi đúng listener `updatealert` mà web đăng ký trên `window.socket_send` (giả lập máy chủ bắn) →
-  không có badge, chip Cảnh báo không có số. Nguyên nhân: `onReceivedAlert` trong `TheHeaderDropdownNotify.vue` tìm chip
-  bằng `item.value === 'alert'` (chữ thường), trong khi chip có value `'ALERT'` → `alertIndex = -1`, bỏ qua cả việc tăng
-  `number_notify_alert` lẫn `total_notice`. Sự kiện `filter_noti` (bộ lọc có mã mới) đi chung hàm nên cũng dính.
-
-## Các bước thực hiện
-1. Không có tin chưa đọc. Máy chủ bắn sự kiện socket `updatealert` (cảnh báo giá HPG).
-2. Mở chuông.
-
-## Kết quả mong đợi
-- [ ] Badge chuông "1" và chip Cảnh báo "1" (**hiện tại: không có số nào** — test đang assert hành vi đo được).
 
 # [TC_TB_61] Bấm ra ngoài panel (kể cả vào biểu đồ) thì đóng
 
@@ -895,17 +863,14 @@ là payload thật của `GET /api/market-bulletin/latest` ngày 06/11/2026.
 | Trạng thái | Số lượng |
 |---|---|
 | 🆕 Testcase mới | 68 |
-| ⚠️ Cần xác nhận thêm | 2 (🐞 TC_TB_31, TC_TB_60) |
-| **Tổng** | **70** |
+| **Tổng** | **68** |
+
+**Cập nhật 10/11/2026:** xoá TC_TB_31, TC_TB_60 và ghi chú bug "chip Chung không có số" (bug được user chấp nhận). 70 → 68 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **🐞 TC_TB_60 — cảnh báo về qua socket không tăng số đếm.** `onReceivedAlert` tìm chip `'alert'` thay vì `'ALERT'`,
-   nên cảnh báo giá và bộ lọc mới (socket `updatealert`, `filter_noti`) vào danh sách nhưng chuông không báo số.
-2. **🐞 TC_TB_31 — đổi tần suất bộ lọc lỗi thì ô chọn hiện giá trị chưa lưu.** `changeFilterFreq` không trả ô về khi lỗi.
 3. **Toast thành công bị tắt toàn app** (`main.js`, yêu cầu 12/10/2026): "Đã đánh dấu tất cả đã đọc", "Lưu cảnh báo
    thành công"… không bao giờ hiện. Đây là chủ đích; test assert "không có toast".
-4. **Chip "Chung" không có số** dù badge tổng có tính tin Chung chưa đọc (đã ghi trong `TRUNG_TAM_THONG_BAO_BACKEND.md`).
 5. **Dòng bộ lọc trong chuông khó mở danh sách mã** (TC_TB_55): câu chữ là link sang `/bo-loc` và chiếm gần hết dòng.
 6. **prev2 đang gọi API bản tin production thật** (`/api/market-bulletin/latest` trả 200 ngày 09/11/2026), khác ghi chú
    "API chưa merge" trong `docs/ban-tin-viec-con-lai.md` — tính năng bản tin đã chạy thật.

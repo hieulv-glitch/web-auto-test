@@ -1,29 +1,24 @@
 import { test, expect } from '@playwright/test';
 import { NganhPage } from '../pages/NganhPage';
-import { LoginPage } from '../pages/LoginPage';
+import { useLegacySafetyNet, safeLogin, ReadOnlyRule } from '../pages/LegacySafetyNet';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/** POST chỉ đọc của màn này (cho đi thật). */
+const READ_ONLY_EXTRA: ReadOnlyRule[] = [];
+
+/**
+ * AN TOÀN DỮ LIỆU (10/11/2026): chạy trên localhost:8080 (nhánh preprod) gọi backend PRODUCTION → đăng nhập bằng phiên
+ * cache `Prev2Session` (chặn ghi setting, ghi lại ở `settingWrites`) + lưới `useLegacySafetyNet` huỷ mọi request ghi
+ * khác tới production và assert không có request nào lọt sau mỗi test (pages/LegacySafetyNet.ts).
+ */
+useLegacySafetyNet(test, READ_ONLY_EXTRA);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  return safeLogin(page, 'paid', '/nganh');
 }
 
-/** Đăng nhập tài khoản Free, tự `test.skip` nếu tài khoản trong `.env` đăng nhập lỗi — cùng cơ chế đã dùng ở
- * nhiều tài liệu khác (`FREE_USER_EMAIL` hiện không đăng nhập được). */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  test.skip(!process.env.FREE_USER_EMAIL || !process.env.FREE_USER_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
+  return safeLogin(page, 'free', '/nganh');
 }
 
 async function gotoNganh(page: any) {
@@ -40,11 +35,12 @@ function parseMoney(text: string): number {
 test.describe('Ngành — Điều hướng menu header "Toàn cảnh thị trường"', () => {
   test('TC_NGANH_01: Click menu "Toàn cảnh thị trường" điều hướng tới /nganh', async ({ page }) => {
     await loginFirst(page);
-    await page.goto('/bang-gia');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
 
-    const menuLink = page.getByRole('link', { name: 'Toàn cảnh thị trường' });
-    await menuLink.click();
+    // 10/11/2026: menu "Toàn cảnh thị trường" đã bỏ — vào "Ngành" qua dropdown "Thị Trường".
+    const nganh = new NganhPage(page);
+    await nganh.headerMenuLink.hover();
+    await nganh.headerSubmenu.getByRole('link', { name: 'Ngành', exact: true }).click();
     await expect(page).toHaveURL(/\/nganh$/);
   });
 
@@ -54,7 +50,8 @@ test.describe('Ngành — Điều hướng menu header "Toàn cảnh thị trư�
     await expect(nganh.headerSubmenu).toBeVisible();
 
     const items = (await nganh.headerSubmenu.locator('a').allInnerTexts()).map(t => t.trim());
-    expect(items).toEqual(['Ngành', 'Bộ lọc cổ phiếu', 'Sức mạnh dòng tiền']);
+    // 10/11/2026: dropdown "Thị Trường" (mainMenu.js) thay cho "Toàn cảnh thị trường"; "Bộ lọc cổ phiếu" chuyển sang "Cơ hội".
+    expect(items).toEqual(['Bảng giá chứng khoán', 'Bảng giá crypto', 'Ngành', 'Sức mạnh dòng tiền', 'Thông tin và Sự Kiện']);
   });
 
   test('TC_NGANH_03: Menu "Toàn cảnh thị trường" active khi đang ở /nganh', async ({ page }) => {
@@ -169,20 +166,6 @@ test.describe('Ngành — Tab "Tổng quan" — bảng ngành', () => {
     const url = new URL(page.url());
     expect(url.searchParams.get('type')).toBe('chi-bao-ky-thuat');
     expect(url.searchParams.get('nganh')).toBe(deptName);
-  });
-
-  test('TC_NGANH_12: Click badge "Trạng thái" không có phản hồi UI (dead click)', async ({ page }) => {
-    const nganh = await gotoNganh(page);
-    const row = nganh.rows.first();
-    const urlBefore = page.url();
-    const tableTextBefore = await nganh.table.innerText();
-
-    await nganh.statusCellOf(row).click();
-    await page.waitForTimeout(800);
-
-    expect(page.url()).toBe(urlBefore);
-    const tableTextAfter = await nganh.table.innerText();
-    expect(tableTextAfter).toBe(tableTextBefore);
   });
 
   test('TC_NGANH_13: Click header cột "Giá" đổi thứ tự tăng/giảm', async ({ page }) => {

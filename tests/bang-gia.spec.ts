@@ -1,17 +1,39 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { BangGiaPage } from '../pages/BangGiaPage';
+import { BangGiaGhimPage } from '../pages/BangGiaGhimPage';
 import { LoginPage } from '../pages/LoginPage';
+import type { Prev2Account } from '../pages/Prev2Session';
 
+/**
+ * AN TOÀN DỮ LIỆU (cập nhật 10/11/2026): chạy trên BASE_URL = localhost:8080 nhưng gọi backend PRODUCTION, tài khoản
+ * test dùng chung. Mọi test (trừ TC_01/02) mở bảng giá qua `BangGiaGhimPage.open()` (= `Prev2Session` + máy chủ
+ * setting giả): `/getusersettings` trả trạng thái bảng giá về "Toàn bộ", `/updateusersettings|/delusersettings` bị
+ * huỷ (đổi sàn/ngành/watchlist/bộ lọc KHÔNG còn ghi lên tài khoản), mọi request không phải GET khác tới *.kfsp.vn bị
+ * huỷ và ghi vào `blocked`. Sau mỗi test assert `blocked` rỗng (trừ nhật ký hoạt động đã giả lập thành công).
+ */
 const EMAIL = process.env.TEST_USER_EMAIL!;
 const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
 
-async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+let blockedWrites: string[] | undefined;
+test.afterEach(async () => {
+  if (blockedWrites) expect(blockedWrites.filter((b) => !/activitylog/.test(b)), 'request ghi lọt lưới an toàn').toEqual([]);
+  blockedWrites = undefined;
+});
+
+/** Lưới an toàn cho test KHÔNG đi qua `BangGiaGhimPage.open()` (TC_01/02 đăng nhập bằng form): chỉ cho đăng nhập đi
+ * qua, giả lập ghi phiên bản Dashboard, huỷ ghi setting và mọi request ghi khác. */
+async function guardWrites(page: Page) {
+  const blocked: string[] = [];
+  blockedWrites = blocked;
+  await page.route((u) => /(^|\.)kfsp\.vn$/.test(u.hostname), async (route) => {
+    const r = route.request();
+    if (r.method() === 'GET' || r.method() === 'OPTIONS' || /socket\.io|\/api\/login(\?|$)/.test(r.url())) return route.fallback();
+    if (/\/save-user-dashboard-preference(\?|$)/.test(r.url())) return route.fulfill({ json: { success: true } });
+    if (/\/(updateusersettings|delusersettings)(\?|$)/.test(r.url())) return route.abort();
+    blocked.push(`${r.method()} ${r.url().split('?')[0]}`);
+    if (/\/api\/activitylog\//.test(r.url())) return route.fulfill({ json: { success: true } });
+    return route.abort();
+  });
 }
 
 /** Đóng modal "Chọn dịch vụ" (bảng giá gói hội viên) nếu nó đang bật.
@@ -30,64 +52,21 @@ async function dismissPackageModalIfShown(page: any) {
   await page.waitForTimeout(300);
 }
 
-/** Đăng nhập tài khoản Free, tự `test.skip` với lý do rõ ràng nếu tài khoản trong `.env` đăng nhập lỗi — cùng
- * cơ chế đã dùng ở TC_CONGDONG_55/TC_WATCHLIST_09 (tài khoản Free hiện tại bị API từ chối). */
-async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
-  // Tài khoản Free bị bật modal "Chọn dịch vụ" ngay sau khi đăng nhập — đóng trước khi làm gì tiếp.
+/** Mở /bang-gia đã đăng nhập (`paid` = TEST_USER_*, `free` = FREE_USER_*), qua máy chủ setting giả.
+ * Cập nhật 10/11/2026: KHÔNG còn bước "ép về Toàn bộ / bỏ lọc ngành" bằng thao tác UI (thao tác đó ghi setting thật
+ * lên tài khoản dùng chung) — `/getusersettings` giả đã trả sẵn sàn "Toàn bộ", ngành "Tất cả", không bộ lọc. */
+async function openBangGia(page: Page, account: Prev2Account = 'paid'): Promise<BangGiaPage> {
+  const bangGia = new BangGiaGhimPage(page);
+  blockedWrites = bangGia.blocked;
+  await bangGia.open({ account });
   await dismissPackageModalIfShown(page);
-}
-
-/** Trạng thái "sàn đang chọn" (`type_board`), "ngành đang lọc" và chế độ Phái sinh được lưu SERVER-SIDE cho
- * chính tài khoản test (`saveMultiSettings` → `store.commit('saveMultiSetting', ...)`), KHÔNG chỉ trong
- * `localStorage` của 1 browser context — nghĩa là 1 test đổi sang "Phái sinh"/1 ngành cụ thể sẽ ảnh hưởng tới
- * mọi test khác chạy sau đó (kể cả ở worker/context khác) cho tới khi có test khác đổi lại. Để mỗi test độc
- * lập với thứ tự/worker chạy, luôn ép về "Toàn bộ" (không lọc ngành) ngay sau khi vào trang. */
-async function gotoBangGiaReady(page: any) {
-  const bangGia = new BangGiaPage(page);
-  await bangGia.goto();
-  await bangGia.mainListContainer.locator('.price-board-row').first().waitFor({ state: 'visible', timeout: 20000 });
-  // Modal "Chọn dịch vụ" có thể bật lúc TẢI TRANG chứ không chỉ lúc đăng nhập (bảng giá vẫn render phía sau
-  // nhưng backdrop chặn hết click) — đóng lại ở đây trước khi thao tác bất kỳ.
-  await dismissPackageModalIfShown(page);
-
-  // Cập nhật 2026-09-22 (nhánh UI mới): sàn không còn là button rời — phải đọc nhãn đang chọn trên chính nút
-  // mở dropdown "Danh sách sàn" (`.pb-board-toggle` chứa text sàn hiện tại) để biết có cần đổi về "Toàn bộ".
-  const currentBoardLabel = (await bangGia.boardDropdownToggle.textContent())?.trim();
-  if (currentBoardLabel !== 'Toàn bộ') {
-    await bangGia.selectBoard('Toàn bộ');
-  }
-
-  // "Ngành" (dropdown lọc, giờ nằm trong panel "Bộ lọc" overflow) có thể vẫn đang chọn 1 ngành cụ thể từ lần
-  // trước — reset về "Tất cả" nếu khác. Phải mở overflow panel trước, dropdown Ngành mới có trong DOM.
-  await bangGia.openFiltersOverflow();
-  const deptSelected = bangGia.departmentDropdown.locator('.selected');
-  if (await deptSelected.count() > 0) {
-    await bangGia.departmentDropdown.hover();
-    await page.waitForTimeout(300);
-    await bangGia.departmentDropdown.locator('.dropdown-menu .dropdown-item').first().click();
-    await page.waitForTimeout(600);
-  }
-  // Đóng lại overflow panel để mỗi test bắt đầu từ đúng trạng thái mặc định (panel đóng), tránh test sau đó
-  // vô tình click nhầm phần tử còn sót lại nếu chưa mở panel theo đúng bước riêng của nó.
-  await page.keyboard.press('Escape');
-  await page.mouse.move(5, 5);
-  await page.waitForTimeout(200);
-
-  // Cập nhật 2026-09-22: cột header "Ngành"/"Sàn CK" đã KHÔNG còn tồn tại trong DOM thật (xem "Phát hiện đáng
-  // chú ý" trong bang-gia.md) — dùng cột "Mã" (vẫn tồn tại) làm tín hiệu chờ bảng đã render xong.
   await bangGia.columnHeader('Mã').waitFor({ state: 'visible', timeout: 10000 });
   return bangGia;
 }
 
 test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
   test('TC_BANGGIA_01: Truy cập /bang-gia khi chưa đăng nhập', async ({ page }) => {
+    await guardWrites(page);
     await page.context().clearCookies();
     await page.goto('/bang-gia');
     await page.waitForURL(/\/login\?redirect=%2Fbang-gia/);
@@ -95,6 +74,7 @@ test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
   });
 
   test('TC_BANGGIA_02: Đăng nhập từ redirect quay lại đúng /bang-gia', async ({ page }) => {
+    await guardWrites(page);
     await page.context().clearCookies();
     await page.goto('/bang-gia');
     await page.waitForURL(/\/login\?redirect=%2Fbang-gia/);
@@ -106,22 +86,19 @@ test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
   });
 
   test('TC_BANGGIA_03: Overview màn hình khi đã đăng nhập', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await expect(bangGia.mainContent).toBeVisible();
-    // Cập nhật 2026-09-22 (nhánh UI mới): CHỈ còn 6 tab border, không phải 8 — "Bài viết" và "Chatbot" đã bị gỡ
-    // bỏ HOÀN TOÀN khỏi layout mặc định. Điều này giải thích luôn nghi vấn flaky cũ (6/8 vs 8/8 tuỳ lần chạy)
-    // từng ghi nhận ở bản UI trước: không phải lỗi render ngẫu nhiên, 2 tab đó giờ không tồn tại nữa.
+    // Cập nhật 10/11/2026: panel phải chỉ còn 4 tab — "Cảnh báo" và "Cộng đồng" bị gỡ khỏi `DEFAULT_BORDER_LAYOUT`
+    // (commit 3ee23420d "Menu", 12/10/2026; trước đó 22/09 đã gỡ "Bài viết"/"Chatbot").
     const texts = await bangGia.borderButtons.allTextContents();
-    expect(texts).toEqual(['IBD', 'Thông tin', 'Watchlist', 'Cảnh báo', 'Ghi chú', 'Cộng đồng']);
+    expect(texts).toEqual(['IBD', 'Thông tin', 'Watchlist', 'Ghi chú']);
     await expect(bangGia.activeBorderButton).toHaveText('IBD');
     await expect(page.getByText('Tổng quan thị trường chung')).toBeVisible();
   });
 
   test('TC_BANGGIA_04: Bố cục lưu vào localStorage key ibd_layout', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Quan trọng: `onModelChange` (ghi vào localStorage) của flexlayout-react CHỈ được gọi khi model layout
     // thực sự đổi (chọn tab border, resize, kéo-thả...) — KHÔNG tự ghi ngay khi trang vừa tải xong (lúc đó chỉ
@@ -140,8 +117,7 @@ test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
   });
 
   test('TC_BANGGIA_05: Thu gọn panel phải khi click lại đúng tab đang active', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await bangGia.borderTab('Thông tin').click();
     await page.waitForTimeout(500);
@@ -153,17 +129,17 @@ test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
   });
 
   test('TC_BANGGIA_06: Mở lại panel phải từ trạng thái thu gọn', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Tab "IBD" đã active sẵn mặc định — click 1 lần để thu gọn (giống TC_BANGGIA_05).
     await bangGia.borderTab('IBD').click();
     await page.waitForTimeout(400);
     await expect(bangGia.activeBorderButton).toHaveCount(0);
 
-    await bangGia.borderTab('Cảnh báo').click();
+    // Cập nhật 10/11/2026: tab "Cảnh báo" đã bị gỡ khỏi panel phải → mở lại bằng tab "Ghi chú".
+    await bangGia.borderTab('Ghi chú').click();
     await page.waitForTimeout(500);
-    await expect(bangGia.activeBorderButton).toHaveText('Cảnh báo');
+    await expect(bangGia.activeBorderButton).toHaveText('Ghi chú');
   });
 
   test.fixme('TC_BANGGIA_07: Kéo giãn độ rộng panel phải', async () => {
@@ -173,16 +149,17 @@ test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
   });
 
   test('TC_BANGGIA_08: Tab border không có nút đóng, không kéo-thả được', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
-    const alertTab = bangGia.borderTab('Cảnh báo');
-    await expect(alertTab.locator('svg, .flexlayout__border_button_trailing')).toHaveCount(0);
+    // Cập nhật 10/11/2026: tab "Cảnh báo" không còn → locator cũ không khớp gì nên assertion `toHaveCount(0)` pass
+    // rỗng. Đổi sang kiểm tra cả 4 tab đang có (đảm bảo tab tồn tại trước khi kiểm tra không có nút đóng).
+    await expect(bangGia.borderButtons).toHaveCount(4);
+    await expect(bangGia.borderTab('Ghi chú')).toBeVisible();
+    await expect(bangGia.borderButtons.locator('svg, .flexlayout__border_button_trailing')).toHaveCount(0);
   });
 
   test('TC_BANGGIA_09: Tab chính "Bảng giá" không hiển thị thanh tab', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await expect(page.locator('.flexlayout__tab_button')).toHaveCount(0);
   });
@@ -190,8 +167,7 @@ test.describe('Bảng giá / Nhóm A — Khung layout tổng thể', () => {
 
 test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   test('TC_BANGGIA_10: Hiển thị đầy đủ toolbar lọc mặc định', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await expect(bangGia.searchInput).toBeVisible();
     // Cập nhật 2026-09-22 (nhánh UI mới): sàn/Phái sinh gộp chung 1 dropdown "Danh sách sàn" — mở ra để xác
@@ -213,8 +189,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_11: Chuyển đổi giữa các sàn', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Cập nhật 2026-09-22 (nhánh UI mới): sàn giờ chọn qua 1 dropdown DUY NHẤT "Danh sách sàn"
     // (`boardDropdownToggle`/`selectBoard()`), không còn 7 nút rời. Cột "Sàn CK"/"Ngành" vẫn không tồn tại ở
@@ -246,8 +221,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_12: Chuyển sang "Phái sinh"', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Cập nhật 2026-09-22: "Phái sinh" giờ là 1 mục trong dropdown "Danh sách sàn", không phải nút riêng.
     await bangGia.selectBoard('Phái sinh');
@@ -264,8 +238,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_13: "Phái sinh" > sub-tab "Thống kê HĐTL"', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await bangGia.selectBoard('Phái sinh');
     await bangGia.mainContent.getByText('Thống kê HĐTL', { exact: true }).click();
@@ -276,8 +249,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_14: Dropdown "Ngành" lọc theo ngành', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Cập nhật 2026-09-22: dropdown "Ngành" giờ nằm trong panel "Bộ lọc" overflow, phải mở panel trước.
     await bangGia.openFiltersOverflow();
@@ -304,8 +276,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_15: Dropdown "Watchlist" đổi danh sách theo watchlist đã chọn', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Baseline: danh sách mã ở "Toàn bộ" TRƯỚC khi chọn watchlist, để so sánh danh sách có thật sự đổi không.
     const codesBefore = await bangGia.visibleStockCodes();
@@ -336,8 +307,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   // Chức năng thêm mã vào watchlist nay thuộc phạm vi màn /watchlist (testcases/watchlist.md).
 
   test('TC_BANGGIA_18: Dropdown "Tín hiệu M/B"', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const codesBefore = await bangGia.visibleStockCodes();
 
@@ -372,8 +342,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_19: Dropdown "Bộ lọc" (bộ lọc cá nhân KFSP)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const codesBefore = await bangGia.visibleStockCodes();
 
@@ -389,6 +358,9 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
 
     // Nhóm "Của bạn" active mặc định (activeIndex: 0 trong PatternSelector.vue).
     const items = bangGia.filterDropdown.locator('.base-menu-container .base-item .label');
+    // Cập nhật 10/11/2026: danh sách bộ lọc tải bằng API (`my-filter-group-and-example`) khi panel vừa mở — chờ tối đa
+    // 10 giây thay vì đếm ngay (lượt chạy 10/11 từng skip nhầm vì API production trả chậm).
+    await items.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
     const count = await items.count();
     test.skip(count === 0, 'Tài khoản test hiện không có bộ lọc cá nhân nào đã lưu (nhóm "Của bạn" rỗng).');
 
@@ -403,8 +375,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_21: Toggle "Thu gọn"/"Mở rộng" dải index card', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Cập nhật 2026-09-22 (nhánh UI mới): tính năng đổi hẳn — trước đây toggle MINI-CHART riêng bên trong mỗi
     // index card (card luôn hiện); giờ nút này ẩn/hiện CẢ DẢI 5 index card cùng lúc để nhường chỗ cho bảng.
@@ -423,16 +394,8 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
     await expect(bangGia.expandChartButton).toHaveText('Thu gọn');
   });
 
-  test.fixme('TC_BANGGIA_53: Nút "Ẩn/hiện các cột" — nghi vấn bug thật', async () => {
-    // Nghi vấn bug thật đo được: click nút này (icon 3 chấm dọc, cạnh nút "Thu gọn") mở NHẦM modal "Chi tiết
-    // sự kiện" (không liên quan gì tới ẩn/hiện cột) — đã thử đóng panel "Bộ lọc" overflow trước khi click để
-    // loại trừ overlay chồng lấp, vẫn tái hiện y hệt. Cần dev xác nhận hành vi ĐÚNG trước khi viết test mô tả
-    // kết quả mong đợi — xem chi tiết ở testcases/bang-gia.md TC_BANGGIA_53.
-  });
-
   test('TC_BANGGIA_22: Tìm kiếm mã hợp lệ', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const firstCode = (await bangGia.codeLinkOf(bangGia.mainRows.first()).textContent())?.trim();
     test.skip(!firstCode, 'Không lấy được mã CK đầu tiên để tìm kiếm.');
@@ -447,8 +410,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
   });
 
   test('TC_BANGGIA_23: Tìm kiếm mã không tồn tại', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await bangGia.searchInput.fill('ZZZ999');
     await page.waitForTimeout(500);
@@ -458,8 +420,7 @@ test.describe('Bảng giá / Nhóm B — Toolbar lọc', () => {
 
 test.describe('Bảng giá / Nhóm C — Chỉ số thị trường', () => {
   test('TC_BANGGIA_24: Hiển thị 5 index card', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     for (const code of ['VNINDEX', 'HNXINDEX', 'UPCOMINDEX', 'VN30', 'VN100']) {
       await expect(bangGia.mainContent.getByRole('link', { name: code })).toBeVisible();
@@ -467,8 +428,7 @@ test.describe('Bảng giá / Nhóm C — Chỉ số thị trường', () => {
   });
 
   test('TC_BANGGIA_25: Click 1 index card mở modal biểu đồ', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await bangGia.mainContent.getByRole('link', { name: 'VNINDEX' }).click();
     await page.waitForTimeout(700);
@@ -477,8 +437,7 @@ test.describe('Bảng giá / Nhóm C — Chỉ số thị trường', () => {
   });
 
   test('TC_BANGGIA_26: Màu sắc theo chiều tăng/giảm/đứng giá của index card', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const card = bangGia.mainContent.getByRole('link', { name: 'VNINDEX' }).locator('xpath=ancestor::div[contains(@class,"card")][1]');
     await expect(card).toBeVisible();
@@ -492,8 +451,7 @@ test.describe('Bảng giá / Nhóm C — Chỉ số thị trường', () => {
 
 test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   test('TC_BANGGIA_27: Header bảng hiển thị đầy đủ cột', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Cập nhật 2026-09-22 (nhánh UI mới): cột "Ngành" và "Sàn CK" đã bị GỠ BỎ hoàn toàn khỏi header (xác nhận
     // qua DOM thật) — không còn 2 assertion cũ cho 2 cột này.
@@ -536,8 +494,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   }
 
   test('TC_BANGGIA_28: Click header để sắp xếp (sort)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     // Trạng thái mặc định của board đã là sort theo Mã tăng dần (column_sort:"stockcode", type_sort:"asc"
     // trong state khởi tạo) — verify trước để làm rõ baseline.
@@ -554,8 +511,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_29: Click lại cùng cột đảo chiều sort', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const originalAsc = await firstCodes(bangGia);
     expectMonotonic(originalAsc, 'asc');
@@ -578,8 +534,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_30: Icon "‹"/"›" đổi cột "Mua"/"Bán" ⇄ "Room"', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await expect(bangGia.headerRow.getByText('Mua', { exact: true })).toBeVisible();
     await expect(bangGia.headerRow.getByText('Bán', { exact: true })).toBeVisible();
@@ -595,12 +550,13 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_31: Hiển thị đầy đủ 1 dòng mã', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const row = bangGia.mainRows.first();
     await expect(bangGia.codeLinkOf(row)).toBeVisible();
-    await expect(bangGia.pinIconOf(row)).toBeVisible();
+    // Cập nhật 10/11/2026: cột kéo + ghim mặc định THU GỌN (commit f5545a114, 13/10) — dòng không còn icon ghim
+    // cho tới khi mở cột bằng mũi tên ở tiêu đề "Mã" (đã phủ ở bang-gia-ghim TC_BGGHIM_01/03).
+    await expect(bangGia.pinIconOf(row)).toHaveCount(0);
     // Cập nhật 2026-09-22 (nhánh UI mới): "ngành viết hoa nhỏ dưới mã" (`.nganh`) đã bị gỡ khỏi dòng — tên công
     // ty đầy đủ giờ chỉ còn ở tooltip `title` của ô mã (không hiển thị chữ trực tiếp trên dòng nữa).
     await expect(row.locator('.price-board-col.code')).toHaveAttribute('title', /.+/);
@@ -608,8 +564,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_32: Màu sắc theo trạng thái giá của từng dòng', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const refCell = bangGia.mainRows.first().locator('.price.text-live-board-nochange').first();
     await expect(refCell).toBeVisible();
@@ -618,8 +573,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_33: Click vào dòng (ngoài mã) chỉ đổi mã đang chọn, KHÔNG mở modal', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const row = bangGia.mainRows.first();
     const code = (await bangGia.codeLinkOf(row).textContent())?.trim();
@@ -635,8 +589,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_34: Click text mã CK mở đồng thời modal biểu đồ', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     const row = bangGia.mainRows.first();
     const code = (await bangGia.codeLinkOf(row).textContent())?.trim();
@@ -645,41 +598,9 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
     await expect(page.locator('.modal.show, .modal.d-block').first()).toBeVisible();
   });
 
-  test('TC_BANGGIA_35: Modal biểu đồ không đóng được bằng phím Escape', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
-
-    await bangGia.codeLinkOf(bangGia.mainRows.first()).click();
-    await page.waitForTimeout(700);
-    const modal = page.locator('.modal.show, .modal.d-block').first();
-    await expect(modal).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
-    await expect(modal, 'Escape không đóng được CModal ở đây (đã ghi nhận trong doc)').toBeVisible();
-
-    const closeBtn = modal.locator('.close, [class*="close"]').first();
-    await closeBtn.click({ force: true });
-    await page.waitForTimeout(400);
-    await expect(modal).toBeHidden();
-  });
-
-  test('TC_BANGGIA_36: Ghim / bỏ ghim 1 mã', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
-
-    const row = bangGia.mainRows.first();
-    const code = (await bangGia.codeLinkOf(row).textContent())?.trim();
-    await bangGia.pinIconOf(row).click({ force: true });
-    await page.waitForTimeout(700);
-
-    await expect(bangGia.pinnedRows).toHaveCount(1);
-    await expect(bangGia.codeLinkOf(bangGia.pinnedRows.first())).toHaveText(code!);
-
-    await bangGia.unpinIconOf(bangGia.pinnedRows.first()).click({ force: true });
-    await page.waitForTimeout(700);
-    await expect(bangGia.pinnedRows).toHaveCount(0);
-  });
+  // TC_BANGGIA_36 (ghim / bỏ ghim 1 mã) đã XOÁ 10/11/2026: cột kéo + ghim giờ mặc định thu gọn, mở bằng mũi tên ở
+  // tiêu đề "Mã" (commit f5545a114, 13/10) và lưu đọc-gộp-ghi đồng bộ app (f4c471b93) — toàn bộ luồng ghim/bỏ ghim
+  // đã phủ ở tests/bang-gia-ghim.spec.ts (TC_BGGHIM_03/08/10/11).
 
   // TC_BANGGIA_37 (kéo-thả đổi vị trí 1 dòng) đã XOÁ 2026-09-22 theo xác nhận của người dùng: chức năng này
   // chưa có trên web.
@@ -690,8 +611,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
   });
 
   test('TC_BANGGIA_39: Dòng chú thích đơn vị giá/khối lượng cuối bảng', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await expect(bangGia.footerNote).toContainText('Giá x 1000 VNĐ. Khối lượng x 1CP');
 
@@ -702,8 +622,7 @@ test.describe('Bảng giá / Nhóm D — Bảng dữ liệu mã CK', () => {
 
 test.describe('Bảng giá / Nhóm E — Panel border phải', () => {
   test('TC_BANGGIA_40: Tab "IBD" (mặc định)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await expect(bangGia.borderSubTab('Nhịp đập TT')).toBeVisible();
     await expect(bangGia.borderSubTab('Sức khỏe TT')).toBeVisible();
@@ -713,86 +632,58 @@ test.describe('Bảng giá / Nhóm E — Panel border phải', () => {
   // TC_BANGGIA_41 (tab "Thông tin" — sổ lệnh mã đang chọn) đã XOÁ 2026-09-22 theo yêu cầu của người dùng.
 
   test('TC_BANGGIA_43: Tab "Watchlist" (border)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await bangGia.borderTab('Watchlist').click();
     await page.waitForTimeout(1000);
     await expect(bangGia.borderSubTab('Danh sách')).toBeVisible();
   });
 
-  test('TC_BANGGIA_44: Tab "Cảnh báo" (border)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
-
-    const pageErrors: string[] = [];
-    page.on('pageerror', (e) => pageErrors.push(e.message));
-    await bangGia.borderTab('Cảnh báo').click();
-    await page.waitForTimeout(1000);
-    expect(pageErrors).toEqual([]);
-  });
+  // TC_BANGGIA_44 (tab "Cảnh báo") và TC_BANGGIA_46 (tab "Cộng đồng") đã XOÁ 10/11/2026: 2 tab này bị gỡ khỏi
+  // panel phải (`DEFAULT_BORDER_LAYOUT` trong reactLayoutIBD.js, commit 3ee23420d "Menu" 12/10/2026).
 
   test('TC_BANGGIA_45: Tab "Ghi chú" (border)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
 
     await bangGia.borderTab('Ghi chú').click();
     await page.waitForTimeout(1000);
-    await expect(bangGia.borderContent().getByText('KungFuStocksPro Note')).toBeVisible();
+    // Cập nhật 10/11/2026: tab dùng chung component Ghi chú của Dashboard (`dashboard/board/tabs/NoteV2.vue`, commit
+    // 263e3dcfa 13/10) — không còn tiêu đề "KungFuStocksPro Note"; nhận biết bằng thanh lọc + nút thêm ghi chú.
+    for (const tab of ['Tất cả', 'Cá nhân', 'Giao dịch']) {
+      await expect(bangGia.borderContent().getByText(tab, { exact: true }).first()).toBeVisible();
+    }
+    await expect(bangGia.borderContent().getByText('Thêm ghi chú mới', { exact: true })).toBeVisible();
   });
-
-  test('TC_BANGGIA_46: Tab "Cộng đồng" (border)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
-
-    await bangGia.borderTab('Cộng đồng').click();
-    await page.waitForTimeout(1000);
-    await expect(bangGia.borderSubTab('Mới nhất')).toBeVisible();
-    await expect(bangGia.borderSubTab('Quan tâm')).toBeVisible();
-    await expect(bangGia.borderSubTab('Phổ biến')).toBeVisible();
-    await expect(bangGia.borderSubTab('AI Cập Nhật')).toHaveCount(0);
-    await expect(page.getByPlaceholder('Bạn có nhận định gì muốn chia sẻ?')).toHaveCount(0);
-  });
-
 });
 
 test.describe('Bảng giá / Nhóm F — Tài khoản Free vs đầy đủ', () => {
   test('TC_BANGGIA_48: Tài khoản Free xem đầy đủ bảng giá (không giới hạn)', async ({ page }) => {
-    await loginFreeOrSkip(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page, 'free');
 
     await expect(bangGia.mainRows.first()).toBeVisible();
     await expect(bangGia.headerRow.getByText('Bên mua', { exact: true })).toBeVisible();
   });
 
   test('TC_BANGGIA_49: Tài khoản Free — tab "Ghi chú" BỊ KHOÁ', async ({ page }) => {
-    await loginFreeOrSkip(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page, 'free');
 
     await bangGia.borderTab('Ghi chú').click();
     await page.waitForTimeout(1000);
 
     // Kỳ vọng nghiệp vụ (người dùng xác nhận 2026-09-22): tài khoản Free PHẢI bị khoá tab "Ghi chú".
-    // Cách nhận biết đúng trạng thái khoá (đọc `ProtectedView.vue` + `TabNote/index.vue`):
-    //  - Khoá  => render `ProtectedView` = 1 ảnh mờ `.blurred-image`; chữ "Bạn cần nâng cấp gói hội viên..."
-    //             và nút "Đăng ký ngay" CHỈ hiện khi hover (`isButtonVisible` mặc định false).
-    //  - KHÔNG dùng text "KungFuStocksPro Note" để phân biệt: nó nằm ở header NGOÀI vùng bị gate nên luôn hiển
-    //    thị ở cả 2 trạng thái (đây chính là lỗi của assertion cũ).
-    const protectedImage = bangGia.borderContent().locator('.image-container .blurred-image');
-    await expect(protectedImage).toBeVisible();
-
-    // Hover vào vùng bị khoá để lộ thông điệp nâng cấp -> khẳng định chắc chắn đây là ProtectedView, không phải
-    // 1 ảnh bất kỳ nào khác trong tab. PHẢI dùng `force: true`: ngay khi chuột vừa chạm vào vùng này,
-    // `ProtectedView` bung overlay `.register-content-center` NẰM ĐÈ LÊN chính tấm ảnh, khiến Playwright coi
-    // ảnh là "bị che" và retry hover vô ích cho tới khi timeout (đã gặp thật).
-    await protectedImage.hover({ force: true });
-    await expect(bangGia.borderContent().getByText('Bạn cần nâng cấp gói hội viên để sử dụng chức năng này.')).toBeVisible();
-    await expect(bangGia.borderContent().getByRole('button', { name: 'Đăng ký ngay' })).toBeVisible();
+    // Cập nhật 10/11/2026: tab giờ dùng `dashboard/board/tabs/NoteV2.vue` (commit 263e3dcfa) — tài khoản Free render
+    // `UpdateRequire` (`.free-user-img-wrapper`, ảnh nền + thông điệp + nút "Nâng cấp ngay" HIỆN SẴN, không cần hover)
+    // thay cho `ProtectedView` (ảnh mờ `.blurred-image`, chỉ hiện thông điệp khi hover) của component cũ.
+    const lock = bangGia.borderContent().locator('.free-user-img-wrapper');
+    await expect(lock).toBeVisible();
+    await expect(lock.getByText('Bạn cần nâng cấp gói hội viên để sử dụng chức năng này')).toBeVisible();
+    await expect(lock.getByText('Nâng cấp ngay', { exact: true })).toBeVisible();
+    // Nội dung ghi chú thật KHÔNG render.
+    await expect(bangGia.borderContent().getByText('Thêm ghi chú mới', { exact: true })).toHaveCount(0);
   });
 
   test('TC_BANGGIA_50: Tài khoản Free — "Phái sinh" > "Thống kê HĐTL" BỊ KHOÁ', async ({ page }) => {
-    await loginFreeOrSkip(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page, 'free');
 
     await bangGia.selectBoard('Phái sinh');
     await bangGia.mainContent.getByText('Thống kê HĐTL', { exact: true }).click();
@@ -813,8 +704,7 @@ test.describe('Bảng giá / Nhóm F — Tài khoản Free vs đầy đủ', () 
 
 test.describe('Bảng giá / Nhóm G — Responsive & điều hướng', () => {
   test('TC_BANGGIA_51: Responsive ở viewport hẹp (≤630px)', async ({ page }) => {
-    await loginFirst(page);
-    const bangGia = await gotoBangGiaReady(page);
+    const bangGia = await openBangGia(page);
     await page.setViewportSize({ width: 600, height: 900 });
     await page.waitForTimeout(1000);
 
@@ -823,8 +713,7 @@ test.describe('Bảng giá / Nhóm G — Responsive & điều hướng', () => {
   });
 
   test('TC_BANGGIA_52: Nút Back trình duyệt', async ({ page }) => {
-    await loginFirst(page);
-    await gotoBangGiaReady(page);
+    await openBangGia(page);
 
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');

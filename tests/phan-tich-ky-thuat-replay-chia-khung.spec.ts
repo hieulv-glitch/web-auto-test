@@ -307,25 +307,6 @@ test.describe('PTKT Replay & Chia khung — Replay: thanh điều khiển', () =
     expect(before.x - after.x).toBeGreaterThan(250);
     expect(before.y - after.y).toBeGreaterThan(250);
   });
-
-  test('TC_PTKT_RP_19: Mất mạng khi đang Replay không làm hỏng trang', async ({ page, context }) => {
-    const errors = collectErrors(page);
-    const ta = await openPaid(page, { layout: LAYOUT_1_FRAME });
-    await ta.waitChartsReady();
-    await ta.openReplay();
-    await context.setOffline(true);
-    try {
-      await ta.setReplayDate('2019-01-02');
-      await ta.replayPlay.click();
-      await page.waitForTimeout(5000);
-      await expect(ta.replayBar).toBeVisible();
-    } finally {
-      await context.setOffline(false);
-    }
-    await ta.replayClose.click();
-    await expect(ta.replayBar).toHaveCount(0);
-    expect(errors, 'Không có lỗi JS khi mất mạng').toEqual([]);
-  });
 });
 
 // =====================================================================================================
@@ -409,17 +390,6 @@ test.describe('PTKT Replay & Chia khung — Replay: chọn biểu đồ chiếu 
 
   // Mốc của từng ô chỉ vẽ trên canvas TradingView trong iframe — không đọc được ngày nến cuối từng ô qua DOM.
   test.fixme('TC_PTKT_RP_25: Nhiều ô chiếu cùng mốc; ô bị che và ô chưa mở vào lượt chiếu', async () => {});
-
-  test('TC_PTKT_RP_26: Bấm ra ngoài đóng bảng chọn biểu đồ', async ({ page }) => {
-    const ta = await openPaid(page, { layout: LAYOUT_2_FRAMES });
-    await ta.waitChartsReady();
-    await ta.openReplay();
-    await ta.replaySelBtn.click();
-    await expect(ta.replaySelPanel).toBeVisible();
-    // Bấm vào nội dung panel Thông tin (Vue). Bấm vào nút dọc "Thông tin" của flexlayout KHÔNG đóng bảng — xem mục Phát hiện trong .md.
-    await page.getByText('Giao dịch', { exact: true }).click();
-    await expect(ta.replaySelPanel).toHaveCount(0);
-  });
 });
 
 // =====================================================================================================

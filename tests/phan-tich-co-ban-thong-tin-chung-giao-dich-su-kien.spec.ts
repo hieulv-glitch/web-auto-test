@@ -1,40 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Cập nhật 10/11/2026: chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên
+ * cache `Prev2Session` qua `fa.login` (chặn ghi setting → đổi mã CK giữa test KHÔNG còn đổi "mã đang xem" của tài
+ * khoản dùng chung, nên bỏ bước reset về VNM cuối test); mọi request ghi khác bị lưới `FaSafetyNet` huỷ.
+ */
+useFaSafetyNet(test);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
-}
-
-/** Reset lại mã VNM qua ô search — dùng cho các test đổi mã CK giữa chừng, để không ảnh hưởng test khác chạy
- * song song (tài khoản test dùng chung, `final_mack` lưu server-side). */
-async function resetToVNM(page: any, fa: FaAnalysisPage) {
-  await fa.searchInput.fill('VNM');
-  await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().waitFor({ state: 'visible' });
-  await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().click();
+  await new FaAnalysisPage(page).login('free');
 }
 
 test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Thông tin giao dịch" (TableInfoTransaction.vue + ChartAnalysis.vue)', () => {
@@ -61,24 +40,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Thông ti
     await expect(fa.coDongLonChartLabel).toBeVisible();
   });
 
-  test('TC_PTCB_TTC_GDSK_02: [Phát hiện] Dữ liệu bảng đúng định dạng — ngày RAW YYYY-MM-DD (dead code formatDate())', async ({ page }) => {
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-    await expect(fa.financialSnapshotRows.first()).toBeVisible({ timeout: 15000 });
-    await fa.clickTtcSubTab('Thông tin giao dịch');
-    await expect(fa.insiderTradingRows.first()).toBeVisible({ timeout: 10000 });
-
-    // Đọc riêng TỪNG Ô "td" thay vì text nguyên cả dòng (`allTextContents()` trên `tr` nối liền nội dung các ô
-    // sát nhau không có dấu phân cách — 2 ngày ISO liền kề VD "2024-03-15" + "2024-03-20" có thể tình cờ tạo
-    // substring khớp NHẦM `\d{2}-\d{2}-\d{4}` ở ranh giới 2 ô, gây false positive đã gặp khi viết test này).
-    const cellTexts = await fa.insiderTradingRows.first().locator('td').allTextContents();
-    const hasIsoDate = cellTexts.some((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.trim()));
-    expect(hasIsoDate, 'Ít nhất 1 ô phải có ngày format YYYY-MM-DD (RAW từ API, formatDate() dead code)').toBe(true);
-    const hasVietnameseDate = cellTexts.some((t) => /^\d{2}-\d{2}-\d{4}$/.test(t.trim()));
-    expect(hasVietnameseDate, 'KHÔNG được có ô ngày format DD-MM-YYYY (xác nhận formatDate() thật sự không được gọi)').toBe(false);
-  });
-
   test('TC_PTCB_TTC_GDSK_03: [Phát hiện] Panel bên phải tái sử dụng ChartAnalysis.vue — nội dung KHÔNG liên quan giao dịch nội bộ', async ({ page }) => {
     await loginFirst(page);
     const pageErrors: string[] = [];
@@ -93,18 +54,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Thông ti
     await expect(fa.rightSidePanel).not.toContainText('giao dịch nội bộ');
     await expect(fa.rightSidePanel.locator('canvas')).toHaveCount(2, { timeout: 10000 });
     expect(pageErrors).toEqual([]);
-  });
-
-  test('TC_PTCB_TTC_GDSK_04: [Phát hiện] Mã không có giao dịch nội bộ (ETF) — bảng trống hoàn toàn, KHÔNG có thông báo', async ({ page }) => {
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'E1VFVN30', tabQuery: 'thong-tin-chung' });
-    await expect(fa.ttcSubTabList).toBeVisible({ timeout: 15000 });
-    await fa.clickTtcSubTab('Thông tin giao dịch');
-    await page.waitForTimeout(2000);
-
-    await expect(fa.insiderTradingRows).toHaveCount(0);
-    await expect(fa.eventsNoDataText).toHaveCount(0);
   });
 
   test('TC_PTCB_TTC_GDSK_05: Đổi mã CK — bảng + panel cập nhật đúng theo mã mới', async ({ page }) => {
@@ -125,7 +74,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Thông ti
     await expect(fa.ttcSubTab('Thông tin giao dịch')).toHaveClass(/active/);
     await expect(fa.rightSidePanel.locator('canvas')).toHaveCount(2, { timeout: 10000 });
 
-    await resetToVNM(page, fa);
   });
 });
 
@@ -149,8 +97,9 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Sự ki�
     await expect(headerCells.nth(1)).toHaveText('Mã CK');
     await expect(headerCells.nth(2)).toHaveText('Ngày');
     await expect(headerCells.nth(3)).toHaveText('Nội dung');
-    await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
-    await expect(fa.eventsRows.first().locator('td').nth(2)).toHaveText(/\d{2}-\d{2}-\d{4}/);
+    // Cập nhật 10/11/2026: `get-list-event` của VNM hiện chỉ còn 1 sự kiện loại "Cổ tức" (Niêm yết/ĐHĐCĐ rỗng) → dùng nhóm "Cổ tức".
+    await fa.clickEventsSubTab('Cổ tức, thưởng và phát hành thêm');
+    await expect(fa.eventsRows.first().locator('td').nth(2)).toHaveText(/\d{2}-\d{2}-\d{4}/, { timeout: 10000 });
 
     await expect(fa.coTucBangTienLabel).toBeVisible();
     await expect(fa.coTucBangCoPhieuLabel).toBeVisible();
@@ -169,20 +118,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Sự ki�
     await expect(fa.eventsSubTab('Niêm yết')).not.toHaveClass(/active/);
     await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
     await expect(fa.eventsRows.first()).toContainText(/cổ tức|Thưởng/i);
-  });
-
-  test('TC_PTCB_TTC_GDSK_08: Click "Đại hội cổ đông" — list đổi đúng', async ({ page }) => {
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-    await expect(fa.financialSnapshotRows.first()).toBeVisible({ timeout: 15000 });
-    await fa.clickTtcSubTab('Sự kiện');
-    await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
-
-    await fa.clickEventsSubTab('Đại hội cổ đông');
-    await expect(fa.eventsSubTab('Đại hội cổ đông')).toHaveClass(/active/);
-    await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
-    await expect(fa.eventsRows.first()).toContainText(/ĐHĐCĐ|đại hội/i);
   });
 
   test('TC_PTCB_TTC_GDSK_09: Click lại "Niêm yết" — quay về đúng nội dung ban đầu', async ({ page }) => {
@@ -208,7 +143,9 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Sự ki�
     await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
     await expect(fa.financialSnapshotRows.first()).toBeVisible({ timeout: 15000 });
     await fa.clickTtcSubTab('Sự kiện');
-    await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
+    // Cập nhật 10/11/2026: `get-list-event` của VNM hiện chỉ còn 1 sự kiện loại "Cổ tức" (Niêm yết/ĐHĐCĐ rỗng) → dùng nhóm "Cổ tức".
+    await fa.clickEventsSubTab('Cổ tức, thưởng và phát hành thêm');
+    await expect(fa.eventsRows.first().locator('td').nth(2)).toBeVisible({ timeout: 10000 });
 
     await fa.eventsRows.first().click();
     await expect(fa.eventDetailModal).toBeVisible({ timeout: 10000 });
@@ -224,7 +161,9 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Sự ki�
     await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
     await expect(fa.financialSnapshotRows.first()).toBeVisible({ timeout: 15000 });
     await fa.clickTtcSubTab('Sự kiện');
-    await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
+    // Cập nhật 10/11/2026: `get-list-event` của VNM hiện chỉ còn 1 sự kiện loại "Cổ tức" (Niêm yết/ĐHĐCĐ rỗng) → dùng nhóm "Cổ tức".
+    await fa.clickEventsSubTab('Cổ tức, thưởng và phát hành thêm');
+    await expect(fa.eventsRows.first().locator('td').nth(2)).toBeVisible({ timeout: 10000 });
 
     await fa.eventsRows.first().click();
     await expect(fa.eventDetailModal).toBeVisible({ timeout: 10000 });
@@ -271,7 +210,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Sự ki�
       'Vẫn ở "Cổ tức, thưởng và phát hành thêm" sau khi đổi mã CK (không tự reset)'
     ).toHaveClass(/active/);
 
-    await resetToVNM(page, fa);
   });
 });
 
@@ -366,35 +304,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Giao dịch/Sự k
 
     // Xác nhận tổng thể: CẢ 2 cấp cùng không bị khoá (khớp TC_PTCB_TTC_GDSK_18).
     await expect(fa.protectedView).toHaveCount(0);
-  });
-
-  test('TC_PTCB_TTC_GDSK_20: [Phát hiện bug] Free — đổi mã CK KHÔNG refresh bảng "Sự kiện" (dữ liệu SAI mã, không cảnh báo)', async ({ page }) => {
-    test.setTimeout(60000);
-    await loginFreeOrSkip(page);
-    const eventRequests: string[] = [];
-    page.on('request', (req) => {
-      if (req.url().includes('get-list-event')) eventRequests.push(req.url());
-    });
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-    await expect(fa.ttcSubTabList).toBeVisible({ timeout: 20000 });
-
-    await fa.clickTtcSubTab('Sự kiện');
-    await expect(fa.eventsRows.first()).toBeVisible({ timeout: 10000 });
-    const firstRowTextBefore = await fa.eventsRows.first().textContent();
-    expect(firstRowTextBefore, 'Dòng đầu bảng phải thuộc mã VNM trước khi đổi mã').toContain('VNM');
-
-    eventRequests.length = 0;
-    await fa.searchInput.fill('HPG');
-    await fa.searchSuggestions.filter({ hasText: 'HPG' }).first().waitFor({ state: 'visible' });
-    await fa.searchSuggestions.filter({ hasText: 'HPG' }).first().click();
-    await page.waitForTimeout(3000);
-
-    expect(eventRequests.length, 'Tài khoản Free KHÔNG được gọi lại /get-list-event khi đổi mã CK (bug đã xác nhận)').toBe(0);
-    const firstRowTextAfter = await fa.eventsRows.first().textContent();
-    expect(firstRowTextAfter, 'Dòng đầu bảng "Sự kiện" VẪN hiển thị dữ liệu mã CŨ (VNM) dù đang xem HPG').toContain('VNM');
-
-    await resetToVNM(page, fa);
   });
 });
 

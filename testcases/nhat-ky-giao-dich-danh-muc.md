@@ -94,20 +94,6 @@
 
 ---
 
-# [TC_NKGD_DM_06] Tên chỉ có khoảng trắng vẫn được gửi lên máy chủ
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (bug nghi vấn, giữ từ bản cũ)
-- **Kết quả đo được:** `addNewTrading()` chỉ so `name != ""`, không `.trim()` → tên "   " qua được kiểm tra phía web.
-
-## Các bước thực hiện
-1. Nhập tên "   ", bấm "Thêm danh mục".
-
-## Kết quả mong đợi (đo được)
-- [ ] Web gửi `POST /api/stocks/category/store` với `name: "   "` (máy chủ giả chấp nhận). Cần backend xác nhận có chặn
-      tên rỗng sau khi trim không.
-
----
-
 # [TC_NKGD_DM_07] Tích "Nhập giá vốn" mà vốn = 0
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -169,37 +155,6 @@
 
 ## Kết quả mong đợi
 - [ ] Toast "Có lỗi xảy ra, vui lòng thử lại", modal đóng, danh sách không đổi.
-
----
-
-# [TC_NKGD_DM_12] Thêm danh mục khi mất mạng — lỗi JS, không báo gì
-
-- **Trạng thái:** 🆕 Testcase mới — 🐞 bug (giữ từ bản cũ TC_NKGD_DM_10)
-- **Nguyên nhân:** `.catch` đọc `error.response.status` không kiểm tra `error.response` → mất mạng thì `TypeError`, không
-  tới được toast.
-
-## Các bước thực hiện
-1. Request thêm danh mục bị huỷ (mất mạng), thêm danh mục.
-
-## Kết quả mong đợi (đo được)
-- [ ] Modal đóng, KHÔNG có toast nào, trang phát sinh lỗi JS `Cannot read properties of undefined (reading 'status')`.
-- [ ] Mong đợi đúng (cần dev sửa): báo lỗi "Có lỗi xảy ra, vui lòng thử lại".
-
----
-
-# [TC_NKGD_DM_13] Nhấn Enter trong modal Thêm — lỗi JS, không thêm được
-
-- **Trạng thái:** 🆕 Testcase mới — 🐞 bug mới
-- **Nguyên nhân:** `mounted()` gắn `keyup` Enter lên `window` gọi `document.getElementById("addManageCategory").click()` /
-  `("saveEditCategory")` — giao diện mới đã bỏ 2 id này khỏi nút → `null.click()` ném `TypeError`. Listener còn không
-  bao giờ được gỡ (gắn thêm mỗi lần vào tab).
-
-## Các bước thực hiện
-1. Mở modal Thêm, nhập tên "Tăng trưởng", nhấn Enter.
-
-## Kết quả mong đợi (đo được)
-- [ ] Không gọi API thêm danh mục, modal vẫn mở; trang phát sinh lỗi JS `Cannot read properties of null (reading 'click')`.
-- [ ] Mong đợi đúng (cần dev sửa): Enter = bấm "Thêm danh mục".
 
 ---
 
@@ -373,23 +328,20 @@
 
 ---
 
-## Tổng hợp trạng thái (26 testcase)
+## Tổng hợp trạng thái (23 testcase)
 
 Tự động hoá: [tests/nhat-ky-giao-dich-danh-muc.spec.ts](../tests/nhat-ky-giao-dich-danh-muc.spec.ts).
+
+**Cập nhật 10/11/2026:** xoá TC_NKGD_DM_06, TC_NKGD_DM_12, TC_NKGD_DM_13 (bug được user chấp nhận) — tổng 26 → 23.
 
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
 | ✅ Áp dụng | 12 | DM_04, 05, 08, 10, 14, 16, 17, 18, 19, 21, 24, 25 |
-| 🆕 Mới (riêng web) | 13 | DM_01, 02, 03, 07, 09, 11, 12, 13, 15, 20, 22, 23, 26 |
-| ⚠️ Cần xác nhận thêm | 1 | DM_06 |
+| 🆕 Mới (riêng web) | 11 | DM_01, 02, 03, 07, 09, 11, 15, 20, 22, 23, 26 |
 
 **Đối chiếu bản 19/08 (21 TC):** DM_01–02 (2 sub-tab) → DM_01 + DM_23; DM_03 → DM_01/02; DM_04 (lỗi tải im lặng) bỏ (không
 còn khác biệt quan sát được); DM_05–10 → DM_04–12; DM_11–14 → DM_16–19; DM_15–20 → DM_21, 24–26; DM_21 → DM_14. Mới: DM_03,
 07, 09, 13, 15, 20, 22.
 
 **Phát hiện đáng chú ý:**
-1. 🐞 **DM_13 (mới):** phím Enter trong modal Thêm/Sửa ném `TypeError` vì code còn gọi id nút đã bị xoá khỏi giao diện
-   mới (`addManageCategory`, `saveEditCategory`); listener `keyup` gắn lên `window` không bao giờ gỡ.
-2. 🐞 **DM_12:** mất mạng khi thêm danh mục → `TypeError` trong `.catch`, người dùng không được báo gì (bug cũ, chưa sửa).
-3. ⚠️ **DM_06:** tên toàn khoảng trắng vẫn gửi lên máy chủ (bug cũ, chưa sửa).
-4. **DM_26:** xoá vĩnh viễn lỗi thì modal không đóng — khác mọi thao tác khác của tab.
+1. **DM_26:** xoá vĩnh viễn lỗi thì modal không đóng — khác mọi thao tác khác của tab.

@@ -17,7 +17,7 @@ test.afterEach(async () => { expect(nk.server.blocked, 'request ghi lọt tới 
 const MAX_CUT = '% Cắt lỗ tối đa trên tổng tài sản';
 const DEAL_CUT = '% Cắt lỗ trên deal tiếp theo';
 /** Vào tab Phân bổ vốn SAU khi app tải xong setting (như người dùng đi từ tab khác sang). Mở thẳng tab khi setting còn đang
- * tải dính bug race — xem TC_NKGD_PBV_17. */
+ * tải dính bug race (bug đã được chấp nhận 10/11/2026, testcase PBV_17 đã xoá). */
 async function openTab(opts: NkOpenOptions = {}, hasCategory = true) {
   await nk.open({ tab: 0, ...opts });
   await nk.waitData();
@@ -232,20 +232,5 @@ test.describe('Biểu đồ cơ cấu', () => {
     const legend = (await nk.pane.locator('.ca-chu-giai-muc b').allInnerTexts()).map((t) => parseFloat(t));
     expect(legend).toHaveLength(2);
     expect(Math.abs(legend[0] + legend[1] - 100)).toBeLessThan(0.05);
-  });
-});
-
-test.describe('Lỗi tải khi mở thẳng tab', () => {
-  test('TC_NKGD_PBV_17: 🐞 Mở thẳng tab Phân bổ vốn (tab được nhớ / F5) khi danh mục về trước setting → ô danh mục rỗng, vốn 0, cấu hình không nạp', async () => {
-    await nk.open({ tab: 3 });
-    await expect(nk.pane.getByText('Thiết lập deal tiếp theo')).toBeVisible({ timeout: 30000 });
-    await nk.waitData();
-    await nk.waitSettingsLoaded();
-    await nk.root.page().waitForTimeout(1500);
-    await expect(nk.caPickerBtn).toHaveText('');
-    await expect(nk.caCapitalText).toHaveText('0 đ');
-    await pick('Dài hạn');
-    await expect(nk.caCapitalText).toHaveText('0 đ'); // đúng ra 500,000,000 đ
-    await expect(nk.caInput(MAX_CUT)).toHaveValue('0'); // đúng ra 2
   });
 });

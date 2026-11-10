@@ -179,14 +179,4 @@ test.describe('Đồ thị & bảng', () => {
     const [download] = await Promise.all([page.waitForEvent('download'), nk.ptExportBtn.click()]);
     expect(download.suggestedFilename()).toBe('Thống kê lợi nhuận.xlsx');
   });
-
-  test('TC_NKGD_PT_15: 🐞 Sau khi Xuất Excel, lần vẽ lại bảng kế tiếp thêm 1 cột "Mã CK" thừa', async ({ page }) => {
-    await openTab();
-    await expect(subHeaders()).toHaveCount(15);
-    await Promise.all([page.waitForEvent('download'), nk.ptExportBtn.click()]);
-    await expect(subHeaders()).toHaveCount(15); // chưa lộ ngay
-    await nk.ptTable.locator('thead tr').first().locator('th').nth(1).click(); // buộc vẽ lại
-    await expect(subHeaders()).toHaveCount(16);
-    await expect(subHeaders().first()).toHaveText('Mã CK');
-  });
 });

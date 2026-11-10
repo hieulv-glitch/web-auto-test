@@ -1,5 +1,10 @@
 # Màn hình: Toàn cảnh thị trường — Ngành
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). Đăng nhập chuyển sang
+phiên cache `Prev2Session` (chặn ghi setting) + lưới `useLegacySafetyNet` (pages/LegacySafetyNet.ts — huỷ mọi request ghi
+tới production, assert rỗng sau mỗi test). Menu header "Toàn cảnh thị trường" đã bỏ — "Ngành" nay là mục con của "Thị
+Trường" (`src/containers/mainMenu.js`) → sửa TC_NGANH_01–03 theo menu mới. Không xoá case, không thêm fixme.
+
 - **URL:** `/nganh` — 1 trong 3 màn con của menu header "Toàn cảnh thị trường" (cùng `/bo-loc` = "Bộ lọc cổ
   phiếu" và `/suc-manh-dong-tien` = "Sức mạnh dòng tiền", 2 tài liệu riêng
   [toan-canh-thi-truong-bo-loc.md](toan-canh-thi-truong-bo-loc.md)/
@@ -37,6 +42,7 @@
 
 # [TC_NGANH_01] Click menu "Toàn cảnh thị trường" điều hướng tới `/nganh`
 
+- **Cập nhật 10/11/2026:** vào `/nganh` bằng cách hover "Thị Trường" → bấm "Ngành" trong dropdown.
 - **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass**
 - **Kết quả đo được:** Từ 1 trang khác (`/bang-gia`), click trực tiếp vào label "Toàn cảnh thị trường" (không
   cần mở dropdown) điều hướng thẳng tới `/nganh` — đúng theo `<CHeaderNavLink to="/nganh">` bao cả label lẫn
@@ -52,6 +58,7 @@
 
 # [TC_NGANH_02] Hover menu hiển thị dropdown 3 mục con đúng thứ tự
 
+- **Cập nhật 10/11/2026:** dropdown "Thị Trường" có 5 mục: Bảng giá chứng khoán · Bảng giá crypto · Ngành · Sức mạnh dòng tiền · Thông tin và Sự Kiện ("Bộ lọc cổ phiếu" chuyển sang menu "Cơ hội").
 - **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass**
 
 ## Các bước thực hiện
@@ -64,6 +71,7 @@
 
 # [TC_NGANH_03] Menu "Toàn cảnh thị trường" ở trạng thái active khi đang ở `/nganh`
 
+- **Cập nhật 10/11/2026:** tiêu đề được tô đậm (`.active-tab-overview`) nay là "Thị Trường" (`activePaths` chứa `/nganh`).
 - **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
 - **Ghi chú:** Theo code, class `active-tab-overview` được áp dụng khi `$route.path` là 1 trong 3 route
   `/nganh`/`/bo-loc`/`/suc-manh-dong-tien` — testcase này chỉ verify tại `/nganh` (phạm vi tài liệu), 2 route
@@ -197,29 +205,6 @@
 
 ## Kết quả mong đợi
 - [ ] URL đổi thành `/bo-loc` với query `type=chi-bao-ky-thuat` và `nganh=<tên ngành vừa click>`.
-
----
-
-# [TC_NGANH_12] Click badge "Trạng thái" không có phản hồi UI — phát hiện đáng chú ý
-
-- **Trạng thái:** 🆕 — **Đã verify bằng automation: Pass (xác nhận hành vi, không phải lỗi JS)**
-- **Kết quả đo được:** Click badge "Trạng thái" gọi `gotoRRG(ten_nganh)` (đổi state nội bộ `value_type_menu` +
-  `department` trong `wrapperLayout.vue`), nhưng URL **không đổi** (giữ nguyên `/nganh`) và nội dung bảng
-  **không đổi** — vì nhánh UI phản ứng với `value_type_menu` (`template v-if="type == 'ibd'"`) chỉ tồn tại khi
-  route dùng prop `type="ibd"` (không phải trường hợp của `/nganh`, nơi `type="department"` render trực tiếp
-  không qua nhánh đó). Đây gần như chắc chắn là **click chết** (dead click) không có tác dụng gì với người dùng
-  cuối trên route `/nganh` — badge trông như 1 link/nút (có `cursor: pointer` kế thừa từ `tbody tr { cursor:
-  pointer }`) nhưng bấm vào không có phản hồi nào, có thể gây khó hiểu cho người dùng.
-
-## Các bước thực hiện
-1. Ghi lại URL + nội dung bảng hiện tại.
-2. Click vào badge "Trạng thái" của 1 dòng bất kỳ.
-3. So sánh URL + nội dung bảng trước/sau.
-
-## Kết quả mong đợi
-- [ ] URL và nội dung bảng không đổi sau khi click (xác nhận hành vi hiện tại — **không khẳng định đây là thiết
-      kế cố ý**, cần dev xác nhận lại có nên vô hiệu hoá `cursor: pointer`/`@click` cho ô này trên route
-      `/nganh` hay không).
 
 ---
 
@@ -379,22 +364,19 @@
 
 ---
 
-## Tổng hợp trạng thái (21 testcase)
+## Tổng hợp trạng thái (20 testcase)
 
 Đã tự động hoá bằng Playwright: [tests/toan-canh-thi-truong-nganh.spec.ts](../tests/toan-canh-thi-truong-nganh.spec.ts)
 (dùng POM [pages/NganhPage.ts](../pages/NganhPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| 🆕 Mới (riêng web) | 19 | Đã verify bằng automation hoặc quan sát thực tế trực tiếp |
+| 🆕 Mới (riêng web) | 18 | Đã verify bằng automation hoặc quan sát thực tế trực tiếp |
 | ⚠️ Cần xác nhận thêm | 2 | TC_NGANH_06 (cần tài khoản Free hoạt động được), TC_NGANH_19 (hành vi sort đo được thật nhưng chưa rõ có phải chủ đích thiết kế) |
 
+**Cập nhật 10/11/2026:** xoá TC_NGANH_12 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý:**
-1. **TC_NGANH_12 — click chết (dead click):** badge "Trạng thái" trong tab "Tổng quan" trông giống có thể
-   click (kế thừa `cursor: pointer` của cả dòng, gọi hàm `gotoRRG`) nhưng trên route `/nganh` hoàn toàn không
-   có tác dụng gì (không đổi URL, không đổi nội dung) — do state nó cập nhật (`value_type_menu`) chỉ được dùng
-   ở nhánh UI khác (`type == 'ibd'`) không tồn tại trên route này. Có thể gây khó hiểu cho người dùng khi họ cố
-   click vào đó mong đợi xem chi tiết RRG.
 2. **TC_NGANH_09 — code dư thừa nhưng không gây lỗi hiển thị:** ô "Điểm RS" luôn có class tĩnh `text-upchange`
    cộng thêm class động, khiến khi `rss < 50` phần tử có ĐỒNG THỜI 2 class `text-upchange text-downchange` —
    đã đo màu thực tế bằng `getComputedStyle` và xác nhận vẫn hiển thị đúng màu theo nghiệp vụ (class sau thắng

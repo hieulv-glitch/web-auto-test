@@ -7,7 +7,7 @@
   (`type == 'rrg'`) → **`stocks/src/views/rrg/RRG.vue`** (2457 dòng) là component chứa toàn bộ UI thật của màn
   này, cùng các con: `TableData.vue` (bảng "Bảng dữ liệu"/"Watchlist"), `TableDataNganh.vue` (bảng "Ngành"),
   `AddMackSearch.vue` (ô tìm mã), `MackReferences.vue` (ô "Tham chiếu"), `echart.vue` (wrapper ECharts).
-- **⚠️ ĐÍNH CHÍNH quan trọng — route trùng path trong router (xem "Phát hiện đáng chú ý" cuối file):**
+- **⚠️ ĐÍNH CHÍNH quan trọng — route trùng path trong router:**
   `stocks/src/router/index.js` đăng ký path `suc-manh-dong-tien` **2 LẦN** trong cùng mảng `children` của route
   cha `/`: dòng ~523 (`component: IBD, props: { type: "rrg" }`) và dòng ~682 (`component: RRGChart`, tức
   `@/views/rrg/RRG.vue` import thẳng, không qua `WrapperLayout`). Đã xác nhận bằng DOM live (`inspect-dom.ts`
@@ -556,16 +556,10 @@ nhầm lẫn 2 ngưỡng.
 
 Cập nhật 09/11/2026: chạy trên kfsp.vn; TC_SMDT_17 đã tự động hoá (giả lập mã trùng); TC_01, TC_15 sửa theo giao diện mới.
 
+**Cập nhật 10/11/2026:** xoá ghi chú bug "route `suc-manh-dong-tien` đăng ký 2 lần" (bug được user chấp nhận); không xoá testcase nào.
+
 **Phát hiện đáng chú ý:**
 
-1. **[BUG ROUTER — route trùng path, route chết]** `stocks/src/router/index.js` đăng ký path
-   `suc-manh-dong-tien` **2 lần** trong cùng mảng `children` của route cha `/`: dòng ~523
-   (`component: IBD, props: { type: "rrg" }`) và dòng ~682 (`component: RRGChart`, tức import thẳng
-   `@/views/rrg/RRG.vue`). Đã xác nhận bằng DOM live: route dòng ~523 (IBD) luôn thắng khi vào URL
-   `/suc-manh-dong-tien` (Vue Router khớp route đăng ký trước trong mảng khi trùng path), khiến route dòng ~682
-   **không bao giờ được kích hoạt** — dead code trong cấu hình router. Về mặt UI cuối cùng người dùng nhìn
-   thấy KHÔNG bị ảnh hưởng (vì cả 2 route đều cuối cùng render cùng 1 file `RRG.vue`), nhưng đây vẫn là cấu
-   hình router sai/thừa cần dọn dẹp — không tự sửa file `stocks` theo đúng chỉ dẫn, chỉ ghi nhận lại.
 2. **Cả RRG và RS đều bị khoá với tài khoản Free, nhưng bằng 2 cơ chế khác nhau** — xem TC_SMDT_32 (đã đính
    chính, kết luận ban đầu "RS không bị khoá" là SAI do chỉ nhìn ảnh chụp màn hình mà không kiểm tra DOM): RRG
    dùng CSS blur filter phủ lên chart thật, RS dùng 1 ảnh nền đã làm mờ sẵn từ server

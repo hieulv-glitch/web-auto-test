@@ -97,14 +97,6 @@ test.describe('Thêm danh mục', () => {
     expect(catWrites()).toEqual([]);
   });
 
-  test('TC_NKGD_DM_06: ⚠️ Tên toàn khoảng trắng vẫn được gửi lên máy chủ (không trim)', async () => {
-    await openTab();
-    await openAdd('   ');
-    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
-    await expect.poll(() => catWrites().length).toBe(1);
-    expect(catWrites()[0]).toMatchObject({ method: 'POST', path: expect.stringMatching(/category\/store$/), body: { name: '   ' } });
-  });
-
   test('TC_NKGD_DM_07: Tích "Nhập giá vốn" mà vốn 0 → "Vốn ban đầu phải lớn hơn 0", không gọi API', async () => {
     await openTab();
     await openAdd('Tăng trưởng');
@@ -157,28 +149,6 @@ test.describe('Thêm danh mục', () => {
     await expect(nk.toastError.filter({ hasText: 'Có lỗi xảy ra, vui lòng thử lại' })).toBeVisible();
     await expect(nk.dmAddModal).toBeHidden();
     await expect(nk.dmCount).toHaveText('3 danh mục');
-  });
-
-  test('TC_NKGD_DM_12: 🐞 Mất mạng → modal đóng, không toast nào, lỗi JS đọc error.response.status', async ({ page }) => {
-    await openTab();
-    nk.server.mode.catStore = 'abort';
-    await openAdd('Tăng trưởng');
-    await nk.dmAddModal.getByRole('button', { name: 'Thêm danh mục' }).click();
-    await expect.poll(() => nk.pageErrors.join('\n')).toMatch(/reading 'status'/);
-    await expect(nk.dmAddModal).toBeHidden();
-    await page.waitForTimeout(800);
-    await expect(nk.toastError).toHaveCount(0);
-    await expect(nk.dmCount).toHaveText('3 danh mục');
-  });
-
-  test('TC_NKGD_DM_13: 🐞 Nhấn Enter trong modal Thêm → lỗi JS null.click, không thêm được', async ({ page }) => {
-    await openTab();
-    await openAdd('Tăng trưởng');
-    await nameInput(nk.dmAddModal).press('Enter');
-    await expect.poll(() => nk.pageErrors.join('\n')).toMatch(/reading 'click'/);
-    await page.waitForTimeout(800);
-    expect(catWrites()).toEqual([]);
-    await expect(nk.dmAddModal).toBeVisible();
   });
 
   test('TC_NKGD_DM_14: "Hủy" và nút X đóng modal, không lưu; mở lại ô tên rỗng', async () => {

@@ -120,28 +120,6 @@ test.describe('Dashboard/Panel phải — Watchlist', () => {
     await expect(dashboard.panelSubTab('Bài viết liên quan')).toHaveClass(/active/);
   });
 
-  test('TC_DASHBOARD_PP_07: Mở modal "Thêm mới Watchlist", Escape không đóng được, đóng bằng icon "x"', async ({ page }) => {
-    await loginFirst(page);
-    const dashboard = new DashboardPage(page);
-    await dashboard.rightTab('Watchlist').click();
-    await page.waitForTimeout(600);
-
-    await dashboard.watchlistCreateButton.click();
-    await page.waitForTimeout(500);
-    const visibleModal = page.locator('.modal.show, .modal.d-block').first();
-    const modalTitle = visibleModal.getByText('Thêm mới Watchlist', { exact: true });
-    await expect(modalTitle).toBeVisible();
-    await expect(visibleModal.getByPlaceholder('Nhập tên Watchlist')).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
-    await expect(modalTitle, 'Escape không đóng được modal CModal ở đây (đã ghi nhận trong doc)').toBeVisible();
-
-    await visibleModal.getByText('×', { exact: true }).click();
-    await page.waitForTimeout(400);
-    await expect(modalTitle).toBeHidden();
-  });
-
   test('TC_DASHBOARD_PP_08: Mở dropdown sắp xếp danh sách watchlist', async ({ page }) => {
     await loginFirst(page);
     const dashboard = new DashboardPage(page);

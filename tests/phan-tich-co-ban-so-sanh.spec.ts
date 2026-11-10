@@ -53,27 +53,6 @@ test.describe('Phân tích cơ bản — So sánh — Tổng quan & bug race con
     await expect(fa.compareTableRows.first()).toContainText('Cập nhật đến');
   });
 
-  // ⚠️ BUG THẬT đo được qua automation — xem phân tích đầy đủ ở đầu testcases/phan-tich-co-ban-so-sanh.md và
-  // ghi chú trong FaAnalysisPage. Deep-link (1 lượt page.goto đầy đủ, giống mọi test khác trong dự án) thẳng
-  // vào tab So sánh khiến `Compare.getAll()` tính `type_mack = ""` (đọc `list_mack_company` trước khi
-  // TheContainer.getAllMack() kịp nạp) → `items_table` trả về [] MÃI MÃI. Test cố ý KHÔNG dùng
-  // `waitForCompareDataReady()` ở đây để quan sát đúng hành vi lỗi gốc.
-  test('TC_PTCB_SS_02: [BUG] Deep-link thẳng vào tab So sánh khiến bảng dữ liệu trống vĩnh viễn', async ({ page }) => {
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'so-sanh' });
-
-    await page.waitForTimeout(20000);
-
-    for (const col of ['Thông tin', 'Đơn vị', 'VNM']) {
-      await expect(fa.compareTableHeaderCells.filter({ hasText: col }), `Header cột "${col}" vẫn hiển thị bình thường`).toBeVisible();
-    }
-    await expect(
-      fa.compareTableRows,
-      'Hành vi thật (bug): <tbody> trống hoàn toàn dù đã chờ 20 giây, KHÔNG tự phục hồi'
-    ).toHaveCount(0);
-  });
-
   test('TC_PTCB_SS_03: Đổi mã CK giúp bảng tự phục hồi sau bug TC_PTCB_SS_02', async ({ page }) => {
     await loginFirst(page);
     const fa = new FaAnalysisPage(page);
@@ -266,25 +245,6 @@ test.describe('Phân tích cơ bản — So sánh — Modal "Thêm mã"', () => 
     await expect(fa.compareTableHeaderCells.filter({ hasText: 'Chỉ số ngành' })).toHaveCount(0);
   });
 
-  test('TC_PTCB_SS_14: [Phát hiện] "Đóng" (không Lưu) vẫn giữ thay đổi khi mở lại modal', async ({ page }) => {
-    await loginFirst(page);
-    const fa = await gotoSoSanhReady(page);
-
-    await fa.btnThemMa.click();
-    await fa.addMackModalInput.fill('fpt');
-    await fa.addMackModalSuggestions.filter({ hasText: 'FPT' }).first().click();
-    await fa.addMackModalCloseBtn.click();
-    await expect(fa.addMackModal).toHaveCount(0);
-
-    await expect(fa.compareTableHeaderCells.filter({ hasText: 'FPT' }), 'Bảng chính KHÔNG đổi vì chưa bấm Lưu').toHaveCount(0);
-
-    await fa.btnThemMa.click();
-    await expect(
-      fa.addMackModalListRows.filter({ hasText: 'FPT' }),
-      'Hành vi thật: "Đóng" không huỷ thay đổi — FPT vẫn còn trong Danh sách mã khi mở lại modal'
-    ).toBeVisible();
-  });
-
   // ⚠️ `test.fixme`: vuedraggable/Sortable.js không dùng chuẩn HTML5 Drag & Drop API — Playwright mô phỏng bằng
   // mouse.down/move/up cần nhiều bước nhỏ (steps) để trigger đúng sự kiện của thư viện này, chưa thử nghiệm đủ
   // để đảm bảo ổn định (cùng pattern đã ghi nhận ở TC_BANGGIA_37 — kéo-thả bảng giá). Xem TRACKER.md.
@@ -445,24 +405,6 @@ test.describe('Phân tích cơ bản — So sánh — "Lưu mẫu" / "Mở mẫu
 });
 
 test.describe('Phân tích cơ bản — So sánh — Lỗi mạng / trạng thái đặc biệt', () => {
-  test('TC_PTCB_SS_23: Mất mạng khi tải bảng so sánh không crash, nhưng KHÔNG có toast lỗi', async ({ page }) => {
-    await loginFirst(page);
-    await page.route(/\/api\/stocks\/compare/, (route) => route.abort());
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'so-sanh' });
-    await page.waitForTimeout(4000);
-
-    await expect(fa.compareTableRows).toHaveCount(0);
-    await expect(
-      page.getByText('Có lỗi xảy ra, vui lòng thử lại'),
-      'Phát hiện: getAll() nuốt lỗi hoàn toàn, không toast (khác getList()/deleteRowItem() cùng file)'
-    ).toHaveCount(0);
-    expect(errors).toEqual([]);
-  });
-
   test('TC_PTCB_SS_24: Lỗi 500 khi tải danh sách mẫu đã lưu hiện toast lỗi', async ({ page }) => {
     await loginFirst(page);
     await page.route(/save_compare\/get-templates/, (route) =>

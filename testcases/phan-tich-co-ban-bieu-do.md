@@ -1,5 +1,11 @@
 # Màn hình: Phân tích cơ bản — Tab "Biểu đồ"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod` 21d9d1d04, backend PRODUCTION). `ChartByBank`/
+`ChartByNonBank` chỉ đổi URL sang NestJS (cùng đường dẫn `/api/stocks/chart/bank|nonbank[/scatter]` → mock trong spec
+vẫn trúng). Đăng nhập chuyển sang `FaAnalysisPage.login()` (phiên cache `Prev2Session`, chặn ghi setting) + lưới
+`FaSafetyNet` (huỷ mọi request ghi, assert rỗng sau mỗi test). Sửa TC_PTCB_BD_22
+(cách bấm công tắc sáng/tối).
+
 - **URL:** `/phan-tich-co-ban?mack=<mack>&tab=bieu-do`.
 - **Component:** [stocks/src/views/faAnalysis/index.vue](../../stocks/src/views/faAnalysis/index.vue) dòng
   59-66 chọn 1 trong 2 component KHÁC NHAU tuỳ nhóm mã (`nhom_stockcode`, computed đọc
@@ -46,34 +52,9 @@ web hiển thị NHIỀU biểu đồ cùng lúc thay vì 1. **Bài học:** đ�
 mà chưa đọc source — luôn ưu tiên đọc source + DOM thật trước khi viết testcase, đúng nguyên tắc đã đúc kết ở
 tab 4M & CANSLIM.
 
-**#1. [BUG THẬT] Race condition `nhom_stockcode`: mã ngân hàng luôn mount NHẦM `ChartByNonBank` trước, gọi sai
-API (trả 500), rồi mới tự chuyển đúng.** Xác nhận 100% qua automation (xem TC_PTCB_BD_03): deep-link
-`/phan-tich-co-ban?mack=VCB&tab=bieu-do` (VCB là mã ngân hàng) khiến CẢ 2 request sau đều được gửi:
-`GET /api/stocks/chart/nonbank?mack=VCB` (SAI, trả **500 Internal Server Error**) VÀ
-`GET /api/stocks/chart/bank?...mack[]=VCB` (ĐÚNG). Nguyên nhân: `nhom_stockcode` (computed trong `index.vue`)
-là `undefined` lúc mount đầu vì đọc `store.state.list_mack_company[stockcode]?.nhom` — state này nạp BẤT ĐỒNG
-BỘ qua socket `TheContainer.getAllMack()` (CÙNG CƠ CHẾ đã gây bug race condition ở tab So Sánh, xem
-`phan-tich-co-ban-so-sanh.md` TC_PTCB_SS_02). Template dùng `v-if="nhom_stockcode != 'bank'"` cho
-`ChartByNonBank` — đây là fallback AN TOÀN cho mã THƯỜNG (`undefined != 'bank'` luôn `true`, hiển thị đúng ngay
-từ đầu, xem TC_PTCB_BD_10 xác nhận HPG KHÔNG bị ảnh hưởng) nhưng lại khiến MÃ NGÂN HÀNG luôn mount nhầm component
-trước. **Khác bug So Sánh ở điểm quan trọng: `nhom_stockcode` là 1 computed REACTIVE (không phải giá trị tính 1
-lần lúc `created()` như `type_mack` của Compare) nên TỰ CHUYỂN ĐÚNG sang `ChartByBank` ngay khi
-`list_mack_company` nạp xong, KHÔNG cần người dùng thao tác gì thêm** — vẫn tốn 1 request lãng phí + lỗi 500 mỗi
-lần, và (xem #2) trigger luôn bug #2 vì `ChartByBank` phải mount lại.
-
-**#2. [BUG THẬT] `ChartByBank` luôn phát sinh đúng 2 lỗi JS console mỗi lần mount — không phải chỉ khi lỗi
-mạng.** Xác nhận 100% qua automation (deep-link LẪN đổi mã CK qua search, xem TC_PTCB_BD_04/05):
-`ChartByBank.data()` chỉ khởi tạo 4/11 key của `options_bank` (`hqttm`, `ldrq`, `tnttm`, `tsq`), nhưng template
-đọc `options_bank['pe_pb'].series.length > 0` và `options_bank['llr'].series.length > 0` NGAY LẦN RENDER ĐẦU
-TIÊN (Vue mount đồng bộ, XẢY RA TRƯỚC khi `axios.get(.../chart/bank)` kịp resolve) → 2 khoá `pe_pb`/`llr` chưa
-tồn tại trên object → `undefined.series` → đúng 2 `TypeError: Cannot read properties of undefined (reading
-'series')` mỗi lần. Đã xác nhận tái hiện ở CẢ 2 kịch bản: deep-link/F5 trực tiếp VÀ đổi mã CK từ mã thường sang
-mã ngân hàng qua ô search (SPA, không reload trang) — hoàn toàn ĐỘC LẬP với bug #1 (dù bug #1 làm tăng tần suất
-xảy ra vì buộc `ChartByBank` phải mount thêm 1 lần). Trang vẫn TỰ HỒI PHỤC hiển thị đúng sau khi API resolve
-(không trống vĩnh viễn như bug So Sánh — xác nhận qua ảnh chụp DOM thật sau khi tải xong đầy đủ 11 card), nhưng
-lỗi console vẫn phát sinh thật, có thể bị hệ thống theo dõi lỗi (Sentry...) ghi nhận nhiễu. **Khuyến nghị báo
-dev:** khởi tạo đủ 11 key (bao gồm `pe_pb`, `llr`, `bar`, `radar`, heatmap-related...) với giá trị mặc định
-`{series: []}` trong `data()`.
+**Bug đã biết, user chấp nhận (10/11/2026, đã xoá testcase tương ứng)** — giữ lại để các testcase bên dưới tham
+chiếu: **#1** mã ngân hàng mount nhầm `ChartByNonBank` trước (gọi `/chart/nonbank` bị 500) rồi tự chuyển đúng;
+**#2** `ChartByBank` mỗi lần mount sinh lỗi console `TypeError ... reading 'series'` (thiếu key trong `data()`).
 
 ## Nhóm: Tổng quan theo nhóm mã CK
 
@@ -117,68 +98,6 @@ dev:** khởi tạo đủ 11 key (bao gồm `pe_pb`, `llr`, `bar`, `radar`, heat
 
 ---
 
-## Nhóm: Bug thật — race condition chọn nhầm component & lỗi console khi mount ChartByBank
-
-# [TC_PTCB_BD_03] [BUG] Deep-link mã ngân hàng luôn mount nhầm ChartByNonBank trước, gọi sai API (500), tự chuyển đúng sau
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, PHÁT HIỆN BUG THẬT: Pass (test xác nhận đúng
-  hành vi lỗi)**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** xem phân tích đầy đủ ở mục #1 đầu tài liệu. Tóm tắt: deep-link vào mã
-  ngân hàng (VCB) khiến CẢ 2 request được gửi: `GET /api/stocks/chart/nonbank?mack=VCB` (SAI, đo được trả **500
-  Internal Server Error**) VÀ `GET /api/stocks/chart/bank?...mack[]=VCB` (ĐÚNG). Khác bug So Sánh: tự phục hồi
-  đúng component KHÔNG CẦN thao tác thủ công (do `nhom_stockcode` là computed reactive), nhưng vẫn tốn 1 request
-  lãng phí + lỗi 500 mỗi lần.
-
-## Các bước thực hiện
-1. Đăng nhập, điều hướng thẳng `/phan-tich-co-ban?mack=VCB&tab=bieu-do` (1 lượt `page.goto`, theo dõi network).
-2. Chờ trang tải xong hoàn toàn.
-
-## Kết quả mong đợi (hành vi THẬT — bug)
-- [ ] Request `GET /api/stocks/chart/nonbank?mack=VCB` VẪN được gửi đi (nhầm), dù VCB là mã ngân hàng.
-- [ ] Request `GET /api/stocks/chart/bank?...mack[]=VCB` cũng được gửi đi (đúng).
-- [ ] Sau khi tải xong, giao diện hiển thị ĐÚNG `ChartByBank` (radar + nút "Thêm mã"), không phải giao diện mã
-      thường — tự phục hồi mà KHÔNG cần thao tác gì thêm.
-
----
-
-# [TC_PTCB_BD_04] [BUG] ChartByBank luôn phát sinh 2 lỗi console TypeError mỗi lần mount qua deep-link
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, PHÁT HIỆN BUG THẬT: Pass (test xác nhận đúng
-  hành vi lỗi)**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** xem phân tích đầy đủ ở mục #2 đầu tài liệu. `options_bank['pe_pb']`/
-  `['llr']` chưa được khởi tạo trong `data()`, template đọc `.series.length` ngay lần render đầu → 2
-  `TypeError: Cannot read properties of undefined (reading 'series')` mỗi lần, đo được ỔN ĐỊNH (không ngẫu
-  nhiên) qua nhiều lần chạy lại.
-
-## Các bước thực hiện
-1. Đăng nhập, gắn listener bắt lỗi console TRƯỚC khi điều hướng.
-2. Điều hướng thẳng `/phan-tich-co-ban?mack=VCB&tab=bieu-do`, chờ vài giây.
-
-## Kết quả mong đợi (hành vi THẬT — bug)
-- [ ] Có ĐÚNG 2 console error chứa `"Cannot read properties of undefined (reading 'series')"`.
-- [ ] Sau khi API resolve, trang vẫn tự hồi phục hiển thị đầy đủ 11 card (không crash vĩnh viễn/trống trắng).
-
----
-
-# [TC_PTCB_BD_05] [BUG] Lỗi console tương tự TC_PTCB_BD_04 tái hiện khi đổi mã CK qua search (không cần reload)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, PHÁT HIỆN BUG THẬT: Pass**
-- **⚠️ Phát hiện đáng chú ý:** Xác nhận bug #2 KHÔNG PHỤ THUỘC deep-link/F5 — mọi lần `ChartByBank` MOUNT MỚI
-  (kể cả điều hướng SPA bình thường: đang xem mã thường, đổi qua ô search sang mã ngân hàng) đều phát sinh y hệt
-  2 lỗi console này, vì nguyên nhân gốc (thiếu khởi tạo `pe_pb`/`llr` trong `data()`) không liên quan gì tới
-  cách vào trang.
-
-## Các bước thực hiện
-1. Đăng nhập, điều hướng `/phan-tich-co-ban?mack=HPG&tab=bieu-do` (mã thường), chờ tải xong.
-2. Gắn listener bắt lỗi console.
-3. Gõ và chọn "VCB" qua ô tìm kiếm "Mã CK".
-
-## Kết quả mong đợi (hành vi THẬT — bug)
-- [ ] Có ĐÚNG 2 console error chứa `"Cannot read properties of undefined (reading 'series')"` sau bước 3.
-- [ ] Giao diện vẫn chuyển đúng sang `ChartByBank` (11 card) sau khi lỗi phát sinh.
-
----
-
 ## Nhóm: Loading
 
 # [TC_PTCB_BD_06] Loading spinner khi tải chậm (mã thường)
@@ -194,23 +113,6 @@ dev:** khởi tạo đủ 11 key (bao gồm `pe_pb`, `llr`, `bar`, `radar`, heat
 ## Kết quả mong đợi
 - [ ] Trong lúc chờ: spinner loading hiển thị, chưa có card biểu đồ nào.
 - [ ] Sau khi response về: loading biến mất, lưới biểu đồ hiện đầy đủ.
-
----
-
-# [TC_PTCB_BD_07] Loading spinner khi tải chậm (mã ngân hàng)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** `options_bank_is_loading` mặc định `true`, hiện `CElementCover` + `CSpinner`; nút "Thêm mã" +
-  logo cũng ẩn trong lúc loading (`v-if="!options_bank_is_loading"` cho khối nút, riêng logo `.p-logo-slim` LUÔN
-  hiện không phụ thuộc loading).
-
-## Các bước thực hiện
-1. Mock `GET .../api/stocks/chart/bank` delay 3 giây trước khi trả kết quả thật.
-2. Vào tab "Biểu đồ" với mã ngân hàng (VCB), quan sát ngay sau khi vào.
-
-## Kết quả mong đợi
-- [ ] Trong lúc chờ: spinner loading hiển thị, logo vẫn hiện, nút "Thêm mã" CHƯA hiện.
-- [ ] Sau khi response về: loading biến mất, nút "Thêm mã" + lưới biểu đồ hiện đầy đủ.
 
 ---
 
@@ -274,8 +176,7 @@ dev:** khởi tạo đủ 11 key (bao gồm `pe_pb`, `llr`, `bar`, `radar`, heat
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** `ChartByNonBank`/`ChartByBank` toggle bằng `v-if` (không phải `v-show`) nên đổi mã khác nhóm sẽ
-  UNMOUNT hẳn component cũ và MOUNT MỚI component đúng — đây chính là lý do bug #2 (2 lỗi console) tái hiện ở
-  tình huống này (xem TC_PTCB_BD_05).
+  UNMOUNT hẳn component cũ và MOUNT MỚI component đúng.
 
 ## Các bước thực hiện
 1. Vào tab "Biểu đồ" với mã thường (HPG) — xác nhận không có nút "Thêm mã".
@@ -463,6 +364,9 @@ dev:** khởi tạo đủ 11 key (bao gồm `pe_pb`, `llr`, `bar`, `radar`, heat
 # [TC_PTCB_BD_22] Chuyển dark mode không crash, đổi logo (chỉ mã ngân hàng có logo riêng)
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation (đo thật `src` ảnh): Pass**
+- **Cập nhật 10/11/2026:** `click({ force: true })` vào `input[type=checkbox]` đầu trang không còn đổi theme (logo giữ
+  nguyên `-dark.png`) → đổi sang `fa.toggleDarkMode()` (bấm nhãn `label.c-switch` ở header, chờ `localStorage.darkMode`
+  đổi). Lượt ghi setting `darkMode` bị `Prev2Session` chặn, không lưu vào tài khoản.
 - **Kết quả đo được:** `.p-logo-img-slim` (CHỈ `ChartByBank` có, `ChartByNonBank` không có logo riêng nào) đổi
   `src` từ `/img/logo-stocks-new-dark.png` (light mode mặc định) sang `/img/logo-stocks-new.png` (dark mode) —
   tên file NGƯỢC trực giác (file có hậu tố "-dark" lại dùng cho LIGHT mode), CÙNG PATTERN đã ghi nhận ở tab 4M &
@@ -494,7 +398,7 @@ dev:** khởi tạo đủ 11 key (bao gồm `pe_pb`, `llr`, `bar`, `radar`, heat
 
 ---
 
-## Tổng hợp trạng thái (23 testcase)
+## Tổng hợp trạng thái (19 testcase)
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-bieu-do.spec.ts](../tests/phan-tich-co-ban-bieu-do.spec.ts) (POM: section "Tab Biểu đồ"
@@ -503,28 +407,25 @@ trong [pages/FaAnalysisPage.ts](../pages/FaAnalysisPage.ts)).
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 2 | TC_PTCB_BD_16, 19 |
-| 🆕 Mới (riêng web) | 20 | TC_PTCB_BD_01-15, 17, 18, 20, 22, 23 |
+| 🆕 Mới (riêng web) | 16 | TC_PTCB_BD_01, 02, 06, 08-15, 17, 18, 20, 22, 23 |
 | ⚠️ Cần xác nhận thêm | 1 | TC_PTCB_BD_21 (`test.fixme` — kéo-thả `vuedraggable`, chưa tìm được cách giả lập ổn định) |
+
+`test.fixme`: 1 — TC_PTCB_BD_21 (kỹ thuật kéo-thả).
+Kết quả chạy 10/11/2026 (localhost:8080, preprod 21d9d1d04): 21 pass, 2 fixme, không request ghi nào lọt lưới.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_BD_03, TC_PTCB_BD_04, TC_PTCB_BD_05, TC_PTCB_BD_07 (bug được user chấp nhận).
 
 **Phát hiện đáng chú ý cần theo dõi:**
 1. **[ĐÍNH CHÍNH] Tab "Biểu đồ" KHÔNG dùng TradingView candlestick** như suy đoán ban đầu trong đề bài — là lưới
    nhiều biểu đồ ECharts tài chính (cùng công nghệ `CustomEChart` với tab 4M & CANSLIM). Xác nhận qua đọc source
    (không có `<iframe>`/`blob:`) + đo DOM thật. Bài học lặp lại: luôn verify qua source/DOM thật, đừng suy luận
    từ tên tab.
-2. **[BUG THẬT #1] Race condition `nhom_stockcode`:** mã ngân hàng luôn mount NHẦM `ChartByNonBank` trước (gọi
-   sai API, trả 500) rồi mới tự chuyển đúng sang `ChartByBank` — xem TC_PTCB_BD_03. KHÁC bug tab So Sánh ở điểm
-   quan trọng: TỰ PHỤC HỒI không cần thao tác thủ công (do `nhom_stockcode` computed reactive, không phải giá
-   trị tính 1 lần), nhưng vẫn gây 1 request lãng phí + lỗi 500 mỗi lần deep-link/F5/đổi mã sang mã ngân hàng.
-3. **[BUG THẬT #2] `ChartByBank` luôn phát sinh đúng 2 lỗi console `TypeError` mỗi lần mount** (deep-link LẪN
-   đổi mã CK qua search) do `options_bank['pe_pb']`/`['llr']` chưa khởi tạo trong `data()` nhưng bị đọc
-   `.series.length` ngay lần render đầu — xem TC_PTCB_BD_04/05. Độc lập với bug #1, KHÔNG phải chỉ xảy ra khi
-   lỗi mạng. Khuyến nghị báo dev khởi tạo đủ toàn bộ 11 key trong `data()`.
-4. **Gating "Biểu đồ" hoạt động ở NHIỀU CẤP khác nhau, per-chart CHỨ KHÔNG PHẢI per-tab:** cấp shell
+2. **Gating "Biểu đồ" hoạt động ở NHIỀU CẤP khác nhau, per-chart CHỨ KHÔNG PHẢI per-tab:** cấp shell
    (`features_disabled['fa_bieu_do_tc_bank']`/`['fa_bieu_do_tc_nonbank_stock_insurance']`, đã đo KHÔNG khoá tài
    khoản Free hiện tại — TC_PTCB_17) và cấp widget riêng của TỪNG CHART con (`$store.state.isAccountFree`,
    TC_PTCB_BD_12/13) — mã thường có 2/10 chart miễn phí ("Tài sản quý"/"Nguồn vốn quý"), mã ngân hàng chỉ có
    1/11 chart miễn phí ("Tài sản quý"). Cùng pattern gating "nhiều cấp" đã ghi nhận ở "So sánh" và "4M & CANSLIM".
-5. **Chỉ mã ngân hàng mới có nút "Thêm mã"** (mở modal so sánh nhiều mã ngân hàng cùng lúc trên biểu đồ radar
+3. **Chỉ mã ngân hàng mới có nút "Thêm mã"** (mở modal so sánh nhiều mã ngân hàng cùng lúc trên biểu đồ radar
    + chọn kỳ báo cáo Quý/Năm) — `ChartByNonBank` (mã thường) hoàn toàn không có tính năng này.
-6. **Kéo-thả trong modal "Thêm mã" chưa tự động hoá được** (TC_PTCB_BD_21, `test.fixme`) — cùng hạn chế kỹ
+4. **Kéo-thả trong modal "Thêm mã" chưa tự động hoá được** (TC_PTCB_BD_21, `test.fixme`) — cùng hạn chế kỹ
    thuật `vuedraggable` đã ghi nhận ở tab So Sánh và Bảng Giá.

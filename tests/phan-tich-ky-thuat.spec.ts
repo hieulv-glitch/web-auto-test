@@ -1,34 +1,36 @@
 import { test, expect } from '@playwright/test';
 import { TechnicalChartPage } from '../pages/TechnicalChartPage';
-import { LoginPage } from '../pages/LoginPage';
+import { useLegacySafetyNet, safeLoginTa, ReadOnlyRule } from '../pages/LegacySafetyNet';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/** POST chỉ đọc của màn này (cho đi thật). */
+const READ_ONLY_EXTRA: ReadOnlyRule[] = [
+  { pattern: /\/api\/news\/news-related-by-mack(\?|$)/, reason: 'panel "Thông tin" tải tin liên quan theo mã (POST chỉ đọc)' },
+  { pattern: /\/api\/stock-signals\//, reason: 'panel AI Chart tra mẫu hình/tín hiệu (POST chỉ đọc, AiInsightPanel.vue)' },
+];
+
+/**
+ * AN TOÀN DỮ LIỆU (10/11/2026): chạy trên localhost:8080 (nhánh preprod) gọi backend PRODUCTION → đăng nhập bằng phiên
+ * cache `Prev2Session` (chặn ghi setting, ghi lại ở `settingWrites`) + lưới `useLegacySafetyNet` huỷ mọi request ghi
+ * khác tới production và assert không có request nào lọt sau mỗi test (pages/LegacySafetyNet.ts).
+ */
+useLegacySafetyNet(test, READ_ONLY_EXTRA);
+// Đăng nhập + mở trang PTKT (iframe TradingView) mất 15-25s trên localhost → timeout mặc định 30s không đủ.
+test.describe.configure({ timeout: 90000 });
+// 10/11/2026: thanh công cụ TradingView thêm nút (Mẫu chỉ báo, Lưu…) — ở 1280px thanh công cụ bị co, một số nút
+// bị ẩn; dùng màn rộng như bộ phan-tich-ky-thuat-replay-chia-khung.
+test.use({ viewport: { width: 1600, height: 900 } });
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  // Bố cục cố định 1 khung (ACB + HPG) thay bố cục thật của tài khoản — xem `safeLoginTa`.
+  return safeLoginTa(page, 'paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  test.skip(!process.env.FREE_USER_EMAIL || !process.env.FREE_USER_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
+  return safeLoginTa(page, 'free');
 }
 
+// (10/11/2026: ghi chú dưới đây LỖI THỜI — ghi setting bị chặn + bố cục cố định theo test nên chạy song song được, đã bỏ mode 'serial'.)
 // ⚠️ AN TOÀN DỮ LIỆU — chạy file này (và 2 file `-bieu-do.spec.ts`/`-thong-tin.spec.ts`) BẮT BUỘC kèm
 // `--workers=1` khi chạy chung nhiều describe block/nhiều file cùng lúc. Layout đa biểu đồ (tab nào đang mở) là
 // setting lưu SERVER-SIDE DÙNG CHUNG cho tài khoản test (xem ghi chú an toàn dữ liệu ở đầu TechnicalChartPage.ts
@@ -65,9 +67,11 @@ test.describe('Phân tích kỹ thuật — Truy cập & Tổng quan', () => {
   });
 
   test('TC_PTKT_03: Điều hướng vào màn từ menu header', async ({ page }) => {
+    test.setTimeout(90000);
     await loginFirst(page);
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-    await page.getByRole('link', { name: 'Phân tích kỹ thuật', exact: true }).click();
+    // 10/11/2026: mục menu header đổi tên "Phân tích kỹ thuật" → "Biểu đồ" (mainMenu.js).
+    await page.getByRole('link', { name: 'Biểu đồ', exact: true }).first().click();
     await page.waitForURL(/\/phan-tich-ky-thuat/);
     const ta = new TechnicalChartPage(page);
     await expect(ta.chartTabButtons.first()).toBeVisible();
@@ -77,7 +81,6 @@ test.describe('Phân tích kỹ thuật — Truy cập & Tổng quan', () => {
 test.describe('Phân tích kỹ thuật — Quản lý nhiều tab biểu đồ', () => {
   // Layout đa biểu đồ lưu server-side DÙNG CHUNG cho tài khoản test — chạy TUẦN TỰ để tránh 2 test cùng
   // thêm/xóa tab song song ghi đè lẫn nhau (xem ghi chú an toàn dữ liệu ở đầu testcases/phan-tich-ky-thuat.md).
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_04: Thêm 1 tab biểu đồ mới qua nút "+"', async ({ page }) => {
     test.setTimeout(60000);
@@ -136,39 +139,41 @@ test.describe('Phân tích kỹ thuật — Quản lý nhiều tab biểu đồ'
     const ta = new TechnicalChartPage(page);
     await ta.goto();
 
-    await ta.addChartTab();
     const beforeCount = await ta.chartTabCount();
 
-    await ta.closeIconOf(ta.lastChartTab).click();
+    // 10/11/2026: modal chỉ hiện với thẻ có nội dung hoặc chưa tải lần nào → đóng thẻ HPG gốc (chưa mở) của bố cục cố định.
+    // KHÔNG thêm thẻ trước: thẻ mới chép thẻ cuối (HPG) nên nạp luôn dữ liệu HPG → đóng HPG không còn hỏi.
+    await ta.closeIconOf(ta.chartTabButtons.filter({ hasText: 'HPG' }).first()).click();
     await expect(ta.deleteConfirmModal).toBeVisible();
-    await expect(ta.deleteConfirmModal).toContainText('Xóa đồ thị');
+    await expect(ta.deleteConfirmModal).toContainText('Đóng đồ thị');
     await expect(ta.deleteConfirmModal).toContainText('Không hỏi lại hôm nay');
     await expect(ta.deleteConfirmCheckbox).not.toBeChecked();
 
     await ta.deleteConfirmCloseBtn.click();
     await expect(ta.deleteConfirmModal).toBeHidden();
     expect(await ta.chartTabCount()).toBe(beforeCount);
-
-    // dọn dẹp thật
-    await ta.deleteLastChartTab(true);
-    await ta.waitForLayoutSaved();
   });
 
   test('TC_PTKT_07: Đóng tab — xác nhận "Xóa" thành công, không tick "Không hỏi lại hôm nay"', async ({ page }) => {
     test.setTimeout(60000);
-    await loginFirst(page);
+    const session = await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
 
-    await ta.addChartTab();
     const beforeCount = await ta.chartTabCount();
-    await ta.deleteLastChartTab(true);
-    expect(await ta.chartTabCount()).toBe(beforeCount - 1);
+    // 10/11/2026: modal chỉ hiện với thẻ có nội dung hoặc chưa hiện lần nào → đóng thẻ HPG gốc (chưa mở).
+    const hpg = ta.chartTabButtons.filter({ hasText: 'HPG' }).first();
+    await ta.closeIconOf(hpg).click();
+    await expect(ta.deleteConfirmModal).toBeVisible();
+    await ta.deleteConfirmDeleteBtn.click();
+    await expect(ta.chartTabButtons).toHaveCount(beforeCount - 1);
 
+    // 10/11/2026: tài khoản đã có sẵn setting cũ `doNotRemindToday` (app chép vào localStorage khi tải setting) → kiểm không
+    // bị đặt thành HÔM NAY và app không định ghi khoá này.
+    const today = new Date().toISOString().split('T')[0];
     const doNotRemind = await page.evaluate(() => localStorage.getItem('doNotRemindToday'));
-    expect(doNotRemind, 'Không tick checkbox nên key này không được set').toBeNull();
-
-    await ta.waitForLayoutSaved();
+    expect(doNotRemind, 'Không tick checkbox nên key này không được đặt thành hôm nay').not.toBe(today);
+    expect(session.settingWrites.filter((w) => w.key === 'doNotRemindToday')).toEqual([]);
   });
 
   test('TC_PTKT_08: Checkbox "Không hỏi lại hôm nay" hiển thị đúng, không kích hoạt thật', async ({ page }) => {
@@ -177,17 +182,14 @@ test.describe('Phân tích kỹ thuật — Quản lý nhiều tab biểu đồ'
     const ta = new TechnicalChartPage(page);
     await ta.goto();
 
-    await ta.addChartTab();
-    await ta.closeIconOf(ta.lastChartTab).click();
+    // 10/11/2026: modal chỉ hiện với thẻ có nội dung hoặc chưa tải lần nào → đóng thẻ HPG gốc (chưa mở), không thêm thẻ trước.
+    await ta.closeIconOf(ta.chartTabButtons.filter({ hasText: 'HPG' }).first()).click();
     await expect(ta.deleteConfirmModal).toBeVisible();
     await expect(ta.deleteConfirmCheckbox).toBeVisible();
     await expect(ta.deleteConfirmCheckbox).not.toBeChecked();
     // Đóng modal KHÔNG xóa để tránh mọi rủi ro với checkbox, rồi dọn dẹp qua flow xóa chuẩn riêng
     await ta.deleteConfirmCloseBtn.click();
     await expect(ta.deleteConfirmModal).toBeHidden();
-
-    await ta.deleteLastChartTab(true);
-    await ta.waitForLayoutSaved();
   });
 
   test('TC_PTKT_09: Giới hạn số tab biểu đồ tối đa — tài khoản Free', async ({ page }) => {
@@ -200,7 +202,9 @@ test.describe('Phân tích kỹ thuật — Quản lý nhiều tab biểu đồ'
     expect(before, 'Tài khoản Free mặc định chỉ có tối đa 1 tab').toBeLessThanOrEqual(1);
 
     await ta.addChartTabBtn.click();
-    await expect(ta.freeLimitToast).toContainText(/tối đa 1 tab/, { timeout: 8000 });
+    // 10/11/2026: tài khoản Free không còn toast "tối đa 1 tab" mà mở popup chọn gói (`store.state.isShowModalPackage`,
+    // reactMultiLayoutChart.js).
+    await expect(page.getByRole('dialog').filter({ hasText: 'Chọn dịch vụ' })).toBeVisible({ timeout: 8000 });
     expect(await ta.chartTabCount()).toBe(before);
   });
 
@@ -245,7 +249,7 @@ test.describe('Phân tích kỹ thuật — Quản lý nhiều tab biểu đồ'
 
   test('TC_PTKT_12: Lưu cấu hình sau khi tải lại trang (F5)', async ({ page }) => {
     test.setTimeout(60000);
-    await loginFirst(page);
+    const session = await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
 
@@ -256,16 +260,14 @@ test.describe('Phân tích kỹ thuật — Quản lý nhiều tab biểu đồ'
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
     const beforeCount = await ta.chartTabCount();
-    await ta.waitForLayoutSaved();
-
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await ta.chartTabButtons.first().waitFor({ state: 'visible', timeout: 15000 });
-    await page.waitForTimeout(2000);
-    expect(await ta.chartTabCount()).toBe(beforeCount);
-    await expect(ta.lastChartTab).toContainText('VNINDEX');
-
-    await ta.deleteLastChartTab(true);
-    await ta.waitForLayoutSaved();
+    // 10/11/2026: ghi setting bị chặn (an toàn dữ liệu) → không F5 kiểm lại được; assert bố cục app ĐỊNH lưu
+    // (`layout_multi_ta`) có đủ số thẻ và thẻ VNINDEX.
+    await expect.poll(() => {
+      const w = [...session.settingWrites].reverse().find((x) => x.key === 'layout_multi_ta');
+      if (!w) return null;
+      const json = String(w.value);
+      return { tabs: (json.match(/"component":"chartTA"/g) || []).length, vnindex: json.includes('VNINDEX') };
+    }, { timeout: 15000 }).toEqual({ tabs: beforeCount, vnindex: true });
   });
 });
 
@@ -277,7 +279,8 @@ test.describe('Phân tích kỹ thuật — Menu dọc phải (chỉ verify đi�
     const ta = new TechnicalChartPage(page);
     await ta.goto();
 
-    for (const name of ['Watchlist', 'Cảnh báo', 'Ghi chú', 'Cộng đồng', 'AI Chart']) {
+    // 10/11/2026: cột phải bỏ mục "Cảnh báo" (đã chuyển sang canh-bao-gia) và "Cộng đồng" (DEFAULT_BORDER_LAYOUT).
+    for (const name of ['Watchlist', 'Ghi chú', 'AI Chart']) {
       await ta.gotoBorderTab(name);
       await page.waitForTimeout(500);
       await expect(ta.borderTab(name)).toHaveClass(/--selected/);
@@ -291,6 +294,7 @@ test.describe('Phân tích kỹ thuật — Menu dọc phải (chỉ verify đi�
 
 test.describe('Phân tích kỹ thuật — Điều hướng', () => {
   test('TC_PTKT_14: Nút Back trình duyệt điều hướng rời khỏi trang', async ({ page }) => {
+    test.setTimeout(90000);
     await loginFirst(page);
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
     await page.goto('/phan-tich-ky-thuat', { waitUntil: 'domcontentloaded' });
@@ -299,6 +303,7 @@ test.describe('Phân tích kỹ thuật — Điều hướng', () => {
   });
 
   test('TC_PTKT_15: Click "Thông tin FA" điều hướng sang Phân tích cơ bản', async ({ page, context }) => {
+    test.setTimeout(90000);
     await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
@@ -324,16 +329,16 @@ test.describe('Phân tích kỹ thuật — Dark mode & Responsive', () => {
 
     // Toggle theme = `.c-switch-input` (checkbox, `v-model="$store.state.darkMode"` trong `ButtonChangeTheme.vue`)
     // — class `c-dark-theme` được gắn vào `.c-app` (TheContainer.vue), KHÔNG phải <body>/<html>.
-    const darkToggle = page.locator('.c-switch-input[type="checkbox"]').first();
-    await darkToggle.click({ force: true });
+    // 10/11/2026: `click({ force: true })` vào input không đổi theme (input nằm dưới `.c-switch-slider`) → bấm nhãn.
+    const darkToggle = page.locator('header label.c-switch, .c-header label.c-switch').first();
+    const wasDark = await page.locator('.c-app').first().evaluate((el) => el.classList.contains('c-dark-theme'));
+    if (wasDark) { await darkToggle.click(); await page.waitForTimeout(1000); }
+    await darkToggle.click();
     await page.waitForTimeout(1500);
     const isDark = await page.locator('.c-app').first().evaluate((el) => el.classList.contains('c-dark-theme'));
     expect(isDark).toBeTruthy();
     await expect(ta.infoPanel).toBeVisible();
 
-    // tắt lại
-    await darkToggle.click({ force: true });
-    await page.waitForTimeout(1000);
     expect(errors).toEqual([]);
   });
 

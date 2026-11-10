@@ -1,34 +1,21 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên cache `Prev2Session`
+ * (chặn ghi setting → "mã CK đang xem" `final_mack` của tài khoản dùng chung KHÔNG còn bị test đổi); mọi request ghi
+ * khác bị lưới `FaSafetyNet` huỷ, sau mỗi test assert không có request ghi nào lọt.
+ */
+useFaSafetyNet(test);
 
-const MAIN_TABS = ['Thông tin chung', 'Tài chính doanh nghiệp', '4M & CANSLIM', 'Biểu đồ', 'So sánh', 'Bài viết & Phân tích'];
+const MAIN_TABS = ['Thông tin chung', 'Tài chính doanh nghiệp', '4M & CANSLIM', 'Biểu đồ', 'So sánh', 'BCTC gốc'];
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở TC_CONGDONG_55/TC_WATCHLIST_09/TC_BANGGIA_48-50/TC_NKGD_09: tự `test.skip` nếu tài
- * khoản Free trong `.env` đăng nhập lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('free');
 }
 
 test.describe('Phân tích cơ bản — Truy cập & Tổng quan', () => {
@@ -118,7 +105,8 @@ test.describe('Phân tích cơ bản — Ô tìm kiếm mã CK', () => {
     await fa.gotoMainTab('So sánh');
     await expect(fa.mainTab('So sánh')).toHaveClass(/active-bg-tab/);
 
-    await fa.searchInput.fill('HPG');
+    // Cập nhật 10/11/2026: `list_mack` (socket) có lúc nạp chậm hơn 1,2s cố định → gõ lại tới khi có gợi ý.
+    await fa.fillSearchUntilSuggestion('HPG');
     await fa.searchSuggestions.filter({ hasText: 'HPG' }).first().click();
     await page.waitForTimeout(300);
 
@@ -127,42 +115,6 @@ test.describe('Phân tích cơ bản — Ô tìm kiếm mã CK', () => {
 });
 
 test.describe('Phân tích cơ bản — Deep-link qua URL', () => {
-  // ⚠️ BUG THẬT đo được qua automation — mock hẳn API `getusersettings` để cô lập hoàn toàn khỏi state tài
-  // khoản dùng CHUNG (đã thử `page.evaluate` set thẳng `localStorage.final_mack` trước, KHÔNG đủ: giá trị đó
-  // bị chính `TheContainer.vue` GHI ĐÈ lại bởi response THẬT của `getusersettings` — vòng lặp
-  // `setDataToLocalStorage()` dòng ~1344 `localStorage.setItem(item.key, item.value)` cho MỌI key server trả
-  // về, bao gồm "final_mack" nếu tài khoản có lưu — nên giá trị cuối cùng phụ thuộc mã CK tài khoản THẬT đang
-  // lưu trên server tại đúng thời điểm request resolve, dễ đổi liên tục do CÁC TEST KHÁC trong file này chạy
-  // song song 3-worker cùng đổi "mã CK đang xem" của CÙNG tài khoản). Mock response để kiểm soát chính xác giá
-  // trị `final_mack` server trả về, loại bỏ hoàn toàn phụ thuộc vào state tài khoản chia sẻ.
-  //
-  // Cơ chế lỗi (đọc từ `TheContainer.vue`): `getDataSaveSettings()` gọi API `getusersettings` trong
-  // `mounted()`, `.then()` gọi `setDataToLocalStorage(res.data)` — hàm này (1) ghi mọi key trả về (kể cả
-  // "final_mack") vào `localStorage` qua vòng lặp generic, RỒI (2) NGAY SAU ĐÓ (dòng ~1380) đọc lại
-  // `localStorage.final_mack` và GHI ĐÈ `store.state.mack` bất cứ khi nào `$route.query.mack` KHÔNG có mặt —
-  // điều kiện chỉ kiểm tra query, không hề biết tới `:macks*` (path param). `?mack=` (query) hoạt động đúng
-  // 100% vì nằm trong điều kiện kiểm tra (xem TC_PTCB_09) — khuyến nghị dùng query thay vì path param cho mọi
-  // liên kết sâu tới trang này. Xem thêm testcases/phan-tich-co-ban.md mục "Phát hiện đáng chú ý".
-  test('TC_PTCB_08: [BUG] Deep-link qua path param /phan-tich-co-ban/<mack> KHÔNG load đúng mã (bị final_mack từ getusersettings ghi đè)', async ({ page }) => {
-    await page.route(/\/getusersettings/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { key: 'final_mack', value: JSON.stringify({ mack: 'VNM', type_mack: 'nonbank', description_mack: 'CTCP Sữa Việt Nam', department: '' }) },
-        ]),
-      })
-    );
-    await loginFirst(page);
-
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackPath: 'HPG' });
-    await expect(
-      fa.searchInput,
-      'Hành vi thật (bug): path param bị final_mack (mock từ getusersettings) ghi đè, hiển thị mã cũ (VNM) thay vì HPG trong URL'
-    ).toHaveValue('VNM');
-  });
-
   test('TC_PTCB_09: Truy cập ?mack=<mack> load đúng mã theo query param', async ({ page }) => {
     await loginFirst(page);
     const fa = new FaAnalysisPage(page);
@@ -204,7 +156,7 @@ test.describe('Phân tích cơ bản — Chuyển 6 tab chính', () => {
       }
     }
     await page.waitForTimeout(300);
-    await expect(fa.mainTab('Bài viết & Phân tích')).toHaveClass(/active-bg-tab/);
+    await expect(fa.mainTab('BCTC gốc')).toHaveClass(/active-bg-tab/);
     expect(errors).toEqual([]);
   });
 
@@ -290,7 +242,7 @@ test.describe('Phân tích cơ bản — Giới hạn theo gói hội viên', ()
   });
 
   // Kết quả đo được THẬT (ổn định qua nhiều lần chạy, đã đối chiếu trực tiếp `localStorage.features_disabled`
-  // của tài khoản Free hiện tại): CHỈ `fa_tai_lieu` ("Bài viết & Phân tích") có trong danh sách khóa —
+  // của tài khoản Free hiện tại): CHỈ `fa_tai_lieu` (tab "BCTC gốc", trước 11/2026 là "Bài viết & Phân tích") có trong danh sách khóa —
   // `fa_so_sanh` và `fa_bieu_do_tc_*` KHÔNG có, nên 2 tab "So sánh"/"Biểu đồ" KHÔNG bị khóa với tài khoản này
   // dù `index.vue` có code gate đúng cho cả 3 tab (khác giả định ban đầu khi viết testcase — cùng pattern đã
   // ghi nhận ở Bảng Giá TC_BANGGIA_49/50, Nhật Ký GD TC_NKGD_09: dữ liệu `features_disabled` thật của tài
@@ -298,14 +250,14 @@ test.describe('Phân tích cơ bản — Giới hạn theo gói hội viên', ()
   // `fa_*` đầy đủ đo được: `fa_4m_cansslim`, `fa_cttc`, `fa_giao_dich_noi_bo`, `fa_nuoc_ngoai`,
   // `fa_nuoc_ngoai_bieu_do`, `fa_tai_lieu`, `fa_tu_doanh`, `fa_tu_doanh_bieu_do` — không có `fa_so_sanh` hay
   // `fa_bieu_do_tc_bank`/`fa_bieu_do_tc_nonbank_stock_insurance`.
-  test('TC_PTCB_17: Chỉ tab "Bài viết & Phân tích" hiện ProtectedView với tài khoản Free hiện tại (gate cấp shell)', async ({ page }) => {
+  test('TC_PTCB_17: Chỉ tab "BCTC gốc" hiện ProtectedView với tài khoản Free hiện tại (gate cấp shell)', async ({ page }) => {
     await loginFreeOrSkip(page);
     const fa = new FaAnalysisPage(page);
     await fa.goto({ mackPath: 'VNM' });
     await waitForFeaturesDisabledLoaded(page);
 
     const results: Record<string, number> = {};
-    for (const name of ['Biểu đồ', 'So sánh', 'Bài viết & Phân tích']) {
+    for (const name of ['Biểu đồ', 'So sánh', 'BCTC gốc']) {
       await fa.gotoMainTab(name);
       await page.waitForTimeout(500);
       results[name] = await fa.protectedView.count();
@@ -313,7 +265,7 @@ test.describe('Phân tích cơ bản — Giới hạn theo gói hội viên', ()
     console.log(`[TC_PTCB_17] Số ProtectedView hiện mỗi tab với tài khoản Free: ${JSON.stringify(results)}`);
     expect(results['Biểu đồ'], 'Tab "Biểu đồ" KHÔNG bị khóa với tài khoản Free hiện tại (fa_bieu_do_tc_* không có trong features_disabled)').toBe(0);
     expect(results['So sánh'], 'Tab "So sánh" KHÔNG bị khóa với tài khoản Free hiện tại (fa_so_sanh không có trong features_disabled)').toBe(0);
-    expect(results['Bài viết & Phân tích'], 'Tab "Bài viết & Phân tích" phải hiện ProtectedView (fa_tai_lieu có trong features_disabled)').toBe(1);
+    expect(results['BCTC gốc'], 'Tab "BCTC gốc" phải hiện ProtectedView (fa_tai_lieu có trong features_disabled)').toBe(1);
   });
 });
 

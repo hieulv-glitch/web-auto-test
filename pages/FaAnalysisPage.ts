@@ -1,5 +1,57 @@
-import { Page, Locator, expect } from '@playwright/test';
+import { Page, Locator, expect, BrowserContext, Route, test as baseTest } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { Prev2Session, Prev2Account, Prev2OpenOptions } from './Prev2Session';
+
+/**
+ * ⚠️ AN TOÀN DỮ LIỆU (thêm 10/11/2026): localhost:8080 (nhánh preprod) gọi backend PRODUCTION (`$apiAdressNest` =
+ * https://api2.kfsp.vn, NestJS từ commit 1db8b5534). Dùng chung cho mọi spec PTCB chạy trên BASE_URL:
+ * - Đăng nhập: `FaAnalysisPage.login()` (= `Prev2Session`: cache phiên, abort `/updateusersettings|delusersettings`
+ *   và ghi vào `session.settingWrites`, giả lập `save-user-dashboard-preference`).
+ * - Lưới an toàn `FaSafetyNet` (mức context → phủ cả tab mới; route `page.route` của spec được hỏi TRƯỚC route
+ *   context nên mock trong spec vẫn thắng): mọi request KHÔNG phải GET/HEAD/OPTIONS tới *.kfsp.vn / *.vietpointer.vn /
+ *   *.kungfustockspro.live bị HUỶ + ghi vào `blocked`; `useFaSafetyNet(test)` cài lưới ở `beforeEach` và assert
+ *   `blocked` rỗng ở `afterEach`. Ngoại lệ (danh sách trắng `READ_ONLY`, mỗi mục ghi lý do) cho đi thật.
+ * API ghi đã biết của màn PTCB (đọc source 10/11/2026): `POST /api/watchlist` (thêm mã vào watchlist, Left.vue),
+ * `POST|PUT|DELETE /api/stocks/save_compare/store|update|destroy` (mẫu So sánh) — đều bị lưới chặn nếu spec không
+ * tự giả lập.
+ */
+export class FaSafetyNet {
+  static readonly HOST = /(^|\.)(kfsp\.vn|vietpointer\.vn|kungfustockspro\.live)$/;
+  /** Request không phải GET vẫn cho đi thật — chỉ đọc/không đổi dữ liệu. */
+  static readonly READ_ONLY: { pattern: RegExp; reason: string }[] = [
+    { pattern: /\/api\/login(\?|$)/, reason: 'tạo phiên đăng nhập (LoginPage khi chưa có phiên cache)' },
+    { pattern: /socket\.io/, reason: 'kênh giá realtime (long-polling POST)' },
+  ];
+  readonly blocked: string[] = [];
+
+  async install(context: BrowserContext) {
+    await context.route((u) => FaSafetyNet.HOST.test(u.hostname), (route) => this.handle(route));
+  }
+
+  private async handle(route: Route) {
+    const r = route.request();
+    const m = r.method();
+    if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return route.fallback();
+    if (FaSafetyNet.READ_ONLY.some((x) => x.pattern.test(r.url()))) return route.fallback();
+    // Nhật ký xem trang (app tự ghi) → trả thành công giả, không tới server, không tính là lọt.
+    if (/\/api\/activitylog\//.test(r.url())) return route.fulfill({ json: { success: true } });
+    this.blocked.push(`${m} ${r.url().split('?')[0]}`);
+    return route.abort();
+  }
+}
+
+/** Cài `FaSafetyNet` cho cả file spec: `const net = useFaSafetyNet(test);` rồi `net()` trong test nếu cần đọc. */
+export function useFaSafetyNet(t: typeof baseTest): () => FaSafetyNet {
+  let net = new FaSafetyNet();
+  t.beforeEach(async ({ context }) => {
+    net = new FaSafetyNet();
+    await net.install(context);
+  });
+  t.afterEach(async () => {
+    expect(net.blocked, 'Có request ghi tới production chưa được giả lập (đã bị huỷ)').toEqual([]);
+  });
+  return () => net;
+}
 
 /**
  * Trang "Phân tích cơ bản" (`/phan-tich-co-ban/:macks*`, component `FAAnalysis` —
@@ -47,6 +99,39 @@ export class FaAnalysisPage extends BasePage {
     this.searchInput = this.mainTabList.getByPlaceholder('Mã CK');
     this.searchSuggestions = page.locator('.search-stockcode_item');
     this.protectedView = page.locator('.faAnalysis-page .image-container .blurred-image');
+  }
+
+  /** Đăng nhập bằng phiên cache `Prev2Session` (chặn ghi setting) rồi mở `path` (mặc định trang PTCB mã VNM). Trả
+   * về session để spec đọc `settingWrites`. Spec vẫn gọi `goto()` sau đó như trước. */
+  async login(account: Prev2Account = 'paid', opts: Omit<Prev2OpenOptions, 'account'> = {}): Promise<Prev2Session> {
+    const session = new Prev2Session(this.page);
+    await session.open({ path: '/phan-tich-co-ban?mack=VNM', ...opts, account });
+    return session;
+  }
+
+  /** Gõ vào ô "Mã CK" tới khi có gợi ý chứa `text` — `store.state.list_mack` (socket `getallstockcode`) có lúc nạp
+   * muộn vài giây sau khi trang hiện; gõ trước đó thì `searchMack()` trả rỗng và không tự tính lại. */
+  async fillSearchUntilSuggestion(text: string, timeout = 20000) {
+    await expect(async () => {
+      await this.searchInput.fill('');
+      await this.searchInput.fill(text);
+      await expect(this.searchSuggestions.filter({ hasText: text }).first()).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout });
+  }
+
+  /** Công tắc sáng/tối ở header (`ButtonChangeTheme.vue`, `v-model="$store.state.darkMode"`). Cập nhật 10/11/2026:
+   * `input[type=checkbox]` của công tắc nằm dưới lớp `.c-switch-slider` — `click({ force: true })` vào input KHÔNG
+   * đổi theme (test cũ "pass" mà không đổi gì); bấm vào nhãn `label.c-switch`. Đổi theme → app ghi setting `darkMode`
+   * (bị `Prev2Session` chặn, không lưu vào tài khoản). */
+  get themeSwitch(): Locator {
+    return this.page.locator('header label.c-switch, .c-header label.c-switch').filter({ has: this.page.locator('input.c-switch-input') }).first();
+  }
+
+  /** Bấm công tắc sáng/tối và chờ `localStorage.darkMode` đổi giá trị (watcher trong TheContainer ghi ngay). */
+  async toggleDarkMode() {
+    const before = await this.page.evaluate(() => localStorage.getItem('darkMode'));
+    await this.themeSwitch.click();
+    await expect.poll(() => this.page.evaluate(() => localStorage.getItem('darkMode')), { timeout: 5000 }).not.toBe(before);
   }
 
   /** `tabQuery` map đúng 6 giá trị `mounted()`/`created()` hỗ trợ deep-link qua `?tab=`: `thong-tin-chung` |
@@ -488,8 +573,11 @@ export class FaAnalysisPage extends BasePage {
   // về), KHÔNG đọc `store.state.list_mack_company` (state nạp bất đồng bộ qua socket) ở bất kỳ đâu trong 5
   // component con — deep-link thẳng vào mã ngân hàng an toàn 100%, không cần thao tác gì thêm để "sửa" dữ liệu.
   //
-  // ⚠️ KHÔNG có caching client-side: mỗi lần chuyển sub-tab, component con bị UNMOUNT (v-if, không phải
-  // v-show) rồi MOUNT LẠI từ đầu → `created()` LUÔN gọi lại API, kể cả quay lại đúng sub-tab đã xem trước đó.
+  // ⚠️ [Cập nhật 10/11/2026 — thay ghi chú cũ "không cache"] Từ commit 815152821 (09/2026) sub-tab đã mở được GIỮ
+  // SỐNG (`v-if="active_tab[x]"` + `v-show`): quay lại sub-tab đã xem KHÔNG gọi lại API. `deactiveTab()` chỉ huỷ các
+  // sub-tab khác khi đổi mã CK / đổi Quý-Năm. Highlight cột khi rê chuột giờ là class `hl-Qn` trên wrapper
+  // (`.table-bs.hl-Q1 td[data-q="Q1"]`), không còn class `bghover` trên từng `<td>`; icon thu gọn/mở rộng là SVG
+  // class `fa-caret-down`/`fa-caret-right` (không còn thuộc tính `data-icon`).
 
   /** Thanh 5 sub-tab con — CÙNG class `ul.nav.nav-tabs` với `mainTabList` (6 tab chính) nên PHẢI lọc theo text
    * để phân biệt, không dùng `.first()`/index cố định (thứ tự DOM phụ thuộc tab nào mount trước). */
@@ -530,10 +618,11 @@ export class FaAnalysisPage extends BasePage {
       .filter({ has: this.page.locator('option', { hasText: 'TTM' }) });
   }
 
-  /** Bảng dữ liệu đang active — CHỈ 1 trong 5 bảng con mount tại 1 thời điểm (`v-if` theo `type_tab`), an toàn
-   * dùng `.first()`. */
+  /** Bảng dữ liệu của sub-tab đang xem. Cập nhật 10/11/2026: từ 09/2026 (`BusinessFinance/index.vue`) sub-tab đã mở
+   * được GIỮ SỐNG (`v-if` + `v-show`) — nhiều bảng cùng nằm trong DOM, bảng sub-tab khác chỉ bị ẩn → phải lấy trong
+   * `bfTableWrapper` (wrapper đang hiện), không lấy `.first()` toàn trang. */
   get bfTable(): Locator {
-    return this.page.locator('.faAnalysis-page .table-scroll table').first();
+    return this.bfTableWrapper.locator('table').first();
   }
 
   /** Wrapper `<div class="table-scroll table-bs|table-is|table-cf|table-tm|table-financial_ratios">` — class
@@ -541,7 +630,7 @@ export class FaAnalysisPage extends BasePage {
    * cố định do `table-scroll` component sinh ra, KHÔNG phân biệt được sub-report). Dùng locator này để assert
    * đúng sub-report đang hiển thị. */
   get bfTableWrapper(): Locator {
-    return this.page.locator('.faAnalysis-page .table-scroll').first();
+    return this.page.locator('.faAnalysis-page .table-scroll:visible').first();
   }
 
   get bfTableHeaderCells(): Locator {

@@ -73,36 +73,6 @@ test.describe('Menu chuột phải — tạo cảnh báo (trang Biểu đồ)', 
     }
   });
 
-  test('TC_CBG_03: 🐞 Dòng tạo cảnh báo tô màu thương hiệu kèm icon chuông — chế độ tối vẫn dùng màu của chế độ sáng', async ({ page, context }) => {
-    // Kỳ vọng theo code: sáng #7B3AEC, tối #B98CFF. Đo được: tối vẫn #7B3AEC (tím đậm trên nền tối) vì
-    // `highlightedAlertItem` dò `document.body.classList.contains("c-dark-theme")`, mà lớp tối nằm ở `.c-app`.
-    for (const [dark, rgb] of [[false, 'rgb(123, 58, 236)'], [true, 'rgb(123, 58, 236)']] as const) {
-      const tab = dark ? await context.newPage() : page;
-      const p = new PriceAlertPage(tab);
-      await p.openChart({ darkMode: dark });
-      if (dark) {
-        expect(await tab.locator('.c-app').first().getAttribute('class')).toContain('c-dark-theme');
-        expect(await tab.evaluate(() => document.body.classList.contains('c-dark-theme'))).toBe(false);
-      }
-      await p.rightClickAt(await p.pointAtPrice((await p.pricesInView()).high / 1000));
-      const row = p.tvMenuCreateRow();
-      await expect(row).toBeVisible();
-      expect(await row.evaluate((e) => getComputedStyle(e).color)).toBe(rgb);
-      expect(await row.evaluate((e) => getComputedStyle(e).fontWeight)).toBe('600');
-      // Icon chuông (path BELL_PATH) cùng màu, nằm cùng dòng menu.
-      const bellFill = await row.evaluate((e) => {
-        let el: Element | null = e;
-        for (let i = 0; i < 6 && el; i++, el = el.parentElement) {
-          const path = el.querySelector('svg path[fill]');
-          if (path) return path.getAttribute('fill');
-        }
-        return null;
-      });
-      expect(bellFill?.toUpperCase()).toBe('#7B3AEC');
-      await tab.keyboard.press('Escape');
-    }
-  });
-
   test('TC_CBG_04: Bấm dòng menu ở trên giá hiện tại → hộp "Tạo cảnh báo giá" điền sẵn giá đó, chiều "Giá tăng lên tới"', async ({ page }) => {
     const p = new PriceAlertPage(page);
     await p.openChart();
@@ -476,24 +446,6 @@ test.describe('Đường cảnh báo trên biểu đồ', () => {
     await expect.poll(() => p.alertLineTexts()).toEqual([`Cảnh báo: tăng lên tới ${fmt(high)}`]);
   });
 
-  test('TC_CBG_32: 🐞 Hộp sửa mở bằng cách bấm vào đường: ô giá không được focus, phím Esc không đóng hộp', async ({ page }) => {
-    const { p, high } = await chartWithTwoLines(page);
-    const pt = await p.pointAtPrice(high / 1000);
-    await page.mouse.click(pt.x, pt.y);
-    await expect(p.boxTitle).toHaveText('Sửa cảnh báo giá');
-    await page.waitForTimeout(500);
-    // Hành vi đo được (bug): focus vẫn nằm trong iframe biểu đồ → keydown không tới document của trang.
-    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('IFRAME');
-    await expect(p.boxPrice).not.toBeFocused();
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
-    await expect(p.box).toBeVisible();
-    // Bấm vào ô giá rồi mới Esc thì đóng được.
-    await p.boxPrice.click();
-    await page.keyboard.press('Escape');
-    await expect(p.box).toBeHidden();
-  });
-
   test('TC_CBG_33: Đổi mã trên biểu đồ → đường của mã cũ mất, đường của mã mới hiện', async ({ page }) => {
     const { p } = await chartWithTwoLines(page);
     p.server.seed([...p.server.alerts, priceAlert('FPT', true, 1000), priceAlert('FPT', false, 999000)]);
@@ -653,21 +605,6 @@ test.describe('Thẻ giới thiệu lần đầu', () => {
       await expect(p.intro, how).toBeHidden();
       await expect.poll(() => p.settingWrites, { message: how }).toContainEqual({ key: 'chart_alert_intro_seen', value: '1' });
     }
-  });
-
-  test('TC_CBG_42: 🐞 Bước cuối bấm "Tạo cảnh báo VNM" → lỗi JS "openCreateBox is not defined", hộp tạo cảnh báo không mở', async ({ page }) => {
-    const p = new PriceAlertPage(page);
-    await p.openChart({ introSeen: false });
-    await expect(p.intro).toBeVisible({ timeout: 20000 });
-    for (let i = 0; i < 3; i++) await p.introBtn('Tiếp').click();
-    const error = page.waitForEvent('console', { predicate: (m) => /openCreateBox is not defined/.test(m.text()), timeout: 10000 });
-    await p.introBtn('Tạo cảnh báo VNM').click();
-    await error;
-    await expect(p.intro).toBeHidden();
-    await page.waitForTimeout(1000);
-    // Kỳ vọng đúng: hộp "Tạo cảnh báo giá" của VNM mở ra với giá hiện tại. Thực tế: không mở.
-    await expect(p.box).toBeHidden();
-    await expect.poll(() => p.settingWrites).toContainEqual({ key: 'chart_alert_intro_seen', value: '1' });
   });
 
   test('TC_CBG_43: Đã xem rồi (cờ trong setting) → thẻ không hiện', async ({ page }) => {

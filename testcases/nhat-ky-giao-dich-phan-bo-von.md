@@ -244,30 +244,16 @@
 
 ---
 
-# [TC_NKGD_PBV_17] Mở thẳng tab Phân bổ vốn khi setting chưa tải xong — cấu hình không nạp
-
-- **Trạng thái:** 🆕 Testcase mới — 🐞 bug mới
-- **Nguyên nhân:** `getDataCategory()` chỉ gọi `loadDataFromLocalStorage()` khi `store.state.is_getting_data_saved` đã là false;
-  nếu danh sách danh mục về TRƯỚC setting người dùng (`/getusersettings`) thì không bao giờ nạp lại (không có watcher). Từ khi
-  NKGD nhớ tab (`trading_log_view_state`), F5 khi đang ở tab Phân bổ vốn là mở thẳng tab này → dễ gặp.
-
-## Các bước thực hiện
-1. Đặt tab nhớ = Phân bổ vốn, mở `/nhat-ky-giao-dich` (danh mục về trước setting); chọn "Dài hạn".
-
-## Kết quả mong đợi (đo được)
-- [ ] Ô chọn danh mục RỖNG, "Vốn ban đầu" `0 đ`; chọn "Dài hạn" vẫn `0 đ`, % = `0` (đúng ra 500,000,000 đ và 2).
-- [ ] Mong đợi đúng (cần dev sửa): nạp lại cấu hình khi setting tải xong (watch `is_getting_data_saved`).
-
----
-
-## Tổng hợp trạng thái (17 testcase, 18 test vì TC_11 chạy 2 giá trị)
+## Tổng hợp trạng thái (16 testcase, 17 test vì TC_11 chạy 2 giá trị)
 
 Tự động hoá: [tests/nhat-ky-giao-dich-phan-bo-von.spec.ts](../tests/nhat-ky-giao-dich-phan-bo-von.spec.ts).
+
+**Cập nhật 10/11/2026:** xoá TC_NKGD_PBV_17 (bug được user chấp nhận) — tổng 17 → 16.
 
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
 | ✅ Áp dụng | 8 | PBV_01, 02, 04, 05, 06, 08, 13, 14 |
-| 🆕 Mới (riêng web) | 9 | PBV_03, 07, 09, 10, 11, 12, 15, 16, 17 |
+| 🆕 Mới (riêng web) | 8 | PBV_03, 07, 09, 10, 11, 12, 15, 16 |
 | ⚠️ Cần xác nhận thêm | 0 | |
 
 **Đối chiếu bản 20/08 (16 TC, 3 fixme):** 01, 05, 06, 08 giữ (sửa theo bố cục mới); 02/03/04 (validate, 2 fixme) → PBV_07 (đã
@@ -275,6 +261,5 @@ tự động hoá ổn định); 07 (checkbox ghi nhận lời lỗ) xoá — t�
 → 15; 13/14 → 08 + 16; 15/16 (empty/lỗi tải) gộp vào 03.
 
 **Phát hiện đáng chú ý:**
-- 🐞 **PBV_17 (mới):** mở thẳng tab (F5 khi đang ở tab) mà danh mục về trước setting → cấu hình phân bổ vốn không nạp.
 - 3 fixme cũ (TC_PBV_02, 04, 10) không còn cần — hành vi đo lại ổn định trên bản mới. Ô % vẫn
 có 2 `v-model` trùng (`v-model.lazy` + `v-model`) — nên đề nghị dev bỏ 1 cái cho sạch, dù hiện không gây lỗi quan sát được.

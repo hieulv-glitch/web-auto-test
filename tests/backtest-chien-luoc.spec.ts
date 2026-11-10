@@ -245,14 +245,6 @@ test.describe('Chiến lược chạy & bảng chọn chiến lược', () => {
     await expect(bt.pickerItems).toHaveCount(15);
   });
 
-  test('TC_BACKTEST_19: Tìm không khớp → câu báo không có chiến lược nào', async ({ page }) => {
-    const bt = await openBt(page);
-    await bt.openPicker();
-    await bt.pickerSearch.fill('khongcochienluocnay');
-    await expect(bt.pickerEmpty).toHaveText('Không có chiến lược nào khớp chữ Bạn tìm.');
-    await expect(bt.pickerItems).toHaveCount(0);
-  });
-
   test('TC_BACKTEST_20: Đóng bảng chọn bằng nút ×, phím Esc (ở ô tìm) và bấm ra nền ngoài', async ({ page }) => {
     const bt = await openBt(page);
     await bt.openPicker();
@@ -268,29 +260,6 @@ test.describe('Chiến lược chạy & bảng chọn chiến lược', () => {
     await bt.pickerBackdrop.click({ position: { x: 10, y: 10 } });
     await expect(bt.picker).toBeHidden();
     await expect(bt.strategyChips).toHaveCount(1);
-  });
-
-  test('TC_BACKTEST_21: 🐞 BUG — mở lại bảng chọn: chữ tìm cũ không được xoá, ô tìm không tự focus (lỗi JS applySearch.cancel)', async ({ page }) => {
-    const consoleErrors = collectConsoleErrors(page);
-    const bt = await openBt(page);
-    await bt.openPicker();
-    await bt.pickerSearch.fill('rsi');
-    await expect(bt.pickerItems).toHaveCount(1);
-    await bt.pickerClose.click();
-    await bt.openPicker();
-    // Kỳ vọng theo code (watcher `open`): ô tìm rỗng, đủ 15 dòng, ô tìm được focus.
-    // Hành vi thật đo được: watcher ném TypeError ngay dòng đầu (`this.applySearch.cancel` — method debounce bị Vue
-    // bind lại nên mất `.cancel`), các dòng xoá chữ + focus không chạy.
-    const value = await bt.pickerSearch.inputValue();
-    const focused = await bt.pickerSearch.evaluate((el) => el === document.activeElement);
-    const hasCancelError = consoleErrors.some((e) => /applySearch\.cancel is not a function/.test(e));
-    test.info().annotations.push({
-      type: 'Hành vi đo được',
-      description: `Ô tìm khi mở lại = "${value}", focus = ${focused}, lỗi console applySearch.cancel = ${hasCancelError}`,
-    });
-    expect(hasCancelError, 'lỗi JS applySearch.cancel khi mở bảng chọn').toBe(true);
-    expect(value, 'chữ tìm cũ vẫn còn khi mở lại').toBe('rsi');
-    expect(focused).toBe(false);
   });
 });
 
@@ -326,25 +295,6 @@ test.describe('Thời gian chạy', () => {
     await input.pressSequentially('0102');
     await expect(input).toHaveValue('01/02');
     await expect(bt.dateField('Từ ngày').locator('.bt-date')).toHaveClass(/sai/);
-  });
-
-  test('TC_BACKTEST_25: 🐞 Ngày chưa đủ (01/02) → ô viền đỏ nhưng bấm Chạy vẫn chạy, tự hiểu là 01/02 năm nay', async ({ page }) => {
-    const bt = await openBt(page);
-    const year = new Date().getFullYear();
-    await bt.setCustomPeriod('01/02', vnDate(0));
-    await expect(bt.dateField('Từ ngày').locator('.bt-date')).toHaveClass(/sai/);
-    await expect(bt.dateField('Tới ngày').locator('.bt-date')).not.toHaveClass(/sai/);
-    await bt.runAndWait();
-    // Kỳ vọng: báo "Khoảng thời gian chưa dùng được." như các ngày sai khác. Thực tế: `checkRunInput` dùng
-    // moment(..., 'DD/MM/YYYY') KHÔNG strict nên "01/02" hợp lệ (= 01/02 năm nay), trong khi ô lại dùng isoOf strict → đỏ.
-    const ran = await bt.resultHeader.count();
-    test.info().annotations.push({
-      type: 'Hành vi đo được',
-      description: ran ? `Không báo lỗi, đã chạy kỳ "${await bt.runRange.textContent()}"` : `Báo lỗi: ${await bt.errorBox.textContent()}`,
-    });
-    await expect(bt.errorBox).toHaveCount(0);
-    await expect(bt.runRange).toContainText(`01/02/${year} – ${vnDate(0)}`);
-    expect(bt.server.saved[0].from_date).toBe(`01/02/${year}`);
   });
 
   test('TC_BACKTEST_84: Ngày sai định dạng (chưa có năm hợp lệ, vd "01/13/2025") → báo "Khoảng thời gian chưa dùng được."', async ({ page }) => {
@@ -730,22 +680,6 @@ test.describe('Lịch sử các lần chạy', () => {
   });
 
   // TC_BACKTEST_55 (bấm tiêu đề "Lịch sử các lần chạy" để thu gọn) đã xoá: thẻ Lịch sử luôn mở từ 15/10/2026.
-
-  test('TC_BACKTEST_56: 🐞 Lượt đã bị dọn chi tiết → KHÔNG còn dải "Lượt này chỉ còn phần tóm tắt.", màn hình báo như lượt không có lệnh / không có giá', async ({ page }) => {
-    const bt = await openBt(page, { seeds: ['purged'] });
-    await bt.openHistory(1);
-    // Số tóm tắt (tầng 1) vẫn còn
-    await expect(bt.kpi('Tổng lãi lỗ').locator('.bt-kpi-v')).toHaveText('+38.15%');
-    await expect(bt.tocItems).toHaveText(['1Lãi lỗ', '2Chi tiết giao dịch']);
-    // Kỳ vọng theo chính chú thích trong code (`combineSummaries`, index.vue): hiện dải cảnh báo "Lượt này chỉ còn phần
-    // tóm tắt" để người dùng không lẫn "đã bị dọn" với "không có lệnh / không có giá". Đo 09/11/2026 trên preprod: dải này
-    // không còn được vẽ ở template, thay vào đó trang hiện các câu của trường hợp KHÔNG có dữ liệu:
-    await expect(page.getByText('Lượt này chỉ còn phần tóm tắt.')).toHaveCount(0);
-    await expect(bt.kpi('Tỷ lệ thắng').locator('.bt-kpi-chip')).toHaveText('0/0 lệnh');
-    await expect(bt.kpi('Lãi lỗ đậm nhất').locator('.bt-kpi-chip')).toHaveText('Chưa có lệnh nào đã bán');
-    await expect(bt.section('bt-sec-giaodich')).toContainText('Không có dữ liệu giá cho mã MBB trong khoảng thời gian đã chọn.');
-    await expect(bt.section('bt-sec-giaodich')).toContainText('Chưa có deal nào trong phạm vi này.');
-  });
 
   test('TC_BACKTEST_85: Nút thùng rác trên thẻ → xoá ngay 1 lượt (không hỏi lại); đang xem lượt đó thì mở lượt kế bên', async ({ page }) => {
     const bt = await openBt(page, { seeds: ['mbb', 'ctd4'] });

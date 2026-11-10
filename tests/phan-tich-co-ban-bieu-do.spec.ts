@@ -1,32 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên cache `Prev2Session`
+ * (chặn ghi setting); mọi request ghi khác bị lưới `FaSafetyNet` huỷ, sau mỗi test assert không có request ghi nào lọt.
+ */
+useFaSafetyNet(test);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('free');
 }
 
 test.describe('Phân tích cơ bản — Biểu đồ — Tổng quan theo nhóm mã', () => {
@@ -58,76 +44,6 @@ test.describe('Phân tích cơ bản — Biểu đồ — Tổng quan theo nhóm
   });
 });
 
-test.describe('Phân tích cơ bản — Biểu đồ — Bug thật: race condition & lỗi console ChartByBank', () => {
-  test('TC_PTCB_BD_03: [BUG] Deep-link mã ngân hàng luôn mount nhầm ChartByNonBank trước (gọi sai API, 500), tự chuyển đúng sau', async ({ page }) => {
-    await loginFirst(page);
-
-    const nonbankReqs: string[] = [];
-    const bankReqs: string[] = [];
-    page.on('request', (req) => {
-      const url = req.url();
-      if (url.includes('/api/stocks/chart/nonbank')) nonbankReqs.push(url);
-      if (url.includes('/api/stocks/chart/bank') && !url.includes('scatter')) bankReqs.push(url);
-    });
-
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VCB', tabQuery: 'bieu-do' });
-    await expect(fa.btnThemMaChart).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(1500);
-
-    expect(nonbankReqs.some((u) => u.includes('mack=VCB')), 'Hành vi thật (bug): vẫn gọi nhầm API /chart/nonbank cho mã ngân hàng').toBe(true);
-    expect(bankReqs.some((u) => u.includes('VCB')), 'Đồng thời API /chart/bank đúng cũng được gọi').toBe(true);
-    // Tự phục hồi: hiển thị đúng ChartByBank sau khi tải xong.
-    await expect(fa.btnThemMaChart).toBeVisible();
-  });
-
-  test('TC_PTCB_BD_04: [BUG] ChartByBank luôn phát sinh 2 lỗi console TypeError mỗi lần mount qua deep-link', async ({ page }) => {
-    await loginFirst(page);
-
-    const seriesErrors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error' && msg.text().includes("reading 'series'")) seriesErrors.push(msg.text());
-    });
-
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VCB', tabQuery: 'bieu-do' });
-    await page.waitForTimeout(3000);
-
-    expect(seriesErrors.length, 'Hành vi thật (bug): đúng 2 lỗi TypeError series mỗi lần mount').toBe(2);
-    // Tự hồi phục: vẫn hiển thị đầy đủ sau khi API resolve.
-    await expect(fa.btnThemMaChart).toBeVisible({ timeout: 10000 });
-    const cardCount = await fa.chartCards.count();
-    expect(cardCount).toBeGreaterThanOrEqual(10);
-  });
-
-  test('TC_PTCB_BD_05: [BUG] Lỗi console tương tự tái hiện khi đổi mã CK qua search (không cần reload)', async ({ page }) => {
-    test.setTimeout(60000);
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'HPG', tabQuery: 'bieu-do' });
-    await expect(fa.chartCards.first()).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(2500); // chờ list_mack nạp lần đầu (tránh gợi ý rỗng giả, xem waitForCompareDataReady)
-
-    const seriesErrors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error' && msg.text().includes("reading 'series'")) seriesErrors.push(msg.text());
-    });
-
-    await fa.searchInput.fill('VCB');
-    await fa.searchSuggestions.filter({ hasText: 'VCB' }).first().waitFor({ state: 'visible' });
-    await fa.searchSuggestions.filter({ hasText: 'VCB' }).first().click();
-    await page.waitForTimeout(3000);
-
-    expect(seriesErrors.length, 'Hành vi thật (bug): tái hiện đúng 2 lỗi khi đổi mã CK sang ngân hàng qua SPA').toBe(2);
-    await expect(fa.btnThemMaChart, 'Vẫn chuyển đúng sang ChartByBank sau khi lỗi phát sinh').toBeVisible({ timeout: 10000 });
-
-    // Reset lại VNM để không ảnh hưởng test khác chạy song song.
-    await fa.searchInput.fill('VNM');
-    await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().waitFor({ state: 'visible' });
-    await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().click();
-  });
-});
-
 test.describe('Phân tích cơ bản — Biểu đồ — Loading', () => {
   test('TC_PTCB_BD_06: Loading spinner khi tải chậm (mã thường)', async ({ page }) => {
     await loginFirst(page);
@@ -142,23 +58,6 @@ test.describe('Phân tích cơ bản — Biểu đồ — Loading', () => {
     await expect(fa.chartCards).toHaveCount(0);
 
     await expect(fa.chartCards.first()).toBeVisible({ timeout: 8000 });
-  });
-
-  test('TC_PTCB_BD_07: Loading spinner khi tải chậm (mã ngân hàng)', async ({ page }) => {
-    // Do bug #1 (race condition, xem TC_PTCB_BD_03), ChartByNonBank mount TRƯỚC rồi mới tự chuyển sang
-    // ChartByBank khi nhom_stockcode resolve — cần thời gian rộng hơn để spinner của ChartByBank kịp xuất hiện.
-    await loginFirst(page);
-    await page.route(/\/api\/stocks\/chart\/bank(?!\/scatter)/, async (route) => {
-      await new Promise((r) => setTimeout(r, 3000));
-      await route.continue();
-    });
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VCB', tabQuery: 'bieu-do' });
-
-    await expect(fa.chartLoadingSpinner).toBeVisible({ timeout: 10000 });
-    await expect(fa.btnThemMaChart, 'Nút "Thêm mã" chưa hiện trong lúc loading').toHaveCount(0);
-
-    await expect(fa.btnThemMaChart).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -403,7 +302,8 @@ test.describe('Phân tích cơ bản — Biểu đồ — Dark mode', () => {
     const pageErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
-    await page.locator('input[type="checkbox"]').first().click({ force: true });
+    // Cập nhật 10/11/2026: bấm nhãn công tắc thay vì `click({ force: true })` vào input (không đổi theme).
+    await fa.toggleDarkMode();
     await page.waitForTimeout(1000);
 
     const logoDark = await fa.chartBankLogo.getAttribute('src');

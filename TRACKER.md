@@ -7,10 +7,7 @@ trong tài liệu `testcases/*.md` nhưng **chưa chạy tự động được**
 bổ sung sau), phải cập nhật lại bảng tương ứng ở đây trong cùng lượt thay đổi — không để file này lạc hậu so
 với code thật.
 
-**Tổng hiện tại:** 36 case (Cảnh báo giá: 2 · Đăng Nhập: 3 · Đăng Ký: 5 · Cộng Đồng: 13 · Watchlist: 1 · Dashboard: 0 · Bảng Giá: 3 ·
-Nhật Ký GD: 0 · Phân tích cơ bản — So sánh: 1 · Phân tích cơ bản — Biểu đồ: 1 · Toàn cảnh thị trường — Ngành: 1 ·
-Toàn cảnh thị trường — Bộ lọc cổ phiếu: 2 · Toàn cảnh thị trường — Sức mạnh dòng tiền: 1 · Phân tích kỹ thuật: 2 ·
-Phân tích kỹ thuật — Replay & Chia khung: 1)
+**Tổng hiện tại:** 36 case — đếm từ spec thật 10/11/2026, sau khi xoá testcase của 91 bug user đã chấp nhận (Cảnh báo giá: 2 · Đăng Nhập: 3 · Đăng Ký: 4 · Cộng Đồng: 12 · Watchlist: 1 · Bảng Giá: 2 · Phân tích cơ bản — So sánh: 1 · Phân tích cơ bản — Biểu đồ: 1 · Toàn cảnh thị trường — Ngành: 1 · Toàn cảnh thị trường — Bộ lọc cổ phiếu: 3 · Toàn cảnh thị trường — Sức mạnh dòng tiền: 1 · Phân tích kỹ thuật: 4 · Phân tích kỹ thuật — Replay & Chia khung: 1; các màn khác: 0)
 
 ---
 
@@ -32,38 +29,35 @@ TC_LOGIN_55 (không còn checkbox, request gửi `persist_login: true`). Không 
 | TC_DANGKY_10 | Họ tên có khoảng trắng đầu/cuối | Cần hoàn tất 1 đăng ký thật để biết có trim hay không — rủi ro tạo tài khoản rác | Môi trường staging riêng, hoặc xác nhận từ dev |
 | TC_DANGKY_24 | Email đã tồn tại | Thử với email support (`kfspteam@kfsp.vn`) không phải tài khoản user nên không kích hoạt được cảnh báo | 1 email đã đăng ký thành tài khoản user thật |
 | TC_DANGKY_25 | Email viết hoa vẫn báo đã tồn tại | Cùng lý do TC_DANGKY_24 | Cùng — 1 email user thật |
-| TC_DANGKY_78 | Nút "Gửi lại mã" chỉ bật sau khi hết đếm ngược | Chưa viết test (đếm ngược 60s làm test chạy lâu) | Không cần gì thêm, chỉ cần thời gian viết + chấp nhận test chạy chậm |
-| TC_DANGKY_80 | Chuyển đổi kênh xác thực Email ↔ Zalo | Chưa viết test | Không cần gì thêm |
+| TC_DANGKY_78 | Nút "Gửi lại mã" chỉ hiện sau khi hết đếm ngược | Chưa viết test (đếm ngược 60s làm test chạy lâu) | Không cần gì thêm, chỉ cần thời gian viết + chấp nhận test chạy chậm |
+
+Cập nhật 10/11/2026 (chạy trên localhost:8080 = `preprod` 21d9d1d04): preprod tắt kênh OTP Email (`allowEmailOtp: false`) → nút đổi kênh không còn → **xoá TC_DANGKY_80**. TC_DANGKY_78: nút "Gửi lại mã" là `v-else` (ẩn hẳn, không phải disable) trong lúc đếm ngược.
 
 ## Cộng Đồng ([tests/cong-dong.spec.ts](tests/cong-dong.spec.ts))
 
-### ✅ Đã hoàn tất 2026-08-19 (không còn fixme)
+Cập nhật 10/11/2026 (chạy localhost:8080 nhánh preprod, backend production): **12 fixme**.
+Đăng nhập qua `Prev2Session`; lưới `SafetyNet` huỷ mọi request ghi tới *.kfsp.vn — mọi thao tác ghi (đăng/sửa/xoá bài, thích,
+theo dõi, thông báo, bình luận) nay đều GIẢ LẬP, không còn đăng/thích/follow thật như bảng bên dưới mô tả.
+**Cập nhật 10/11/2026 (sau):** xoá TC_CONGDONG_02, 11, 11b, 55 (4 fixme nghi vấn bug) + TC_CONGDONG_30, 44, 57 — bug được user chấp nhận.
+
+### ✅ Đã hoàn tất 2026-08-19 (không còn fixme) — cách làm cũ, 10/11/2026 đã chuyển sang giả lập API
 | TC ID | Tên | Cách đã làm |
 |---|---|---|
-| TC_CONGDONG_14 | Tab Quan tâm khi chưa follow/like ai (empty state) | Unfollow tạm người tài khoản test đang follow → verify empty-state → follow lại NGAY qua trang cá nhân của họ (không dùng sidebar Gợi ý vì danh sách đó xoay vòng ngẫu nhiên, không đảm bảo hiển thị đúng người — đã gặp lỗi thật lúc đầu, đã sửa) |
+| TC_CONGDONG_14 | Tab Quan tâm khi chưa follow/like ai (empty state) | 10/11/2026: giả lập `profile/following` + dòng tin Quan tâm trả `[]` (trước đây unfollow/follow lại thật) |
 | TC_CONGDONG_23 | Gắn mã chứng khoán vào bài viết | `stockCodeInput()` trong POM, mock đăng bài |
 | TC_CONGDONG_24 | Gắn hashtag vào bài viết | `hashtagInput()` trong POM, mock đăng bài |
 | TC_CONGDONG_25 | Chọn tâm lý thị trường khi đăng bài | Click 1 trong 3 nút Tích cực/Trung lập/Tiêu cực, mock đăng bài |
 | TC_CONGDONG_26 | Đính kèm ảnh khi đăng bài | `setInputFiles` với ảnh mẫu `tests/fixtures/sample-image.png` (tạo mới), mock đăng bài |
 | TC_CONGDONG_27 | Đăng bài khi mất kết nối mạng | `context.setOffline(true)` — xác nhận KHÔNG crash JS (đọc kỹ `addNewPost.vue`, catch dùng optional chaining đầy đủ) |
-| TC_CONGDONG_43 | Hiển thị icon "..." trên bài viết của mình | Đăng 1 bài thật (đánh dấu `[TEST-AUTOMATION] <timestamp>`) → verify icon → xóa qua UI, có API-delete dự phòng trong `finally` nếu UI lỗi |
-| TC_CONGDONG_44 | Tắt/Bật thông báo cho 1 bài viết | Verify gọi đúng API `update-notify` — **phát hiện bug: nhãn UI không đổi sau click**, đã ghi vào doc + mục "Phát hiện đáng chú ý" |
-| TC_CONGDONG_45 | Chỉnh sửa bài viết của mình | Sửa nội dung bài thật vừa tạo, verify hiển thị lại đúng |
-| TC_CONGDONG_46 | Xóa bài viết của mình | Xóa qua UI (modal xác nhận), verify biến mất khỏi feed |
+| TC_CONGDONG_43 | Hiển thị icon "..." trên bài viết của mình | 10/11/2026: giả lập `post/store` + chèn bài giả của mình vào dòng tin (trước đây đăng bài thật rồi xoá) |
+| TC_CONGDONG_45 | Chỉnh sửa bài viết của mình | 10/11/2026: giả lập `PUT post/update` |
+| TC_CONGDONG_46 | Xóa bài viết của mình | 10/11/2026: giả lập `DELETE post/:id` |
 | TC_CONGDONG_48/49 | Hiển thị bài ghim đúng dạng (slider ≥3 bài / danh sách 1-2 bài) | Gộp thành 1 test THÍCH ỨNG: đọc trạng thái ghim thật lúc chạy (0 / danh sách / slider) rồi annotate rõ nhánh nào được verify, thay vì hard-code số lượng — số bài ghim đã xác nhận thay đổi theo thời gian thực (có lúc 1, có lúc 0) |
 
-**⚠️ Lưu ý quan trọng cho lần sau chạm vào 5 case TC_43-46:** đã có 1 lần trong lúc phát triển làm sai (dropdown
-"..." không tự đóng như giả định, sidebar Gợi ý không đáng tin để follow lại) khiến tài khoản test bị unfollow
-+ còn sót bài `[TEST-AUTOMATION]` trên production một thời gian ngắn — đã dọn sạch bằng tay + sửa lại code an
-toàn hơn (API-delete dự phòng trong `finally`, follow lại qua trang cá nhân thay vì sidebar ngẫu nhiên). Nếu
-sửa lại 2 test này, giữ nguyên cơ chế `finally` dọn dẹp, đừng bỏ.
-
-### ⏳ Đang chờ thông tin từ bạn
-| TC ID | Tên | Đang chờ |
-|---|---|---|
-| TC_CONGDONG_55 | Không hiển thị gợi ý với tài khoản Free | Test đã viết sẵn (đọc `FREE_USER_EMAIL`/`FREE_USER_PASSWORD` từ `.env`, tự `test.skip` nếu đăng nhập lỗi). Tài khoản đầu tiên bạn cung cấp (`levanhieu250204@gmail.com`) bị API từ chối: `400 "Tài khoản không tồn tại"` — cần bạn kiểm tra lại thông tin đăng nhập, không cần sửa code thêm sau khi có tài khoản đúng |
-
 ### Nhóm B — Có thể làm bằng tài khoản test hiện tại (chưa triển khai, đã xác nhận với bạn 2026-08-19 là để sau)
+
+10/11/2026: KHÔNG được bình luận/theo dõi thật nữa (backend production) — cột "Cách làm" của TC_37/39/40/41/56 phải đổi sang giả lập `comment/store|edit|delete`, `like`, `follow` (TC_56 cần giả lập cả `suggestion-list`, tài khoản test đang nhận `[]`). TC_52/53 vẫn làm trực tiếp được (thẻ hồ sơ: `.mf-user`, `.mf-stat`).
+
 | TC ID | Tên | Cách làm khi triển khai |
 |---|---|---|
 | TC_CONGDONG_37 | Đính kèm ảnh vào bình luận | Tương tự TC_26 — có sẵn `tests/fixtures/sample-image.png`, bình luận thật trên bài của mình rồi xoá |
@@ -88,8 +82,7 @@ sửa lại 2 test này, giữ nguyên cơ chế `finally` dọn dẹp, đừng 
 Cập nhật 09/11/2026 theo giao diện preprod (chạy trên kfsp.vn, 60 TC, 58 pass + 1 fixme): đã tự động hoá TC_09, 16,
 19, 20, 25, 46, 48; xoá TC_31 (checkbox Moderator không còn). Mọi API ghi (thêm/xoá mã, tạo/sửa/xoá/sắp xếp
 watchlist) đi qua máy chủ giả `FakeWatchlistServer` — TC_29 cũ từng tạo watchlist thật, nay không còn.
-Bug đo được: TC_19 (watchlist 0 mã → lỗi JS `classList`), TC_18 (toast sai chính tả "Vui loing"), TC_48 ⚠️ (bấm đúp
-"Lưu" tạo 2 watchlist), TC_20 ⚠️ (không có trạng thái đang tải).
+**Cập nhật 10/11/2026:** xoá TC_18, 19, 20, 47, 48 (bug được user chấp nhận) → còn 55 TC, 54 test tự động + 1 fixme.
 
 | TC ID | Tên | Lý do chưa tự động | Cần gì để làm tiếp |
 |---|---|---|---|
@@ -107,7 +100,9 @@ với tài khoản Free) đã tự động hoá bằng `FREE_USER_*`. Cột ph�
 |---|---|---|---|
 | TC_BANGGIA_07 | Kéo giãn độ rộng panel border phải | Panel dùng `flexlayout-react` (`.flexlayout__border_sizer`), khác cơ chế `resizer-vertical` đã verify ở Dashboard — chưa xác nhận cách giả lập mouse drag ổn định cho control riêng của thư viện này | Thử nghiệm thêm cách giả lập kéo cho `flexlayout__border_sizer`, đo `size` trong `localStorage.ibd_layout` sau khi kéo |
 | TC_BANGGIA_38 | Cuộn ngang đồng bộ header + khu ghim + danh sách chính | Chưa viết test đo `scrollLeft` của 3 vùng — đã xác nhận đúng qua đọc code, ưu tiên thấp | Không cần gì thêm, chỉ cần thời gian viết + so sánh `scrollLeft` sau khi cuộn |
-| TC_BANGGIA_53 | Nút "Ẩn/hiện các cột" — nghi vấn bug thật (nhánh UI mới 2026-09-22) | Click nút mở nhầm modal "Chi tiết sự kiện" không liên quan — chưa rõ hành vi ĐÚNG thật sự là gì để viết assertion | Dev xác nhận hành vi mong đợi của nút "Ẩn/hiện các cột", xác nhận bug trên rồi mới viết test mô tả đúng |
+
+**Cập nhật 10/11/2026:** xoá TC_BANGGIA_53 (fixme nghi vấn bug) và TC_BANGGIA_35 (CModal không đóng bằng Esc) — bug được
+user chấp nhận → Bảng Giá còn **2 fixme** (TC_07, TC_38), tổng 41 TC.
 
 **Cập nhật 2026-08-20:** TC_BANGGIA_48/49/50 (tài khoản Free) **đã tự động hoá xong, không còn vướng mắc** —
 `FREE_USER_EMAIL` trong `.env` được sửa lại thành `levanhieu250204_test@gmail.com` (đúng tài khoản từng lỗi
@@ -121,7 +116,7 @@ lộ thông điệp nâng cấp; cả 2 **pass** với kỳ vọng "BỊ KHOÁ".
 quyền Free ở màn khác nhiều khả năng cũng đang dùng cùng kiểu assertion sai này (xem chi tiết + cách sửa ở
 [testcases/bang-gia.md](testcases/bang-gia.md) TC_BANGGIA_49 và "Phát hiện đáng chú ý" #7).
 **Lưu ý cho các màn khác** đang chờ cùng
-`FREE_USER_EMAIL`/`FREE_USER_PASSWORD` (TC_CONGDONG_55, TC_WATCHLIST_09/46, TC_DASHBOARD_TT_14) — tài khoản
+`FREE_USER_EMAIL`/`FREE_USER_PASSWORD` (TC_WATCHLIST_09/46, TC_DASHBOARD_TT_14) — tài khoản
 Free giờ đăng nhập được, các case đó có thể thử lại được rồi (chưa đụng tới trong lượt cập nhật này, ngoài
 phạm vi Bảng Giá).
 
@@ -162,15 +157,9 @@ mới là code mới chạy từ nhánh sửa giao diện"):**
 - Đã sửa toàn bộ locator vỡ do cột "Ngành"/"Sàn CK" bị gỡ: `TC_BANGGIA_27` (header), `TC_BANGGIA_31` (nội dung
   dòng), `TC_BANGGIA_33`/`TC_BANGGIA_41` (đổi từ click `.nganh` sang click cột giá "TC"), `TC_BANGGIA_30` (icon
   ĐTNN đổi từ id `priceboard-foreign-*` sang `data-grp="foreign"`).
-- Thêm `TC_BANGGIA_53` (`test.fixme`) — nghi vấn bug thật MỚI: nút "Ẩn/hiện các cột" (tính năng hoàn toàn mới)
-  mở nhầm modal "Chi tiết sự kiện" không liên quan, đã loại trừ khả năng do overlay chồng lấp.
+- Thêm `TC_BANGGIA_53` (`test.fixme`) — nút "Ẩn/hiện các cột" (đã xoá 10/11/2026, bug được user chấp nhận).
 - **Toàn bộ cơ chế lọc (sàn/Phái sinh/Ngành/Watchlist/Tín hiệu M/B/Bộ lọc cá nhân) verify lại đúng, hoạt động
   bình thường sau redesign** — chỉ đổi vỏ UI, không đổi logic.
-- ⚠️ Phát hiện thêm trong lúc kiểm thử: tài khoản test có thể rơi vào trạng thái "kẹt" (dropdown sàn hiện nhãn
-  rỗng, bảng trống hoàn toàn) sau nhiều lần đổi sàn/bộ lọc liên tục trong thời gian ngắn — phục hồi được bằng
-  cách chọn lại "Toàn bộ" thủ công, nghi ngờ 1 tổ hợp state server-side bị ghi không nhất quán, CHƯA xác nhận
-  với dev. Xem chi tiết đầy đủ ở đầu [testcases/bang-gia.md](testcases/bang-gia.md) và mục "Phát hiện đáng chú
-  ý" #10/#11.
 - Tổng testcase Bảng Giá: 52 → **46** (−`TC_BANGGIA_16/17/20/37/41/42/47`, +`TC_BANGGIA_53`).
 - **Xoá thêm 4 case cuối ngày 2026-09-22 (theo xác nhận của người dùng + đo thực tế):**
   - `TC_BANGGIA_16`/`TC_BANGGIA_17` (modal "Thêm mã CK vào watchlist") — dev đã **gỡ hẳn nút "Thêm mã"** khỏi màn
@@ -225,22 +214,13 @@ Bộ mới giả lập toàn bộ (store, add-bulk, update, delete giao dịch; 
 `dividend-auto-record/sync-after-transactions`) + lưới an toàn huỷ mọi request không phải GET tới `*.kfsp.vn`;
 `afterEach` kiểm tra không có gì lọt ra.
 
-**Bug đo được (test ghi đúng hành vi lỗi):**
-- TC_NKGD_PBV_17 (mới): F5 ở tab Phân bổ vốn → ô danh mục rỗng, vốn 0, cấu hình đã lưu không nạp (`getDataCategory()`
-  chỉ nạp cấu hình nếu setting đã tải xong, không có watcher nạp lại).
-- TC_NKGD_DM_13 (mới): Enter trong modal Thêm/Sửa danh mục → `TypeError null.click` (code vẫn tìm id
-  `addManageCategory`/`saveEditCategory` đã bị bỏ; listener `keyup` trên `window` không được gỡ).
-- TC_NKGD_LS_30 (mới): chọn mã trong phiếu lệnh → `TypeError reading 0` (callback socket `getlive`).
-- TC_NKGD_DM_12: mất mạng khi thêm danh mục → `.catch` đọc `error.response.status` gây TypeError.
-- TC_NKGD_LS_27: bấm đúp gửi 2 lệnh POST. TC_NKGD_LS_37/38: sửa giao dịch lỗi → modal tự đóng, mất chỉnh sửa.
-- TC_NKGD_PT_15: sau Xuất Excel bảng thêm cột "Mã CK" thừa.
-- ⚠️ TC_NKGD_DM_06 (tên toàn khoảng trắng vẫn gửi), TC_NKGD_LS_21 (giá 0 bị từ chối dù thông báo ghi "≥ 0"),
-  TC_NKGD_TS_17 (tên file Excel có "/").
-- Đã sửa trên preprod: TC_NKGD_LS_44 cũ (mất `this` trong `.catch` khi xoá).
+**Cập nhật 10/11/2026:** xoá 11 testcase ghi nhận bug (bug được user chấp nhận): TC_NKGD_LS_21/27/30/37/38,
+TC_NKGD_PBV_17, TC_NKGD_DM_06/12/13, TC_NKGD_PT_15, TC_NKGD_TS_17 → còn **132 test, 0 fixme**.
+Bug cũ đã sửa trên preprod: TC_NKGD_LS_44 (mất `this` trong `.catch` khi xoá).
 
 ## Phân tích cơ bản — Khung/Shell ([tests/phan-tich-co-ban.spec.ts](tests/phan-tich-co-ban.spec.ts))
 
-18 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass (chạy riêng lẻ `--workers=1`). Testcase doc:
+17 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass (chạy riêng lẻ `--workers=1`). Testcase doc:
 [testcases/phan-tich-co-ban.md](testcases/phan-tich-co-ban.md). POM:
 [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts).
 
@@ -253,15 +233,12 @@ file/case đó trước khi kết luận là bug thật.
 **⚠️ Lưu ý quan trọng khi viết thêm test cho các tab con của màn này:** tài khoản test dùng CHUNG cho nhiều
 file khác trong dự án — "mã CK đang xem" (`final_mack`) là 1 setting lưu **server-side theo tài khoản** (đồng
 bộ qua API `getusersettings`/`updateusersettings`), KHÔNG phải state riêng theo browser context. Test nào cần
-1 mã CK xác định phải mock API `getusersettings` (xem `TC_PTCB_08` trong `phan-tich-co-ban.spec.ts`) thay vì
+1 mã CK xác định phải mock API `getusersettings` thay vì
 dựa vào điều hướng thật — nếu không sẽ bị nhiễu bởi các test khác đổi mã CK song song.
 
-**Phát hiện đáng chú ý (bug thật đo được qua automation):**
-- **`TheContainer.vue` — deep-link qua path param bị ghi đè:** truy cập `/phan-tich-co-ban/<mack>` (path param,
-  không có `?mack=`) không load đúng mã trong URL nếu tài khoản đã có `final_mack` lưu từ trước — bị ghi đè về
-  mã cũ. Nguyên nhân: điều kiện chặn ghi đè ở `TheContainer.vue` dòng ~1382 chỉ kiểm tra `$route.query.mack`,
-  không biết tới `:macks*` (path param). `?mack=` (query) hoạt động đúng 100%. Chi tiết: TC_PTCB_08 trong
-  [testcases/phan-tich-co-ban.md](testcases/phan-tich-co-ban.md).
+**Cập nhật 10/11/2026:** xoá TC_PTCB_08 (bug được user chấp nhận).
+
+**Phát hiện đáng chú ý:**
 - **Feature-gating nhiều cấp trong cùng 1 trang:** cấp shell (`index.vue`, chỉ 3/6 tab: Biểu đồ/So sánh/Bài
   viết & Phân tích) + cấp widget con riêng của từng tab (VD "4M & CANSLIM" có gate RIÊNG ở chính
   `FourmAndCanslim.vue`, độc lập với cấp shell). Dữ liệu `features_disabled` thật của tài khoản Free dùng chung
@@ -275,7 +252,7 @@ dựa vào điều hướng thật — nếu không sẽ bị nhiễu bởi các
 
 ## Phân tích cơ bản — So sánh ([tests/phan-tich-co-ban-so-sanh.spec.ts](tests/phan-tich-co-ban-so-sanh.spec.ts))
 
-28 testcase, **1 fixme** — cập nhật 09/11/2026 (chạy trên kfsp.vn): thêm TC_27 (ô nhập mã focus sẵn), TC_28 (thanh cuộn ngang phía trên bảng); TC_19/22 bỏ chờ toast thành công (app tắt mọi toast thành công từ 12/10). Testcase doc:
+25 testcase, **1 fixme** — cập nhật 09/11/2026 (chạy trên kfsp.vn): thêm TC_27 (ô nhập mã focus sẵn), TC_28 (thanh cuộn ngang phía trên bảng); TC_19/22 bỏ chờ toast thành công (app tắt mọi toast thành công từ 12/10). Testcase doc:
 [testcases/phan-tich-co-ban-so-sanh.md](testcases/phan-tich-co-ban-so-sanh.md). POM: section "Tab So sánh" ở
 cuối [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts).
 
@@ -287,28 +264,17 @@ cuối [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts).
 `DELETE .../save_compare/destroy`) đều bị chặn/mock qua `page.route()` mặc định trong `beforeEach` của toàn bộ
 file — không có request mutate thật nào lọt ra production trong 26 testcase.
 
-**Phát hiện đáng chú ý (bug thật đo được qua automation, ưu tiên báo dev):**
-- **[BUG NGHIÊM TRỌNG] Race condition khiến bảng dữ liệu so sánh TRỐNG VĨNH VIỄN khi deep-link/F5** (TC_PTCB_SS_02) —
-  `Compare.getAll()` (trong `created()`) đọc ĐỒNG BỘ `store.state.list_mack_company` để tính `type_mack`, nhưng
-  giá trị này chỉ được `TheContainer.getAllMack()` (socket `"getallstockcode"`) nạp BẤT ĐỒNG BỘ. Khi vào trang
-  bằng 1 lượt tải đầy đủ (`page.goto`/F5/link chia sẻ), `list_mack_company` luôn rỗng lúc đọc → `type_mack` bị
-  set cứng `""` → `items_table` computed trả `[]` MÃI MÃI (đã đo xác nhận chờ 30s+ không tự phục hồi). Cách
-  DUY NHẤT phục hồi: đổi mã CK qua ô search (xem TC_PTCB_SS_03, helper
-  `FaAnalysisPage.waitForCompareDataReady()`). Ảnh hưởng thật: người dùng bấm F5 hoặc mở link trực tiếp
-  `?tab=so-sanh` sẽ luôn thấy bảng trống, không có gợi ý nào trên UI giải thích vì sao.
+**Cập nhật 10/11/2026:** xoá TC_PTCB_SS_02, TC_PTCB_SS_14, TC_PTCB_SS_23 (bug được user chấp nhận).
+
+**Phát hiện đáng chú ý:**
 - **Gating "So sánh" ở 2 cấp độc lập:** cấp shell (`features_disabled['fa_so_sanh']`, đã đo KHÔNG khoá tài
   khoản Free hiện tại — xem `phan-tich-co-ban.md` TC_PTCB_17) và cấp widget riêng của chính
   `Compare/index.vue` (`$store.state.isAccountFree`, LUÔN giới hạn 6 dòng + hiện `UpdateRequire` bất kể
   `features_disabled`) — TC_PTCB_SS_05. Cùng pattern đã ghi nhận ở "4M & CANSLIM" (TC_PTCB_16).
-- **Nút "Đóng" trong modal "Thêm mã" không huỷ thay đổi đã thao tác** (TC_PTCB_SS_14) — thêm/xoá mã rồi "Đóng"
-  (không "Lưu") vẫn giữ nguyên state khi mở lại modal.
-- **Không nhất quán xử lý lỗi mạng giữa các API trong cùng component:** `getAll()` (bảng chính) nuốt lỗi hoàn
-  toàn không toast (TC_PTCB_SS_23), trong khi `getList()`/`deleteRowItem()`/`saveRowItem()`/`addNewRow()` đều
-  có toast lỗi rõ ràng (TC_PTCB_SS_24).
 
 ## Phân tích cơ bản — 4M & CANSLIM ([tests/phan-tich-co-ban-4m-canslim.spec.ts](tests/phan-tich-co-ban-4m-canslim.spec.ts))
 
-19 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass. Testcase doc:
+15 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass. Testcase doc:
 [testcases/phan-tich-co-ban-4m-canslim.md](testcases/phan-tich-co-ban-4m-canslim.md). POM: section "Tab 4M &
 CANSLIM" ở cuối [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts).
 
@@ -335,17 +301,16 @@ Chi tiết đầy đủ: [testcases/phan-tich-co-ban-4m-canslim.md](testcases/ph
 CHÍNH quan trọng" (TC_PTCB_4M_16/17) — khuyến nghị coi đây là mô tả đúng, ghi chú cũ ở TC_PTCB_16/17 nên được
 cập nhật lại trong 1 lượt riêng.
 
+**Cập nhật 10/11/2026:** xoá TC_PTCB_4M_11, TC_PTCB_4M_12, TC_PTCB_4M_14, TC_PTCB_4M_15 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý khác đo được qua automation:**
-- Banner "Không đủ dữ liệu để chấm điểm" và banner cảnh báo (`warning`) loại trừ lẫn nhau (`v-if`/`v-else-if`
-  chung 1 vị trí) — nếu điểm là N/A, mọi cảnh báo bị ẩn hoàn toàn dù có dữ liệu (TC_PTCB_4M_12).
-- Lỗi mạng (silent catch, không toast) và API trả `-1` tường minh đều ra badge "N/A" nhưng KHÔNG nhất quán về
-  banner giải thích đi kèm (TC_PTCB_4M_11 vs. 14) — cùng pattern "nuốt lỗi âm thầm" đã ghi nhận ở tab So Sánh.
 - KHÔNG có bug race condition deep-link như tab So Sánh (TC_PTCB_4M_10) — `FourmAndCanslim` chỉ phụ thuộc
   `$store.state.mack` (set đồng bộ), không đọc state nào nạp bất đồng bộ.
 
 ## Phân tích cơ bản — Biểu đồ ([tests/phan-tich-co-ban-bieu-do.spec.ts](tests/phan-tich-co-ban-bieu-do.spec.ts))
 
-23 testcase, **1 fixme** — 22/23 đã tự động hoá và pass (đã chạy ổn định 2 lần liên tiếp, 3 worker song song).
+19 testcase, **1 fixme** (chạy lại 10/11/2026 trên localhost:8080, preprod 21d9d1d04; đăng nhập
+`Prev2Session` + lưới `FaSafetyNet`, không request ghi nào lọt).
 Testcase doc: [testcases/phan-tich-co-ban-bieu-do.md](testcases/phan-tich-co-ban-bieu-do.md). POM: section "Tab
 Biểu đồ" ở cuối [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts).
 
@@ -364,19 +329,9 @@ thật, đừng suy luận từ tên tab.
 /api/stocks/chart/nonbank`, `/chart/bank`, `/chart/bank/scatter`) chỉ đọc, kể cả nút "Lưu" trong modal "Thêm mã"
 (chỉ gọi lại GET với tham số khác). Không cần mock để tránh ghi dữ liệu thật.
 
-**Phát hiện đáng chú ý (2 bug thật đo được qua automation, ưu tiên báo dev):**
-- **[BUG #1] Race condition `nhom_stockcode`:** mã ngân hàng (VD VCB) luôn mount NHẦM `ChartByNonBank` trước
-  (đọc `store.state.list_mack_company[stockcode]?.nhom` — nạp bất đồng bộ qua socket, CÙNG CƠ CHẾ gây bug tab So
-  Sánh), gọi sai `GET /api/stocks/chart/nonbank?mack=VCB` (đo được trả **500**), rồi mới tự chuyển đúng sang
-  `ChartByBank` khi `list_mack_company` nạp xong (TC_PTCB_BD_03). **Khác bug So Sánh:** TỰ PHỤC HỒI hoàn toàn
-  KHÔNG cần thao tác thủ công (do `nhom_stockcode` là computed reactive, không phải giá trị tính 1 lần) — vẫn
-  tốn 1 request lãng phí + lỗi 500 mỗi lần deep-link/F5/đổi mã sang mã ngân hàng.
-- **[BUG #2] `ChartByBank` luôn phát sinh đúng 2 lỗi console `TypeError: Cannot read properties of undefined
-  (reading 'series')` mỗi lần MOUNT MỚI** (TC_PTCB_BD_04/05) — `data()` chỉ khởi tạo 4/11 key của `options_bank`
-  nhưng template đọc `options_bank['pe_pb'].series.length`/`['llr']...` ngay lần render đầu (trước khi API
-  resolve). Xác nhận tái hiện ổn định ở CẢ deep-link/F5 LẪN đổi mã CK qua search (SPA) — độc lập với bug #1,
-  KHÔNG chỉ xảy ra khi lỗi mạng. Trang tự hồi phục hiển thị đúng sau khi API resolve (không trống vĩnh viễn),
-  nhưng lỗi console vẫn phát sinh thật mỗi lần, có thể gây nhiễu hệ thống theo dõi lỗi (Sentry...).
+**Cập nhật 10/11/2026:** xoá TC_PTCB_BD_03, TC_PTCB_BD_04, TC_PTCB_BD_05, TC_PTCB_BD_07 (fixme) (bug được user chấp nhận).
+
+**Phát hiện đáng chú ý:**
 - **Gating per-chart (KHÁC gate cấp shell `fa_bieu_do_tc_*`, đã đo KHÔNG khoá tài khoản Free hiện tại ở
   `phan-tich-co-ban.md` TC_PTCB_17):** mã thường có 8/10 chart bị `UpdateRequire` che (trừ "Tài sản
   quý"/"Nguồn vốn quý"); mã ngân hàng có 10/11 chart bị che (trừ "Tài sản quý") — TC_PTCB_BD_12/13. Cùng pattern
@@ -392,18 +347,16 @@ giữ nguyên `serial` mode.
 
 ## Phân tích cơ bản — BCTC gốc ([tests/phan-tich-co-ban-bctc-goc.spec.ts](tests/phan-tich-co-ban-bctc-goc.spec.ts))
 
-18 testcase, **0 fixme** (09/11/2026, chạy trên kfsp.vn). Testcase doc:
+13 testcase, **0 fixme** (09/11/2026, chạy trên kfsp.vn). Testcase doc:
 [testcases/phan-tich-co-ban-bctc-goc.md](testcases/phan-tich-co-ban-bctc-goc.md), POM [pages/BctcGocPage.ts](pages/BctcGocPage.ts).
 Trên preprod tab "Bài viết & Phân tích" đổi thành **"BCTC gốc"** (chỉ còn `ReportRaw`); Bài viết + Báo cáo phân tích
 chuyển sang màn `/thong-tin-su-kien` (bộ test [testcases/thong-tin-su-kien.md](testcases/thong-tin-su-kien.md)). Bộ
 `TC_PTCB_BVPT_*` cũ đã xoá. Tab chỉ đọc, không có API ghi.
-Bug đo được: TC_15 (mỗi lần mở tab lỗi JS `classList` — watcher `immediate` chạy trước khi bảng vẽ); ⚠️ TC_05 (lọc
-theo năm chứ không theo ngày), TC_07 (Từ = Đến thì không lọc), TC_08/14 (bảng rỗng không có chữ báo, đang tải không có
-spinner).
+**Cập nhật 10/11/2026:** xoá TC_PTCB_BCTC_05, TC_PTCB_BCTC_07, TC_PTCB_BCTC_08, TC_PTCB_BCTC_14, TC_PTCB_BCTC_15 (bug được user chấp nhận).
 
 ## Phân tích cơ bản — Tài chính doanh nghiệp ([tests/phan-tich-co-ban-tai-chinh-doanh-nghiep.spec.ts](tests/phan-tich-co-ban-tai-chinh-doanh-nghiep.spec.ts))
 
-37 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass. Testcase doc:
+36 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass. Testcase doc:
 [testcases/phan-tich-co-ban-tai-chinh-doanh-nghiep.md](testcases/phan-tich-co-ban-tai-chinh-doanh-nghiep.md).
 POM: section "Tab Tài chính doanh nghiệp" ở cuối [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts). Đây là tab
 LỚN NHẤT đã sinh testcase tới nay (5 sub-report con: Bảng cân đối kế toán/Kết quả kinh doanh/Lưu chuyển tiền
@@ -413,6 +366,8 @@ tệ/Thuyết minh/Chỉ tiêu tài chính), không có tính năng kéo-thả/u
 **⚠️ AN TOÀN DỮ LIỆU:** Toàn bộ API của tab này chỉ ĐỌC (`GET /api/stocks?type=bs|is|cf|tm...`,
 `GET /api/stocks/financial-ratios...`) — không có tính năng xuất Excel/lưu tuỳ chỉnh nào trong cả 5 sub-report
 (đã grep xác nhận), an toàn gọi API thật cho mọi testcase.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TCDN_27 (bug được user chấp nhận).
 
 **Phát hiện đáng chú ý (đo được qua automation):**
 - **[XÁC NHẬN AN TOÀN] KHÔNG có race condition `nhom_stockcode`** như tab "Biểu đồ"/"So sánh" — nhóm mã
@@ -429,14 +384,12 @@ tệ/Thuyết minh/Chỉ tiêu tài chính), không có tính năng kéo-thả/u
   (TC_PTCB_TCDN_30).
 - **Không có caching client-side** — 5 sub-report dùng `v-if` (không phải `v-show`), mỗi lần chuyển sub-tab đều
   unmount/remount thật và gọi lại API, kể cả quay lại đúng sub-tab đã xem (TC_PTCB_TCDN_07).
-- **Lỗi mạng/500 bị nuốt im lặng, không toast, NHẤT QUÁN trên cả 5 sub-report** (TC_PTCB_TCDN_27) — cùng UX gap
-  đã ghi nhận ở `getAll()` tab So sánh.
 - **"Chỉ tiêu tài chính" KHÔNG có cấu trúc cây thu gọn/mở rộng như app mô tả** (Sheet kỳ vọng 7 nhóm thu gọn
   được) — web hiển thị PHẲNG toàn bộ, các "nhóm" chỉ là dòng tiêu đề trực quan (TC_PTCB_TCDN_18).
 
 ## Phân tích cơ bản — Thông tin chung (Shell) ([tests/phan-tich-co-ban-thong-tin-chung.spec.ts](tests/phan-tich-co-ban-thong-tin-chung.spec.ts))
 
-27 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass (chạy `--workers=1`). Testcase doc:
+25 testcase, **0 fixme** — cập nhật 10/11/2026 (localhost:8080 preprod, `Prev2Session` + `FaSafetyNet`): xoá TC_PTCB_TTC_08 (icon "Tạo cảnh báo" đã bỏ khỏi `Left.vue`), sửa TTC_01/03; xoá TC_PTCB_TTC_10 (bug được user chấp nhận). Testcase doc:
 [testcases/phan-tich-co-ban-thong-tin-chung.md](testcases/phan-tich-co-ban-thong-tin-chung.md). POM: section
 "Tab Thông tin chung — Shell + Sub-tab Thông tin tài chính" ở cuối
 [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts). Đây là **1/4 tài liệu con** của tab "Thông tin chung" (tab
@@ -464,9 +417,7 @@ production trong toàn bộ file spec này.
   widget" đã ghi nhận ở tab "Tài chính doanh nghiệp" (TC_PTCB_TTC_25/26 — đã viết lại so với bản dở dang ban đầu
   sau khi phát hiện này).
 - **2 icon "Tạo cảnh báo"/"Thêm giao dịch" ở cột trái gate theo `isAccountFree`, khác cơ chế `features_disabled`
-  ở trên** — mở modal nâng cấp gói thay vì modal thật (TC_PTCB_TTC_10). Modal này dùng class
-  `modal-hide-header-footer` (ẩn cả nút đóng "×"), Escape KHÔNG đóng được — test đóng lại bằng cách tải lại
-  trang thay vì thao tác UI.
+  ở trên** — mở modal nâng cấp gói thay vì modal thật.
 - **Sub-tab tự viết tay, không đổi URL khi chuyển** — F5 giữa lúc đang ở sub-tab khác "Thông tin tài chính" sẽ
   mất sub-tab đang xem, quay về mặc định. Đổi mã CK KHÔNG ảnh hưởng sub-tab đang chọn (TC_PTCB_TTC_17/18).
 - **Modal phóng to biểu đồ P/E-P/B (`ChartPriceEvents.vue`, `showPopupChart`) là DEAD CODE** — không có điểm
@@ -484,29 +435,22 @@ khiến `tvWidget.activeChart()` throw âm thầm bên trong handler `@click`, k
 
 ## Phân tích cơ bản — Thông tin chung — Hồ sơ + Cổ đông ([tests/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.spec.ts](tests/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.spec.ts))
 
-22 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass. Testcase doc:
+19 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass. Testcase doc:
 [testcases/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.md](testcases/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.md).
 POM: section "Tab Thông tin chung — Sub-tab Hồ sơ + Cổ đông" ở cuối
 [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts). Đây là **2/4 tài liệu con** của tab "Thông tin chung" — phủ
 sub-tab "Hồ sơ" (`Profile.vue` + `LeaderShip.vue`) và "Cổ đông" (`TableShareHolder.vue` + `ChartAnalysis.vue`).
 2 tài liệu con còn lại ("Thông tin giao dịch"/"Sự kiện", "Nước ngoài"/"Tự doanh") sẽ sinh ở các lượt sau.
 
-**⚠️ Lưu ý khi chạy song song:** 4 test dùng tài khoản Free (TC_10/17/18/19) được gộp vào 1
+**⚠️ Lưu ý khi chạy song song:** 3 test dùng tài khoản Free (TC_10/18/19) được gộp vào 1
 `test.describe.configure({ mode: 'serial' })` DUY NHẤT trong file — đã đo thật: nếu để rải rác ở nhiều describe
 khác nhau, 2+ Playwright worker cùng đăng nhập đồng thời 1 tài khoản Free dùng chung có thể gây `test.skip` giả
 (phiên đăng nhập tranh chấp khiến `errorAlert` thoáng hiện) dù bản thân sub-tab hoàn toàn không có vấn đề. Nếu
 thêm test Free mới cho file này, PHẢI thêm vào trong cùng describe `serial` đó, không tạo describe Free riêng.
 
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TTC_HSCD_14, TC_PTCB_TTC_HSCD_16, TC_PTCB_TTC_HSCD_17 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý (đo được qua automation):**
-- **[BUG dữ liệu] Free — donut "Tổng quan" (Cơ cấu sở hữu) ở "Cổ đông" hiển thị SAI/THIẾU phần "Nước ngoài" vĩnh
-  viễn** — `getListForeignTransaction()` (nguồn `so_huu_nuoc_ngoai_final`) bị bọc `if (!isAccountFree)`, tài
-  khoản Free KHÔNG BAO GIỜ gọi API `/api/foreign-trading` (đo network: trả phí gọi 1 lần, Free gọi 0 lần). Hậu
-  quả donut hiện "Nước ngoài: %" rỗng + "Khác" bị cộng sai — CHỈ xác nhận được qua ảnh chụp (legend vẽ bằng
-  ECharts `CanvasRenderer`, không phải DOM text). Khác hẳn cơ chế `ProtectedView` quen thuộc — không có overlay
-  che, dữ liệu vẫn hiển thị nhưng sai ngầm (TC_PTCB_TTC_HSCD_17).
-- **[BUG hiển thị] Mã không phải cổ phiếu thường (ETF, VD `E1VFVN30`) — donut "Tổng quan" hiện "NaN%"** (field
-  `so_huu_nha_nuoc` không hợp lệ trong response), đồng thời bảng "Cổ đông lớn" trống hoàn toàn KHÔNG có thông
-  báo "Không có dữ liệu" (khác `Events.vue` đã có sẵn `#no-items-view`) — TC_PTCB_TTC_HSCD_14/16.
 - **Sub-tab con "Ngành nghề"/"Lịch sử" (`Profile.vue`) không bị reset khi đổi mã CK** — component không unmount
   khi đổi mã (chỉ đổi props), state cục bộ giữ nguyên — TC_PTCB_TTC_HSCD_05.
 - **Click 1 dòng cổ đông trong bảng "Cổ đông lớn" không có hành động gì**, khác hẳn click 1 lãnh đạo (mở modal
@@ -518,39 +462,25 @@ thêm test Free mới cho file này, PHẢI thêm vào trong cùng describe `ser
 
 ## Phân tích cơ bản — Thông tin chung — Thông tin giao dịch + Sự kiện ([tests/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.spec.ts](tests/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.spec.ts))
 
-22 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass (`--workers=1`). Testcase doc:
+18 testcase, **0 fixme** (cập nhật 10/11/2026, localhost:8080 preprod). Testcase doc:
 [testcases/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.md](testcases/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.md).
 POM: section "Tab Thông tin chung — Sub-tab Thông tin giao dịch + Sự kiện" ở cuối
 [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts). Đây là **3/4 tài liệu con** của tab "Thông tin chung" — phủ
 sub-tab "Thông tin giao dịch" (`TableInfoTransaction.vue` + tái dùng `ChartAnalysis.vue`) và "Sự kiện"
 (`Events.vue` + `ChartEvents.vue`). 1 tài liệu con còn lại ("Nước ngoài"/"Tự doanh") sẽ sinh ở lượt cuối.
 
-**⚠️ 2 lỗi đo được lúc sinh ban đầu đã sửa lại trong 1 lượt review riêng (không phải bug thật của web, lỗi ở
-chính test):**
-1. TC_02 (assert ngày RAW `YYYY-MM-DD`, không phải `DD-MM-YYYY`) ban đầu dùng `allTextContents()` trên CẢ DÒNG
-   `<tr>` — 2 ngày ISO liền kề (VD `2024-03-15` + `2024-03-20`) nối liền không dấu phân cách tạo ra substring
-   tình cờ khớp NHẦM regex `\d{2}-\d{2}-\d{4}` ở ranh giới 2 ô (`...24-03-1520...`). Sửa: đọc riêng từng `<td>`
-   + regex neo `^...$` thay vì tìm substring trong text nguyên dòng.
-2. TC_12 (bảng rỗng, mock `get-list-event` trả `[]`) ban đầu assert `eventsRows` (đếm `tbody tr`) phải bằng 0 —
+**⚠️ 1 lỗi đo được lúc sinh ban đầu đã sửa lại trong 1 lượt review riêng (không phải bug thật của web, lỗi ở
+chính test):** TC_12 (bảng rỗng, mock `get-list-event` trả `[]`) ban đầu assert `eventsRows` (đếm `tbody tr`) phải bằng 0 —
    SAI vì CoreUI `<CDataTable>` render slot `#no-items-view` NHƯ 1 DÒNG `<tr>` (colspan) NẰM TRONG `tbody`, không
    phải phần tử tách biệt ngoài bảng. Sửa: assert còn đúng 1 "dòng" (chính dòng thông báo) chứa text "Không có
    dữ liệu", không phải 0 dòng.
 
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TTC_GDSK_02, TC_PTCB_TTC_GDSK_04, TC_PTCB_TTC_GDSK_08 (fixme), TC_PTCB_TTC_GDSK_20 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý (đo được qua automation):**
-- **[BUG thật] Free — đổi mã CK KHÔNG refresh bảng "Sự kiện"** — `getListEvents()` gọi KHÔNG điều kiện ở
-  `created()` nhưng bị bọc `if (!isAccountFree)` trong `watch: stockcode()` — bất đối xứng, nhiều khả năng là
-  sai sót logic (copy-paste thiếu đồng bộ với chỗ khác). Hậu quả: tài khoản Free đổi mã CK xong vẫn thấy dữ
-  liệu sự kiện của MÃ CŨ, không có cảnh báo nào. Xác nhận qua DOM text thật (không bị giới hạn canvas như bug
-  donut ở tài liệu 2/4) — TC_PTCB_TTC_GDSK_20.
-- **Dead code**: cột ngày `TableInfoTransaction.vue` có method `formatDate()` (định dạng `DD-MM-YYYY`) nhưng
-  KHÔNG được gọi ở template — hiển thị RAW `YYYY-MM-DD` từ API, khác quy ước ngày ở các bảng khác trong màn
-  hình — TC_PTCB_TTC_GDSK_02.
 - **Panel bên phải sub-tab "Thông tin giao dịch" tái sử dụng Y HỆT `ChartAnalysis.vue` của "Cổ đông"** — nội
   dung donut cơ cấu sở hữu hoàn toàn không liên quan tới giao dịch nội bộ, dễ gây nhầm khi đọc source lần đầu
   (tái sử dụng có chủ đích, không phải bug) — TC_PTCB_TTC_GDSK_03.
-- **Mã ETF không có giao dịch nội bộ** — bảng "Thông tin giao dịch" trống hoàn toàn, KHÔNG có thông báo "Không
-  có dữ liệu" (khác `Events.vue` đã xử lý rỗng đúng) — cùng pattern đã ghi nhận ở bảng "Cổ đông lớn" (tài liệu
-  2/4) — TC_PTCB_TTC_GDSK_04.
 - **[XÁC NHẬN AN TOÀN] Verify đầy đủ 2 cấp gate cho cả 2 sub-tab** — "Thông tin giao dịch" chỉ bị khoá 1 cấp
   (nội dung chính, `fa_giao_dich_noi_bo`), panel biểu đồ phụ trợ (`fa_co_dong_va_gd_co_dong_bieu_do`) KHÔNG bị
   khoá; "Sự kiện" KHÔNG bị khoá ở cả 2 cấp (`fa_su_kien`/`fa_bieu_do_co_tuc`) với tài khoản Free hiện tại —
@@ -563,8 +493,7 @@ chính test):**
 
 ## Phân tích cơ bản — Thông tin chung — Nước ngoài + Tự doanh ([tests/phan-tich-co-ban-thong-tin-chung-nn-tu-doanh.spec.ts](tests/phan-tich-co-ban-thong-tin-chung-nn-tu-doanh.spec.ts))
 
-19 testcase, **0 fixme** — toàn bộ đã tự động hoá và pass (`--workers=1`, đã chạy lại 2 lần liên tiếp để xác
-nhận ổn định). Testcase doc:
+9 testcase, **0 fixme** (cập nhật 10/11/2026, localhost:8080 preprod). Testcase doc:
 [testcases/phan-tich-co-ban-thong-tin-chung-nn-tu-doanh.md](testcases/phan-tich-co-ban-thong-tin-chung-nn-tu-doanh.md).
 POM: section "Tab Thông tin chung — Sub-tab Nước ngoài + Tự doanh" ở cuối
 [pages/FaAnalysisPage.ts](pages/FaAnalysisPage.ts). Đây là **4/4 (LƯỢT CUỐI)** tài liệu con của tab "Thông tin
@@ -572,48 +501,30 @@ chung" — phủ sub-tab "Nước ngoài" (`TableForeignTransaction.vue` + `Char
 qua props từ `Common/index.vue`) và "Tự doanh" (`TableProprietaryTransaction.vue` +
 `ChartProprietaryTransaction.vue`, mỗi component tự gọi API riêng).
 
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TTC_NNTD_01, 02, 04, 05, 19 (5 fixme — backend trả bảng khối ngoại rỗng) và TC_PTCB_TTC_NNTD_06, 07, 12, 15, 16 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý (đo được qua automation):**
-- **[CÂU TRẢ LỜI cho câu hỏi quan trọng nhất lượt này] Pattern "API skip bất đối xứng `created()`/`watch`" đã
-  lặp lại 2 lần liên tiếp ở tài liệu 2/4 và 3/4 KHÔNG lặp lại ở "Nước ngoài"/"Tự doanh".** "Nước ngoài": gate
-  `isAccountFree` trong `Common/index.vue` áp dụng ĐỐI XỨNG ở cả `created()` lẫn `watch: stockcode()` (0
-  request tới `get-list-foreign-transaction`/`get-count-page-foreign-transaction`/`api/foreign-trading` ở MỌI
-  thời điểm cho Free) — đoạn code này CHÍNH LÀ nguồn gốc bug donut "Tổng quan" đã ghi nhận ĐẦY ĐỦ ở tài liệu 2/4
-  (TC_PTCB_TTC_HSCD_17), không phải bug mới. "Tự doanh": KHÔNG có bất kỳ check `isAccountFree` nào trong 2
-  component tự fetch riêng — hoàn toàn đối xứng. TC_PTCB_TTC_NNTD_15.
-- **[BUG lãng phí network, MỚI] Free — biểu đồ "Tự doanh" (`ChartProprietaryTransaction.vue`, `CCol xl="3"`)
-  VẪN mount và gọi API `/api/proprietary-trading` dù bị `ProtectedView` khoá ngay sau đó** (Right.vue chỉ
-  `v-if` theo `type_tab`, KHÔNG kiểm tra gate ở cấp `CCol xl="3"` — component tự che bằng `ProtectedView` RIÊNG
-  BÊN TRONG chính nó, sau khi `created()` đã chạy) — khác bảng "Tự doanh" (`CCol xl="9"`), bị `Right.vue` chặn
-  mount HOÀN TOÀN nên không lãng phí. Không phải bug hiển thị sai dữ liệu, chỉ lãng phí network/tải server —
-  TC_PTCB_TTC_NNTD_16.
 - **[XÁC NHẬN AN TOÀN] "Nước ngoài" VÀ "Tự doanh" là 2 sub-tab DUY NHẤT trong tab "Thông tin chung" bị khoá CẢ 2
   CẤP `features_disabled` CÙNG LÚC** (`CCol xl="9"` + `CCol xl="3"`) với tài khoản Free hiện tại — khớp đúng dự
   đoán đã ghi ở tài liệu 1/4 (TC_PTCB_TTC_25) — TC_PTCB_TTC_NNTD_13/14.
-- **Mã ETF (`E1VFVN30`) tái hiện bug NaN% ở donut "Tổng quan" panel "Nước ngoài"** — cùng root cause đã ghi ở
-  tài liệu 2/4 (`ChartForeignTransaction.vue` dùng chung prop `chartdata_co_cau_so_huu` với `ChartAnalysis.vue`)
-  — chỉ xác nhận được qua ảnh chụp (ECharts `CanvasRenderer`, không assert DOM text được) —
-  TC_PTCB_TTC_NNTD_06.
-- **Cả 2 bảng (`TableForeignTransaction.vue`/`TableProprietaryTransaction.vue`) không xử lý mảng rỗng** — cùng
-  pattern `TableShareHolder.vue` (2/4)/`TableInfoTransaction.vue` (3/4), không có thông báo "Không có dữ liệu"
-  — TC_PTCB_TTC_NNTD_07/12.
 - **[Kiến trúc] "Tự doanh" tự chủ 2 API riêng** (`/api/proprietary-trading/paginate` cho bảng,
   `/api/proprietary-trading` không phân trang cho biểu đồ, không chia sẻ cache) — khác "Nước ngoài" (dùng chung
-  state đã fetch sẵn từ `Common/index.vue` qua props) — TC_PTCB_TTC_NNTD_01/08/09/11.
+  state đã fetch sẵn từ `Common/index.vue` qua props) — TC_PTCB_TTC_NNTD_08/09/11.
 
 **Tổng kết 4/4 tài liệu con tab "Thông tin chung" (HOÀN TẤT):**
 1. [phan-tich-co-ban-thong-tin-chung.md](testcases/phan-tich-co-ban-thong-tin-chung.md) — Khung/shell + sub-tab
-   mặc định "Thông tin tài chính" (27 testcase).
+   mặc định "Thông tin tài chính" (25 testcase).
 2. [phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.md](testcases/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.md)
-   — Sub-tab "Hồ sơ" + "Cổ đông" (22 testcase).
+   — Sub-tab "Hồ sơ" + "Cổ đông" (19 testcase).
 3. [phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.md](testcases/phan-tich-co-ban-thong-tin-chung-giao-dich-su-kien.md)
-   — Sub-tab "Thông tin giao dịch" + "Sự kiện" (22 testcase).
+   — Sub-tab "Thông tin giao dịch" + "Sự kiện" (18 testcase).
 4. [phan-tich-co-ban-thong-tin-chung-nn-tu-doanh.md](testcases/phan-tich-co-ban-thong-tin-chung-nn-tu-doanh.md)
-   — Sub-tab "Nước ngoài" + "Tự doanh" (19 testcase).
+   — Sub-tab "Nước ngoài" + "Tự doanh" (9 testcase).
 
-## Phân tích cơ bản — TỔNG KẾT toàn màn hình (10 file, 234 testcase, HOÀN TẤT)
+## Phân tích cơ bản — TỔNG KẾT toàn màn hình (10 file, 196 testcase, HOÀN TẤT)
 
 Toàn bộ màn "Phân tích cơ bản" (`/phan-tich-co-ban`, khung/shell + 6 tab chính, "Thông tin chung" chia 4 tài
-liệu con) đã sinh xong: **234 testcase, chỉ 2 `test.fixme`** (TC_PTCB_SS_15 và TC_PTCB_BD_21, cùng lý do —
+liệu con) đã sinh xong: **196 testcase (sau lần xoá 10/11/2026), chỉ 2 `test.fixme`** (TC_PTCB_SS_15 và TC_PTCB_BD_21, cùng lý do —
 kéo-thả `vuedraggable`/Sortable.js, giới hạn Playwright đã ghi nhận từ TC_BANGGIA_37). Chạy gộp cả 10 file 1
 lần (`npx playwright test tests/phan-tich-co-ban --project=chromium --workers=2`): **228 pass, 4 skip (đúng
 thiết kế `test.skip`), 2 fail giả** (TC_PTCB_16, TC_PTCB_4M_16 — cả 2 dùng tài khoản Free, **PASS lại ngay khi
@@ -627,22 +538,13 @@ CI gộp nhiều file, thử chạy lại riêng test/file đó trước khi k�
 cách nào loại bỏ hoàn toàn tranh chấp đăng nhập khi nhiều file thật sự chạy song song trên 1 tài khoản dùng
 chung).
 
-**Phát hiện bug thật nổi bật nhất xuyên suốt màn hình (ưu tiên báo dev):**
-1. Deep-link qua path param `/phan-tich-co-ban/<mack>` bị ghi đè bởi `final_mack` từ `getusersettings`
-   (TC_PTCB_08).
-2. Deep-link thẳng `?tab=so-sanh` khiến bảng so sánh trống VĨNH VIỄN trong session do race condition
-   (TC_PTCB_SS_02).
-3. `ChartByBank.vue` gây đúng 2 `TypeError` console MỖI LẦN mount (100% tái hiện, không phụ thuộc mạng) —
-   TC_PTCB_BD_xx (xem chi tiết trong `phan-tich-co-ban-bieu-do.md`).
-4. Nhiều bug dữ liệu SAI/THIẾU/CŨ ÂM THẦM cho tài khoản Free do API bị `if (!isAccountFree)` bọc bất đối xứng
-   giữa `created()`/`watch` — lặp lại ở CẢ 2 tài liệu con "Hồ sơ + Cổ đông" (donut sở hữu nước ngoài) VÀ "Thông
-   tin giao dịch + Sự kiện" (bảng Sự kiện không refresh khi đổi mã CK).
+**Cập nhật 10/11/2026:** mọi bug đã ghi nhận ở màn này được user chấp nhận → đã xoá 36 testcase ghi nhận bug (chi tiết ở từng mục trên).
 
 ---
 
 ## Toàn cảnh thị trường — Ngành ([tests/toan-canh-thi-truong-nganh.spec.ts](tests/toan-canh-thi-truong-nganh.spec.ts))
 
-21 testcase, **1 fixme** — 19/20 test tự động hoá pass (1 testcase còn lại chỉ là ghi chú tham chiếu chéo,
+20 testcase, **1 fixme** — 18/19 test tự động hoá pass (1 testcase còn lại chỉ là ghi chú tham chiếu chéo,
 không cần automation). Testcase doc:
 [testcases/toan-canh-thi-truong-nganh.md](testcases/toan-canh-thi-truong-nganh.md). POM:
 [pages/NganhPage.ts](pages/NganhPage.ts). Route `/nganh` (`type="department"` của component IBD dùng chung với
@@ -652,9 +554,9 @@ không cần automation). Testcase doc:
 |---|---|---|---|
 | TC_NGANH_06 | Giới hạn tính năng với tài khoản Free (ProtectedView) | `FREE_USER_EMAIL`/`FREE_USER_PASSWORD` trong `.env` đăng nhập thất bại lúc sinh testcase này | Xác nhận lại tài khoản Free còn hoạt động (đã từng sửa được ở Bảng Giá/Nhật Ký GD 2026-08-20, có thể chỉ cần thử lại) |
 
+**Cập nhật 10/11/2026:** xoá TC_NGANH_12 (bug được user chấp nhận).
+
 **Phát hiện đáng chú ý:**
-1. Click badge "Trạng thái" ở tab "Tổng quan" gọi `gotoRRG()` nhưng KHÔNG có hiệu ứng gì trên `/nganh` (chỉ có
-   tác dụng ở nhánh UI khác `type=='ibd'`) — badge vẫn có `cursor: pointer` khiến người dùng tưởng bấm được.
 2. Ô "Điểm RS" luôn mang class `text-upchange` TĨNH cộng thêm class điều kiện — khi RS < 50 phần tử có ĐỒNG THỜI
    `text-upchange` và `text-downchange`, đo màu thật (`getComputedStyle`) vẫn hiển thị đúng (class sau thắng
    specificity) nên không phải bug hiển thị, chỉ là code lộn xộn.
@@ -664,7 +566,7 @@ không cần automation). Testcase doc:
 
 ## Toàn cảnh thị trường — Bộ lọc cổ phiếu ([tests/toan-canh-thi-truong-bo-loc.spec.ts](tests/toan-canh-thi-truong-bo-loc.spec.ts))
 
-48 testcase, **2 fixme** — 46/48 pass ổn định (`--workers=1`). Testcase doc:
+46 testcase, **3 fixme** — 43/46 pass ổn định (`--workers=1`). Testcase doc:
 [testcases/toan-canh-thi-truong-bo-loc.md](testcases/toan-canh-thi-truong-bo-loc.md). POM:
 [pages/BoLocPage.ts](pages/BoLocPage.ts). Route `/bo-loc` (`type="stock"`) thực chất render
 `src/views/filterCanslim/index.vue` (KHÔNG phải `stock/liveBoard/` như Bảng giá — dễ nhầm).
@@ -672,20 +574,12 @@ không cần automation). Testcase doc:
 | TC ID | Tên | Lý do chưa tự động | Cần gì để làm tiếp |
 |---|---|---|---|
 | TC_BOLOC_09 | "Khám phá hơn N kết quả bộ lọc khác" mở modal đầy đủ mẫu | Link nằm cuối thanh cuộn ngang mẫu KFSP, bị 1 lớp overlay/tooltip che khi chưa cuộn hết | Khảo sát thêm cách cuộn ổn định (`scrollIntoView` + chờ animation) trước khi click |
+| TC_BOLOC_25 | Nhóm "Kỹ thuật" — tiêu chí dạng select hoạt động đúng | 10/11/2026: phụ thuộc mẫu lọc đang chọn của tài khoản — mẫu hiện tại ("Loc_ma_tiem_nang") không có tiêu chí "SMA20 vs SMA100" | Giả lập danh sách mẫu lọc (`GET /api/filter/save_filter_group`) hoặc tài khoản có mẫu chứa tiêu chí này |
 | TC_BOLOC_40 | Giới hạn chọn tối đa 100 mã | Cần bảng kết quả ≥ 101 dòng + xác nhận trước cơ chế "chọn tất cả" có xuyên trang (phân trang 20 dòng/trang) hay chỉ trang hiện tại | Xác nhận qua khảo sát DOM/hỏi dev cơ chế "chọn tất cả" |
 
-**Phát hiện đáng chú ý (bug thật đo được qua automation, ưu tiên báo dev):**
-1. **[BUG THẬT] Dán/autofill giá trị vào ô nhập tiêu chí số KHÔNG kích hoạt lọc lại** — `changeInputValue()`
-   (`filterCanslim/index.vue` dòng 879) đọc `event.data` để lọc ký tự hợp lệ; khi giá trị được đặt NGUYÊN CỤM
-   trong 1 sự kiện (dán/autofill/`.fill()` tự động hoá), `event.data` là chuỗi nhiều ký tự — không khớp danh
-   sách ký tự đơn lẻ hợp lệ `'0123456789.,-'`, code hiểu nhầm là ký tự không hợp lệ và `return` sớm, bỏ qua
-   `getDataTableDebounce()`. Ô nhập hiển thị đúng giá trị mới nhưng API lọc không được gọi lại — bảng kết quả
-   lặng lẽ giữ dữ liệu cũ. Đo trực tiếp qua `page.on('requestfinished')` đọc payload POST thật: gõ nguyên cụm →
-   giá trị cũ; gõ từng ký tự → giá trị đúng, kết quả đổi thật (563→272 mã). Xem chi tiết mục "Phát hiện đáng chú
-   ý" #0 trong file `.md`.
-2. Web KHÔNG validate min < max cho tiêu chí "Khoảng" (khác app).
-3. `getDataTable().catch()` chỉ `console.error`, không toast lỗi — lỗi mạng và "0 kết quả thật" hiển thị giống
-   hệt nhau với người dùng.
+**Cập nhật 10/11/2026:** xoá TC_BOLOC_22, TC_BOLOC_47 và ghi chú bug "dán/autofill không lọc lại" (bug được user chấp nhận).
+
+**Phát hiện đáng chú ý:**
 4. "Reset giá trị" chỉ xoá GIÁ TRỊ, không xoá TIÊU CHÍ (khác app — Đặt lại xoá toàn bộ tiêu chí).
 5. Panel border phải chỉ có 6 tab (thiếu "Bài viết"/"Chatbot" so với 8 tab ở `/bang-gia`) dù dùng chung khung.
 
@@ -705,12 +599,9 @@ POM: [pages/SucManhDongTienPage.ts](pages/SucManhDongTienPage.ts).
 |---|---|---|---|
 | TC_SMDT_11 | Giới hạn chọn tối đa 15 mã trong bảng | Cần dựng đủ 16 mã hợp lệ thật (nhiều request tra cứu dữ liệu real-time, tốn thời gian chạy đáng kể) | Không cần gì thêm, chỉ cần thời gian viết + chấp nhận test chạy chậm |
 
-**Phát hiện đáng chú ý (bug thật + đính chính, đo được qua automation):**
-1. **[BUG ROUTER — dead code, không ảnh hưởng UI]** `stocks/src/router/index.js` đăng ký path
-   `suc-manh-dong-tien` 2 lần trong cùng mảng `children` (dòng ~523 `IBD type="rrg"`, dòng ~682 `RRGChart` import
-   thẳng). Route dòng ~523 luôn thắng (Vue Router ưu tiên route đăng ký trước khi trùng path) — route dòng ~682
-   là dead code. Cả 2 cuối cùng render cùng 1 file `RRG.vue` nên người dùng không bị ảnh hưởng, nhưng vẫn là cấu
-   hình router thừa cần dọn.
+**Cập nhật 10/11/2026:** xoá ghi chú bug "route `suc-manh-dong-tien` đăng ký 2 lần" (bug được user chấp nhận).
+
+**Phát hiện đáng chú ý (đính chính, đo được qua automation):**
 2. **[ĐÍNH CHÍNH] Cả biểu đồ RRG lẫn RS đều bị khoá với tài khoản Free** — kết luận ban đầu ("RS không bị khoá")
    SAI, chỉ dựa vào ảnh chụp màn hình mà không kiểm tra DOM. RRG dùng CSS blur filter phủ lên chart thật; RS
    dùng 1 ảnh nền đã làm mờ sẵn từ server (`blur/smdt_rs.png`) — nhìn thoáng qua giống dữ liệu thật nên dễ nhầm.
@@ -741,6 +632,8 @@ dùng chung: [pages/TechnicalChartPage.ts](pages/TechnicalChartPage.ts).
 | TC ID | Tên | Lý do chưa tự động | Cần gì để làm tiếp |
 |---|---|---|---|
 | TC_PTKT_11 | Liên kết đồng bộ mã giữa các tab (chấm tròn màu) | Chưa tìm được cách giả lập ổn định sự kiện `mouseenter` để mở popper chọn màu liên kết (`mouseEnterFunction` trong `reactMultiLayoutChart.js` dùng listener DOM thuần gắn thủ công vào phần tử popper tạo động, không phải Vue/React state chuẩn) | Thử nghiệm thêm `dispatchEvent('mouseenter')` với timing khác, hoặc xác nhận cách kích hoạt ổn định |
+| TC_PTKT_BD_03 | Đổi khung thời gian (interval) cập nhật tên tab | 10/11/2026: tên thẻ nay chỉ còn mã ("HPG", không kèm khung thời gian) nên kỳ vọng "tên thẻ đổi thành `<mã> 60`" không còn đúng; sửa 2 lần chưa pass | Viết lại assert theo nút khung thời gian/legend trong iframe |
+| TC_PTKT_BD_09 | Nút "Tải lại Biểu đồ" — chỉ hiện với tài khoản moderator | 10/11/2026: tài khoản TEST_USER chỉ còn role `user`, không moderator | 1 tài khoản có role `moderator` |
 | TC_PTKT_BD_17 | Cập nhật giá real-time trong giờ giao dịch | Phụ thuộc giờ giao dịch thật + socket cập nhật liên tục, không chủ động kích hoạt được bằng automation trong thời gian ngắn — cùng pattern đã ghi nhận ở Bảng Giá/Watchlist | Không cần gì thêm, chỉ cần chạy đúng giờ giao dịch + chấp nhận test chạy chậm |
 
 **⚠️ AN TOÀN DỮ LIỆU — ĐỌC TRƯỚC KHI CHẠY/SỬA TEST CỦA 3 FILE NÀY:** layout đa biểu đồ (tab nào đang mở, mã/
@@ -817,6 +710,8 @@ dùng). 62 TC: bỏ TC_02–04, 56 (nút Mở rộng/Thu gọn công cụ đã b
 Replay/Bố cục/AI lên thanh đầu trang; nhóm liên kết không còn đổi mã theo nhau (03/11 — phần liên kết thẻ mới thuộc
 nhóm tính năng 6). Spec chặn mọi lệnh ghi setting và bơm bố cục cố định, không ghi gì lên tài khoản.
 
+**Cập nhật 10/11/2026:** xoá TC_PTKT_RP_19, TC_PTKT_RP_26 (bug được user chấp nhận) → 60 TC, 1 fixme.
+
 | TC ID | Tên | Lý do chưa tự động | Cần gì để làm tiếp |
 |---|---|---|---|
 | TC_PTKT_RP_25 | Nhiều ô chiếu cùng mốc; ô bị che và ô chưa mở vào lượt chiếu | Mốc của từng ô chỉ vẽ trên canvas TradingView trong iframe, không có DOM/biến toàn cục đọc được ngày nến cuối từng ô | Kiểm tra thủ công, hoặc dev mở 1 điểm đọc trạng thái (vd `window.__taReplay`) cho test |
@@ -828,16 +723,15 @@ Cập nhật 09/11/2026 theo giao diện preprod (~21/10): chạy trên kfsp.vn 
 trong bộ nhớ nên chạy/ghim/xoá lịch sử **không ghi gì lên tài khoản** (xem đầu [pages/BacktestPage.ts](pages/BacktestPage.ts)).
 Chạy với `--workers=2`.
 
-**Không có `test.fixme`** — cả 81 case đều tự động. Các case ⚠️/🐞 cần PO/dev xác nhận (test ghi lại hành vi đo được):
+**Cập nhật 10/11/2026:** xoá TC_BACKTEST_19, TC_BACKTEST_21, TC_BACKTEST_25, TC_BACKTEST_56 (bug được user chấp nhận) → 77 TC.
+
+**Không có `test.fixme`** — cả 77 case đều tự động. Các case ⚠️ cần PO/dev xác nhận (test ghi lại hành vi đo được):
 
 | TC ID | Tên | Cần xác nhận gì |
 |---|---|---|
 | TC_BACKTEST_05 | Tài khoản Free dùng được Backtest | Beta mở cho cả Free là chủ đích? |
-| TC_BACKTEST_21 | 🐞 Bảng chọn chiến lược ném lỗi `applySearch.cancel` khi mở | Bug — test sẽ fail khi dev sửa, lúc đó đổi assert về hành vi đúng |
-| TC_BACKTEST_25 | 🐞 Ngày gõ dở "01/02" ô đỏ nhưng vẫn chạy (hiểu là 01/02 năm nay) | Bug — sửa thì đổi assert về "báo lỗi khoảng thời gian" |
 | TC_BACKTEST_41 | Double-click nút Chạy → cú thứ 2 trúng nút Dừng, lượt dừng im lặng | Có cần chống bấm nhầm? |
 | TC_BACKTEST_43 | `?demo=1` vẫn lưu lượt lên lịch sử tài khoản | Có nên chặn lưu khi chạy dữ liệu mẫu? |
-| TC_BACKTEST_56 | 🐞 (mới) Lượt bị máy chủ dọn chi tiết không còn dải "Lượt này chỉ còn phần tóm tắt." — hiện "0/0 lệnh" như lượt không có dữ liệu | Bug — template bỏ dải này dù `combineSummaries` vẫn yêu cầu |
 
 TC_BACKTEST_83 (POST lưu trả lời nhanh → lượt vừa chạy không được mở) **đã được dev sửa** trên preprod (`adoptServerId` đổi luôn `viewedRunId`).
 
@@ -853,80 +747,91 @@ Chạy với `--workers=2` (~5 phút). Testcase doc: [testcases/canh-bao-gia.md]
 | TC_CBG_53 | Cảnh báo 1 lần báo xong thì đường tự mất | Cần máy chủ thật bắn sự kiện socket `updatealert` khi giá chạm mức; không giả lập được socket production, tạo cảnh báo thật thì ghi lên tài khoản thật | Môi trường có backend riêng (không phải production), hoặc dev mở cách giả lập sự kiện bắn cảnh báo |
 | TC_CBG_54 | Biểu đồ nhỏ trong chat AI có đường + menu "Tạo cảnh báo" | Biểu đồ chỉ hiện khi trợ lý AI tự trả lời kèm biểu đồ, không chủ động dựng ổn định | Câu hỏi mẫu chắc chắn sinh biểu đồ, hoặc kiểm tra thủ công |
 
-3 case 🐞 assert hành vi đo được (test sẽ fail khi dev sửa — lúc đó đổi assert):
-
-| TC ID | Bug |
-|---|---|
-| TC_CBG_42 | Bước cuối thẻ giới thiệu bấm "Tạo cảnh báo <mã>" → `ReferenceError: openCreateBox is not defined`, hộp không mở |
-| TC_CBG_32 | Mở hộp sửa bằng cách bấm vào đường: focus kẹt trong iframe, ô giá không focus, Esc không đóng hộp |
-| TC_CBG_03 | Chế độ tối: dòng "Tạo cảnh báo…" vẫn màu `#7B3AEC` của chế độ sáng (dò lớp tối trên `body` thay vì `.c-app`) |
+**Cập nhật 10/11/2026:** xoá TC_CBG_03, TC_CBG_32, TC_CBG_42 (bug được user chấp nhận) → 51 TC, 2 fixme.
 
 ## Trung tâm thông báo + Cảnh báo theo mã ([tests/trung-tam-thong-bao.spec.ts](tests/trung-tam-thong-bao.spec.ts) · [tests/canh-bao-theo-ma.spec.ts](tests/canh-bao-theo-ma.spec.ts))
 
-Tính năng mới trên preprod (09/11/2026, chạy trên kfsp.vn): 70 + 15 TC, **0 fixme** — socket `updatealert` giả lập bằng
+Tính năng mới trên preprod (09/11/2026, chạy trên kfsp.vn): 68 + 14 TC, **0 fixme** — socket `updatealert` giả lập bằng
 cách gọi listener web đã đăng ký. Mọi API thông báo/cảnh báo (cả đọc lẫn ghi) đi qua máy chủ giả trong
 [pages/NotificationCenterPage.ts](pages/NotificationCenterPage.ts), kể cả GET có tác dụng ghi (`updateReadNotify`).
 
-| TC ID | Bug / nghi vấn | Nguyên nhân trong code |
-|---|---|---|
-| TC_TB_60 | 🐞 Cảnh báo giá / bộ lọc báo qua socket không tăng số trên chip "Cảnh báo" và badge chuông | `onReceivedAlert` (TheHeaderDropdownNotify.vue) tìm chip `alert` chữ thường, value thật là `ALERT` |
-| TC_TB_31 | 🐞 Đổi tần suất bộ lọc mà lưu lỗi → ô chọn vẫn hiện giá trị chưa lưu | `changeFilterFreq` không trả ô về khi lỗi |
-| TC_CBM_10 | ⚠️ Đổi sang mã khác trong hộp tạo cảnh báo → ô "Mức giá" giữ giá mã cũ | `addPriceCondition` chỉ điền ô đang trống |
+**Cập nhật 10/11/2026:** xoá TC_TB_31, TC_TB_60, TC_CBM_10 (bug được user chấp nhận).
 
 ## Thông tin & Sự kiện ([tests/thong-tin-su-kien.spec.ts](tests/thong-tin-su-kien.spec.ts))
 
-Màn mới `/thong-tin-su-kien` (nhận Bài viết + Báo cáo phân tích từ PTCB): 51 TC, **0 fixme**.
+Màn mới `/thong-tin-su-kien` (nhận Bài viết + Báo cáo phân tích từ PTCB): 46 TC, **0 fixme**.
 
-| TC ID | Bug / nghi vấn | Nguyên nhân trong code |
-|---|---|---|
-| TC_TTSK_51 | 🐞 Robot KFSP AI góc dưới phải che nút › "Trang sau" (1366/1600/1920px) | thanh phân trang canh phải sát đáy chạm `.ai-logo-wrapper` |
-| TC_TTSK_18 | 🐞 nghi vấn — Từ = Đến (1 ngày) thì tab Bài viết không lọc | `khoangNgay()` gửi khoảng rỗng khi hai đầu bằng nhau |
-| TC_TTSK_47 | Mạng chậm → bấm dòng báo cáo không phản hồi gì | `moBaoCao` chờ `layChiTietBaoCao` xong mới mở cửa sổ |
-| TC_TTSK_46 | Esc không đóng cửa sổ báo cáo | CModal của CoreUI không xử lý Esc |
+**Cập nhật 10/11/2026:** xoá TC_TTSK_18, TC_TTSK_30, TC_TTSK_46, TC_TTSK_47, TC_TTSK_51 (bug được user chấp nhận).
 
 ## Trang cá nhân + Đổi mật khẩu ([tests/trang-ca-nhan.spec.ts](tests/trang-ca-nhan.spec.ts))
 
-`/profile` + `/change_password` làm lại giao diện: 48 TC, **0 fixme**. Mọi API ghi (`update-info`, `passwd`, `chavatar`,
+`/profile` + `/change_password` làm lại giao diện: 44 TC, **0 fixme**. Mọi API ghi (`update-info`, `passwd`, `chavatar`,
 `/api/logout`…) bị giả lập/huỷ trong [pages/ProfilePage.ts](pages/ProfilePage.ts); `afterEach` kiểm tra không có lệnh
 đổi mật khẩu/hồ sơ/ảnh nào lọt ra.
 
-| TC ID | Bug / nghi vấn | Nguyên nhân trong code |
-|---|---|---|
-| TC_PROFILE_33 | 🐞 API phụ `/api/user-logs/reference` lỗi → bị đẩy sang `/login` rồi về `/dashboard`, không báo gì | `showReferenceLog().catch` gọi `$router.push("/login")` |
-| TC_PROFILE_34 | ⚠️ `/edit` lỗi cũng rời trang về `/dashboard` không báo | mọi lỗi bị coi là hết phiên |
-| TC_PROFILE_24 | ⚠️ Không kiểm tra phía trình duyệt — tên rỗng, SĐT có chữ vẫn gửi | cần backend xác nhận có chặn không |
-| TC_PROFILE_46 | ⚠️ Mật khẩu 1 ký tự / mật khẩu mới trùng cũ vẫn gửi | cần backend xác nhận |
+**Cập nhật 10/11/2026:** xoá TC_PROFILE_24, TC_PROFILE_33, TC_PROFILE_34, TC_PROFILE_46 (bug được user chấp nhận).
 
 ## Ô tìm mã trên header ([tests/tim-ma-header.spec.ts](tests/tim-ma-header.spec.ts))
 
-Tính năng mới (03–04/11, chọn mã mở modal biểu đồ nhanh): 28 TC, **0 fixme** (10/11/2026, kfsp.vn).
-⚠️ TC_TIMMA_21: Esc không đóng modal biểu đồ nhanh (CModal CoreUI). ⚠️ TC_TIMMA_24: "Mã gần đây" có mã không còn tồn
-tại → hiện ít hơn 5 mã (`created()` cắt còn 5 trước khi lọc theo `list_mack_company`).
+Tính năng mới (03–04/11, chọn mã mở modal biểu đồ nhanh): 26 TC, **0 fixme** (10/11/2026, kfsp.vn).
+**Cập nhật 10/11/2026:** xoá TC_TIMMA_21, TC_TIMMA_24 (bug được user chấp nhận).
 
 ## Biểu đồ — Mẫu chỉ báo + Liên kết thẻ ([tests/bieu-do-mau-chi-bao-lien-ket.spec.ts](tests/bieu-do-mau-chi-bao-lien-ket.spec.ts))
 
 Tính năng mới: Lưu/áp/đổi tên/xoá mẫu chỉ báo + liên kết thẻ theo kiểu đồng bộ (khung thời gian, chỉ báo, mã, trỏ chuột/
-đoạn thời gian). 34 TC, **0 fixme**. Mẫu lưu ở setting `ta_indicator_templates` → máy chủ giả trong
+đoạn thời gian). 33 TC, **0 fixme**. Mẫu lưu ở setting `ta_indicator_templates` → máy chủ giả trong
 [pages/ChartTemplateLinkPage.ts](pages/ChartTemplateLinkPage.ts).
-⚠️ TC_BDLK_34: thêm chỉ báo trong 3,5 giây đầu sau khi biểu đồ dựng xong → thẻ cùng nhóm không nhận
-(`watchLinkedStudies` trong ReactChartTA.vue cập nhật `studiesKey` trước khi xét `is_loaded`).
+**Cập nhật 10/11/2026:** xoá TC_BDLK_34 (bug được user chấp nhận).
 
 ## Bảng giá — Ẩn/hiện ghim ([tests/bang-gia-ghim.spec.ts](tests/bang-gia-ghim.spec.ts))
 
 Tính năng mới (cột kéo/ghim thu gọn mặc định, lưu ghim đọc-gộp-ghi theo từng sàn): 21 TC, **0 fixme** (10/11/2026,
 kfsp.vn). Setting `price_board_obj_pinned` đi qua kho ghim giả trong [pages/BangGiaGhimPage.ts](pages/BangGiaGhimPage.ts).
 Lưu ý: **TC_BANGGIA_36 của bộ cũ đã lỗi thời** trên preprod (nút ghim mặc định ẩn, phải mở cột trước) — sửa khi chạy
-lại bộ Bảng giá cũ. Ngoài phạm vi: interceptor axios trong `src/App.vue` đọc `error.response.status` không kiểm tra →
-mất mạng là console báo TypeError (mọi màn).
+lại bộ Bảng giá cũ. (10/11/2026: xoá ghi chú interceptor axios `App.vue` khi mất mạng — bug được user chấp nhận.)
 
 ## Cộng đồng — Video/ảnh trong bài + cột phải mới ([tests/cong-dong-media-cot-phai.spec.ts](tests/cong-dong-media-cot-phai.spec.ts))
 
-26 TC, **0 fixme**. Feed, link-preview, dữ liệu cột phải và socket giá đều giả lập trong
+25 TC, **0 fixme**. Feed, link-preview, dữ liệu cột phải và socket giá đều giả lập trong
 [pages/CommunityMediaPage.ts](pages/CommunityMediaPage.ts); không đăng/thích/bình luận thật.
+10/11/2026: xoá TC_CDMEDIA_25 (Free vào thẳng `/cong-dong` thấy thẻ sự kiện) — bug được user chấp nhận.
 
-| TC ID | Bug / nghi vấn | Nguyên nhân trong code |
-|---|---|---|
-| TC_CDMEDIA_25 | 🐞 Tài khoản Free mở thẳng `/cong-dong` vẫn thấy thẻ "Sự kiện 30 ngày tới" (đi từ Dashboard sang thì ẩn đúng) | `UpcomingEvents` dựa vào `isAccountFree`, cờ chỉ được `TheContainer.getFeaturesDisabled()` bật — `CommunityLayout` không gọi |
+## Cơ hội tiềm năng ([tests/co-hoi-tiem-nang.spec.ts](tests/co-hoi-tiem-nang.spec.ts))
+
+Màn chưa từng có test (10/11/2026, localhost:8080 nhánh preprod, backend production): 30 TC, **0 fixme**, pass 30/30.
+Bảng xếp hạng AI + tìm mẫu hình giả lập trong [pages/CoHoiTiemNangPage.ts](pages/CoHoiTiemNangPage.ts) (`FakeOppApi`);
+TC_01/30 dữ liệu thật, TC_31 tài khoản Free (bị làm mờ, không khoá cả màn). Màn không có API ghi; `POST
+patterns/search` chỉ đọc nằm trong danh sách trắng của `OppSafetyNet`.
+
+**Cập nhật 10/11/2026:** xoá TC_CHTN_27 (bug được user chấp nhận).
+
+## Định giá ([tests/dinh-gia.spec.ts](tests/dinh-gia.spec.ts))
+
+Màn chưa từng có test (10/11/2026, localhost:8080 nhánh preprod, backend production): 14 TC, **0 fixme**, pass 14/14.
+Số liệu đầu vào + mẫu định giá (lưu/sửa/xoá) giả lập trong [pages/DinhGiaPage.ts](pages/DinhGiaPage.ts) (`FakeDgApi`) —
+không ghi mẫu thật; lưới `useFaSafetyNet`.
+
+**Cập nhật 10/11/2026:** xoá TC_DINHGIA_05 (fixme, bug được user chấp nhận).
+
+## Vĩ mô ([tests/vi-mo.spec.ts](tests/vi-mo.spec.ts))
+
+Màn chưa từng có test (10/11/2026, localhost:8080 nhánh preprod, backend production): 28 TC, **0 fixme**, pass 28/28.
+Tổng quan + 12 tab chi tiết; định dạng bảng / lỗi API dùng API giả lập (`mockByType`, `mockOverview` trong
+[pages/ViMoPage.ts](pages/ViMoPage.ts)); TC_29 tài khoản Free (cả trang khoá `vi_mo`). Lưới `useReadOnlySafetyNet`
+([pages/ReadOnlySafetyNet.ts](pages/ReadOnlySafetyNet.ts), dùng chung 3 màn mới này).
+
+**Cập nhật 10/11/2026:** xoá TC_VIMO_28 (fixme, bug được user chấp nhận).
+
+## Bảng giá crypto ([tests/bang-gia-crypto.spec.ts](tests/bang-gia-crypto.spec.ts))
+
+Màn chưa từng có test (10/11/2026, localhost:8080 nhánh preprod, backend production): 10 TC, **0 fixme**, pass 10/10.
+Dữ liệu thật (giá về qua socket ta.kfsp.vn) → kiểm cấu trúc/định dạng; 2 case lỗi API giả lập. Màn không có khoá Free.
+
+## Danh sách mã có BCTC mới ([tests/bctc-moi.spec.ts](tests/bctc-moi.spec.ts))
+
+Màn chưa từng có test (10/11/2026, localhost:8080 nhánh preprod, backend production): 13 TC, **0 fixme**, pass 13/13.
+Phần lớn dùng API giả lập `filter-bctc-new` ([pages/BctcMoiPage.ts](pages/BctcMoiPage.ts)); TC_02/03/07 dữ liệu thật;
+TC_13 Free (menu ẩn "Cập nhật BCTC mới"). Route `/update-bctc` cần quyền `coworker` → bỏ qua.
 
 ## Cách xem nhanh trong báo cáo Playwright
 

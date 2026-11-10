@@ -451,37 +451,19 @@ thẻ giới thiệu cảnh báo giá, danh sách mẫu ban đầu do test chọ
 ## Kết quả mong đợi
 - [ ] Hộp hướng dẫn có: "đồng bộ những gì bạn chọn cho nhóm: mã cổ phiếu, khung thời gian, chỉ báo, trỏ chuột", "kéo hay thu phóng một thẻ thì các thẻ cùng khung thời gian hiện đúng đoạn đó", "chọn những gì cần đồng bộ rồi bấm Tạo nhóm".
 
-# [TC_BDLK_34] Thêm chỉ báo trong 3,5 giây đầu sau khi biểu đồ dựng xong → không đồng bộ sang thẻ cùng nhóm cho tới lần đổi chỉ báo kế tiếp
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-
-## Các bước thực hiện
-1. VNM | HPG cùng nhóm, chỉ bật Chỉ báo. Ngay khi 2 biểu đồ vừa hiện, thêm RSI ở thẻ VNM.
-2. Chờ 6 giây.
-3. Thêm Moving Average ở thẻ VNM.
-
-## Kết quả mong đợi
-- [ ] Đo được: sau 6 giây thẻ HPG vẫn chỉ có Volume — `ReactChartTA` chỉ coi biểu đồ "nạp xong" 3,5 giây sau khi dựng (`is_loaded`), thay đổi trước đó bị ghi nhận là "đã biết" (`studiesKey`) mà không gửi đi.
-- [ ] Lần thêm MA sau đó mới gửi cả bộ: HPG có Volume + RSI + MA.
-- [ ] Cần dev xác nhận: người dùng thao tác nhanh ngay khi mở trang sẽ thấy 2 thẻ lệch bộ chỉ báo.
-
----
-
 ## Tổng hợp
 
 | Trạng thái | Số lượng |
 |---|---|
 | 🆕 Testcase mới | 33 |
-| ⚠️ Cần xác nhận thêm | 1 (TC_34) |
-| **Tổng** | **34** |
+| **Tổng** | **33** |
 
-Cả 34 case (35 test — TC_12 chạy 2 biến thể) chạy tự động, pass trên kfsp.vn ngày 10/11/2026, không có `test.fixme`.
+Cả 33 case (34 test — TC_12 chạy 2 biến thể) chạy tự động, pass trên kfsp.vn ngày 10/11/2026, không có `test.fixme`.
+
+**Cập nhật 10/11/2026:** xoá TC_BDLK_34 (bug được user chấp nhận). 34 → 33 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **⚠️ Đổi chỉ báo trong 3,5 giây đầu không đồng bộ sang thẻ cùng nhóm** (TC_34) — chỉ lan sang ở lần đổi chỉ báo kế tiếp.
-   Nguyên nhân: `watchLinkedStudies` cập nhật `studiesKey` rồi mới xét `is_loaded`, nên thay đổi trong lúc "đang nạp" bị coi
-   là đã gửi.
 2. Áp mẫu là **thay thế** toàn bộ chỉ báo (kể cả Volume), không cộng thêm (TC_15) — đúng chú thích trong code, nhưng người
    dùng có thể bất ngờ khi mất Volume.
 3. Ô "Trỏ chuột" giờ đồng bộ **đoạn thời gian khi kéo / thu phóng**, không còn đồng bộ trỏ chuột như tên gọi (code giữ nhãn

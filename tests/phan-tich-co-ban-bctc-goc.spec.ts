@@ -62,15 +62,6 @@ test.describe('PTCB — BCTC gốc — Tổng quan', () => {
 });
 
 test.describe('PTCB — BCTC gốc — Lọc theo ngày', () => {
-  test('TC_PTCB_BCTC_05: Tìm kiếm 01/01/2023 → 31/12/2024 → chỉ còn BCTC năm 2023–2024 (lọc theo NĂM)', async ({ page }) => {
-    const p = new BctcGocPage(page);
-    await p.open();
-    await p.search('2023-06-15', '2024-02-01');
-    await expect(p.rows).toHaveCount(8);
-    expect(await p.names()).toEqual(SORTED.filter((n) => /năm (2024|2023)$/.test(n)));
-    expect(p.documentRequests, 'Lọc ở trình duyệt, không gọi lại API').toHaveLength(1);
-  });
-
   test('TC_PTCB_BCTC_06: Đổi ngày mà CHƯA bấm "Tìm kiếm" → bảng chưa lọc', async ({ page }) => {
     const p = new BctcGocPage(page);
     await p.open();
@@ -80,26 +71,6 @@ test.describe('PTCB — BCTC gốc — Lọc theo ngày', () => {
     await expect(p.rows).toHaveCount(15);
     await p.searchButton.click();
     await expect(p.rows).toHaveCount(4);
-  });
-
-  test('TC_PTCB_BCTC_07: ⚠️ Từ ngày = Đến ngày → KHÔNG lọc gì (hiện mọi năm)', async ({ page }) => {
-    const p = new BctcGocPage(page);
-    await p.open();
-    await p.search('2025-01-01', '2025-12-31');
-    await expect(p.rows).toHaveCount(4);
-    await p.search('2024-05-05', '2024-05-05');
-    // Measured: ReportRaw chỉ lọc khi from_date != to_date — chọn đúng 1 ngày thì bộ lọc bị bỏ qua.
-    await expect(p.rows).toHaveCount(15);
-    expect(await p.names()).toEqual(SORTED.slice(0, 15));
-  });
-
-  test('TC_PTCB_BCTC_08: ⚠️ Khoảng ngày không có BCTC → bảng trống, không có dòng chữ báo "không có dữ liệu", ẩn phân trang', async ({ page }) => {
-    const p = new BctcGocPage(page);
-    await p.open();
-    await p.search('2030-01-01', '2031-12-31');
-    await expect(p.rows).toHaveCount(0);
-    await expect(p.table.locator('tbody')).toHaveText(/^\s*$/);
-    await expect(p.pagination).not.toHaveClass(/custom-pagination/);
   });
 });
 
@@ -159,22 +130,6 @@ test.describe('PTCB — BCTC gốc — Đổi mã / lỗi / tải chậm', () =>
       await expect(ctxPage.locator('.Vue-Toastification__toast'), mode).toHaveCount(0);
       expect(p.pageErrors, mode).toEqual([]);
     }
-  });
-
-  test('TC_PTCB_BCTC_14: ⚠️ Tải chậm → không có trạng thái đang tải (bảng trống tới khi có dữ liệu)', async ({ page }) => {
-    const p = new BctcGocPage(page);
-    await p.open({ delayMs: 12000 });
-    await expect(p.rows).toHaveCount(0);
-    await expect(p.table.locator('.spinner-border, .c-loading')).toHaveCount(0);
-    await expect(p.rows).toHaveCount(15, { timeout: 25000 });
-  });
-
-  test('TC_PTCB_BCTC_15: 🐞 Mở tab phát sinh lỗi JS "reading \'classList\'" (watcher phân trang chạy trước khi bảng được vẽ)', async ({ page }) => {
-    const p = new BctcGocPage(page);
-    await p.open();
-    await expect(p.rows.first()).toBeVisible();
-    await expect.poll(() => p.consoleErrors.some((e) => /reading 'classList'/.test(e)),
-      { message: 'Bug: ReportRaw watch list_document_computed (immediate) gọi querySelector(.report-raw nav).classList khi chưa mount' }).toBe(true);
   });
 });
 

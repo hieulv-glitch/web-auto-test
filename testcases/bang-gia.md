@@ -1,5 +1,18 @@
 # Màn hình: Bảng giá
 
+> **Cập nhật 10/11/2026 (preprod `21d9d1d04`, chạy trên `http://localhost:8080`, backend production):** chỉ sửa các
+> case vỡ/sai so với code hiện tại, không kiểm kê lại toàn màn. Tổng **46 → 43** case.
+> - **An toàn dữ liệu:** spec không còn đăng nhập kiểu cũ + tự đổi sàn/ngành về "Toàn bộ" bằng UI (việc đó ghi setting
+>   thật lên tài khoản dùng chung, từng làm tài khoản "kẹt"). Giờ mở trang qua
+>   `BangGiaGhimPage.open()` (`Prev2Session` + máy chủ setting giả): `/getusersettings` trả sẵn sàn "Toàn bộ"/ngành
+>   "Tất cả", `/updateusersettings|/delusersettings` bị huỷ, mọi request ghi khác tới `*.kfsp.vn` bị huỷ và sau mỗi
+>   test assert không có request ghi nào lọt lưới. TC_01/02 (đăng nhập bằng form) có lưới an toàn riêng.
+> - **Panel phải còn 4 tab** (IBD, Thông tin, Watchlist, Ghi chú) — "Cảnh báo"/"Cộng đồng" bị gỡ (commit
+>   `3ee23420d` "Menu", 12/10) → xoá TC_44/46, sửa TC_03/06/08. Tab Watchlist/Ghi chú dùng chung component Dashboard
+>   (`263e3dcfa`, 13/10) → sửa TC_45/49.
+> - **Cột kéo + ghim mặc định thu gọn** (`f5545a114`, 13/10) → xoá TC_36 (đã phủ ở
+>   [bang-gia-ghim.md](bang-gia-ghim.md)), sửa TC_31.
+
 > **🔴 CẬP NHẬT LỚN 2026-09-22 — Nhánh UI mới (đo trên `http://localhost:8080`, chưa lên production):** Bảng
 > giá đang được redesign sâu, RIÊNG so với đợt đổi UI production cùng ngày (segment-control buttons, gỡ cột
 > Ngành/Sàn CK — xem các ghi chú "Cập nhật 2026-09-22" rải rác bên dưới, đó là bản ĐANG CHẠY TRÊN PRODUCTION).
@@ -16,18 +29,10 @@
 >   theme toàn site. `TC_BANGGIA_20` đã bị xoá khỏi bộ testcase (không giữ N/A, theo đúng quy ước dự án).
 > - Nút "Mở rộng"/"Thu gọn" đổi Ý NGHĨA: trước đây toggle mini-chart RIÊNG trong mỗi index card (card luôn
 >   hiện); giờ ẩn/hiện CẢ DẢI 5 index card cùng lúc. Mặc định tải trang dải đang HIỆN, nút hiện "Thu gọn".
-> - 2 tính năng MỚI hoàn toàn, chưa có tiền lệ: nút "Bảng tự lướt xuống" (auto-scroll) và nút "Ẩn/hiện các cột"
->   — nút sau đang có NGHI VẤN BUG THẬT: click vào lại mở nhầm modal "Chi tiết sự kiện" (không liên quan), đã
->   thử đóng overflow panel trước khi click vẫn tái hiện — cần dev xác nhận, chưa viết testcase chính thức cho
->   tính năng này (xem `test.fixme` `TC_BANGGIA_53`).
+> - 2 tính năng MỚI hoàn toàn, chưa có tiền lệ: nút "Bảng tự lướt xuống" (auto-scroll) và nút "Ẩn/hiện các cột".
 > - Đã xác nhận qua automation thật: TOÀN BỘ cơ chế lọc (sàn/Phái sinh/Ngành/Watchlist/Tín hiệu M/B/Bộ lọc cá
 >   nhân) vẫn hoạt động ĐÚNG sau redesign — chỉ đổi vỏ UI, không đổi logic lọc dữ liệu.
-> - ⚠️ Trong lúc kiểm thử đợt này, phát hiện tài khoản test có thể rơi vào trạng thái dropdown sàn hiển thị nhãn
->   rỗng "Sàn" (không phải tên sàn cụ thể) kèm bảng dữ liệu trống hoàn toàn, sau nhiều lần đổi qua lại
->   sàn/Phái sinh/bộ lọc liên tục trong thời gian ngắn — nghi ngờ 1 tổ hợp state server-side (`type_list`/
->   `type_board`/`current_category_id`) bị lưu không nhất quán, PHỤC HỒI ĐƯỢC bằng cách mở lại dropdown sàn và
->   chọn "Toàn bộ" thủ công. Chưa xác định chắc chắn đây là bug thật hay chỉ do test tự động thao tác quá nhanh
->   dồn dập trong ngày — cần dev xác nhận nếu người dùng thật cũng gặp lại.
+
 
 - **URL:** `/bang-gia` (route con của `/`, `TheContainer`, yêu cầu đăng nhập — `meta.requiresUser`).
 - **Component:** [src/views/ibd/index.vue](../../stocks/src/views/ibd/index.vue) →
@@ -125,6 +130,8 @@
 
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation trên nhánh UI mới: Pass**
 - **Tham chiếu App:** TC_1 (Overview màn Bảng giá — chỉ tương ứng ý tưởng, layout hoàn toàn khác)
+- **Cập nhật 10/11/2026:** panel phải còn **4 tab** — "Cảnh báo" và "Cộng đồng" bị gỡ khỏi `DEFAULT_BORDER_LAYOUT`
+  (commit `3ee23420d`, 12/10/2026). Đã sửa expect. Pass.
 - **Cập nhật 2026-09-22 (nhánh UI mới) — GIẢI ĐÁP nghi vấn bug cũ:** panel border phải giờ CHỈ CÒN 6 TAB (không
   phải 8) — **"Bài viết" và "Chatbot" đã bị gỡ bỏ HOÀN TOÀN** khỏi `DEFAULT_BORDER_LAYOUT`. Điều này giải thích
   luôn nghi vấn flaky cũ mô tả bên dưới (6/8 vs 8/8 tab tuỳ lần chạy): không phải lỗi mount ngẫu nhiên như từng
@@ -142,8 +149,7 @@
 ## Kết quả mong đợi
 - [ ] Không có thanh tab phía trên nội dung chính (chỉ 1 tab "Bảng giá" và `tabSetEnableTabStrip: false` nên
       không hiện thanh tab) — vào thẳng nội dung bảng giá thời gian thực.
-- [ ] Panel border phải hiển thị **6** tab dọc theo đúng thứ tự: IBD, Thông tin, Watchlist, Cảnh báo, Ghi chú,
-      Cộng đồng.
+- [ ] Panel border phải hiển thị **4** tab dọc theo đúng thứ tự: IBD, Thông tin, Watchlist, Ghi chú.
 - [ ] Tab "IBD" active mặc định, hiển thị nội dung "Tổng quan thị trường chung".
 - [ ] Không bị tràn/vỡ layout.
 
@@ -183,6 +189,7 @@
 # [TC_BANGGIA_06] Mở lại panel phải từ trạng thái thu gọn
 
 - **Trạng thái:** 🆕
+- **Cập nhật 10/11/2026:** test mở lại bằng tab "Cảnh báo" (đã bị gỡ) → đổi sang tab "Ghi chú". Pass.
 
 ## Các bước thực hiện
 1. Từ trạng thái đã thu gọn (TC_BANGGIA_05), click vào 1 tab dọc bất kỳ.
@@ -212,13 +219,15 @@
 # [TC_BANGGIA_08] Tab border không thể đóng/kéo-thả ra ngoài
 
 - **Trạng thái:** 🆕 — **Đã verify qua đọc code**
-- **Ghi chú:** Toàn bộ 8 tab con trong `DEFAULT_BORDER_LAYOUT` được khai báo `enableClose: false`,
+- **Cập nhật 10/11/2026:** test cũ kiểm tra tab "Cảnh báo" (đã bị gỡ) — locator không khớp gì nên `toHaveCount(0)`
+  pass rỗng. Đổi sang kiểm tra đủ 4 tab đang có và không tab nào có icon đóng. Pass.
+- **Ghi chú:** Toàn bộ tab con trong `DEFAULT_BORDER_LAYOUT` được khai báo `enableClose: false`,
   `enableDrag: false` — khác với Dashboard (nơi các tab panel phải cũng không lộ nút đóng nhưng dùng cơ chế
   khác). Xác nhận qua DOM: không có icon "x" trên bất kỳ tab dọc nào.
 
 ## Các bước thực hiện
 1. Quan sát từng tab dọc bên phải.
-2. Thử kéo 1 tab dọc (VD "Cảnh báo") ra vùng khác.
+2. Thử kéo 1 tab dọc (VD "Ghi chú") ra vùng khác.
 
 ## Kết quả mong đợi
 - [ ] Không có icon đóng (×) trên tab.
@@ -253,7 +262,7 @@
   2. Dropdown "Ngành"/"Watchlist"/"Tín hiệu M/B"/"Bộ lọc" → gộp vào **1 nút "Bộ lọc" overflow**, mở ra 1 panel
      3 dòng (Ngành / Watchlist / "Tín hiệu & bộ lọc" gộp cặp).
   3. Công tắc dark/light riêng cho bảng giá → **đã bị gỡ bỏ hoàn toàn** (không phải đổi vị trí).
-  4. Thêm 2 nút mới: "Bảng tự lướt xuống" (auto-scroll) và "Ẩn/hiện các cột" (xem TC_BANGGIA_53, nghi vấn bug).
+  4. Thêm 2 nút mới: "Bảng tự lướt xuống" (auto-scroll) và "Ẩn/hiện các cột".
   5. Nút "Mở rộng"/"Thu gọn" đổi ý nghĩa — xem TC_BANGGIA_21.
 
 ## Các bước thực hiện
@@ -403,6 +412,8 @@
 # [TC_BANGGIA_19] Dropdown "Bộ lọc" (bộ lọc cá nhân KFSP)
 
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** test từng tự `skip` nhầm ("nhóm Của bạn rỗng") vì đếm mục ngay khi panel vừa mở, lúc API
+  `my-filter-group-and-example` (production) chưa trả về — thêm chờ tối đa 10 giây trước khi đếm. Pass.
 - **Cập nhật 2026-09-22:** tài khoản test hiện có sẵn 2 bộ lọc cá nhân đã lưu ở nhóm "Của bạn" (`Loc_ma_tiem_nang`,
   `test_loc`) — trước đây test chỉ mở dropdown và kiểm tra không lỗi JS, KHÔNG hề chọn 1 bộ lọc để xem bảng có
   lọc đúng không (đúng lỗ hổng người dùng phát hiện, giống pattern đã sửa ở TC_BANGGIA_11/12/15). Đã đo lại bằng
@@ -450,24 +461,6 @@
 ## Kết quả mong đợi
 - [ ] Bước 2: cả 5 index card ẩn đi, nút đổi thành "Mở rộng".
 - [ ] Bước 3: cả 5 index card hiện lại, nút đổi về "Thu gọn". Không ảnh hưởng danh sách mã bên dưới.
-
----
-
-# [TC_BANGGIA_53] Nút "Ẩn/hiện các cột" — nghi vấn bug thật
-
-- **Trạng thái:** 🆕 Testcase mới — **⚠️ Cần xác nhận thêm, nghi vấn bug thật**
-- **Ghi chú:** Tính năng mới hoàn toàn trên nhánh UI này, chưa từng có ở bản trước. Click nút "Ẩn/hiện các cột"
-  (icon 3 chấm dọc, cạnh nút "Thu gọn") lẽ ra phải mở dialog chọn cột hiển thị — nhưng đo được thực tế mở NHẦM
-  modal **"Chi tiết sự kiện"** (nội dung hoàn toàn không liên quan, có vẻ thuộc 1 tính năng lịch sự kiện khác
-  của hệ thống) — đã thử đóng panel "Bộ lọc" overflow trước khi click (loại trừ khả năng do overlay chồng lấp)
-  vẫn tái hiện y hệt. Chưa viết test chính thức cho tính năng "ẩn/hiện cột" vì chưa rõ hành vi ĐÚNG thật sự là
-  gì — cần dev xác nhận trước khi viết testcase mô tả hành vi mong đợi.
-
-## Các bước thực hiện
-1. Click nút "Ẩn/hiện các cột" trên toolbar.
-
-## Kết quả mong đợi
-- [ ] ⚠️ CHƯA XÁC ĐỊNH — hiện tại đang mở nhầm modal "Chi tiết sự kiện", nghi vấn bug thật.
 
 ---
 
@@ -642,6 +635,9 @@
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation trên nhánh UI mới: Pass**
 - **Tham chiếu App:** TC_24 (icon ghim, mã + ngành, biểu đồ mini, Giá/%/KL — web không có biểu đồ mini trong
   từng dòng, thay bằng đầy đủ 3 bước giá mua/bán)
+- **Cập nhật 10/11/2026:** cột kéo + ghim mặc định **thu gọn** (commit `f5545a114`, 13/10) — dòng không còn icon
+  ghim/kéo cho tới khi bấm mũi tên ở tiêu đề "Mã" (chi tiết ở [bang-gia-ghim.md](bang-gia-ghim.md)). Đã sửa expect.
+  Pass.
 - **Cập nhật 2026-09-22:** "ngành viết hoa nhỏ bên dưới mã" đã bị gỡ khỏi dòng — tên công ty đầy đủ giờ CHỈ còn
   ở tooltip `title` của ô mã (hover mới thấy), không còn hiển thị chữ trực tiếp trên dòng.
 
@@ -649,7 +645,7 @@
 1. Quan sát 1 dòng mã bất kỳ (VD SHB).
 
 ## Kết quả mong đợi
-- [ ] Cột action: icon kéo-thả (⋮⋮, chỉ hiện khi dòng KHÔNG ghim) + icon ghim (📌).
+- [ ] Mặc định KHÔNG có cột kéo + ghim (cột thu gọn).
 - [ ] Mã CK dạng link đậm, tooltip `title` chứa tên đầy đủ công ty.
 - [ ] Đủ giá TC/Trần/Sàn (tô màu cố định tím/xanh dương/vàng bất kể dữ liệu), Tổng KL, 3 bước giá mua/bán kèm
       KL, giá khớp/KL/+-/%, Cao/Thấp/Giá TB, Mua/Bán (hoặc Room) khối ngoại.
@@ -705,45 +701,6 @@
 
 ---
 
-# [TC_BANGGIA_35] Modal biểu đồ không đóng được bằng phím Escape
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện hành vi giống bug đã ghi nhận**
-- **Kết quả đo được:** Sau khi mở modal biểu đồ (TC_BANGGIA_34), nhấn Escape — modal (`CModal` CoreUI, class
-  `modal-hide-header-footer`) **vẫn còn hiển thị**, giống hệt hành vi đã ghi nhận ở modal "Thêm mới Watchlist"
-  của Dashboard (TC_DASHBOARD_PP_07) — không phải bug chặn luồng (vẫn đóng được bằng icon riêng của modal) nhưng
-  là điểm UX nhất quán giữa các `CModal` trong hệ thống, nên báo dev nếu muốn Escape hoạt động.
-
-## Các bước thực hiện
-1. Mở modal biểu đồ (click 1 mã CK).
-2. Nhấn phím Escape.
-3. Đóng modal bằng icon đóng riêng của modal.
-
-## Kết quả mong đợi
-- [ ] Escape không đóng được modal (ghi nhận, không chặn luồng).
-- [ ] Đóng bằng icon riêng thành công.
-
----
-
-# [TC_BANGGIA_36] Ghim / bỏ ghim 1 mã
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
-- **Tham chiếu App:** TC_30 (click icon ghim — app mô tả "tùy business", web xác nhận rõ: ghim lên khu vực cố
-  định đầu bảng)
-- **Kết quả đo được:** Click icon ghim ở 1 dòng trong danh sách chính → dòng chuyển sang khu vực ghim cố định
-  (`#priceboard-pinned`, luôn hiển thị phía trên, không cuộn theo danh sách chính) — icon đổi tooltip thành
-  "Nhấn để bỏ ghim"; click lại → dòng quay về đúng vị trí trong danh sách chính (icon kéo-thả xuất hiện lại).
-
-## Các bước thực hiện
-1. Click icon ghim (📌) ở 1 dòng bất kỳ trong danh sách chính.
-2. Cuộn danh sách chính xuống — quan sát dòng vừa ghim.
-3. Click lại icon ghim (giờ có tooltip "Nhấn để bỏ ghim") ở khu vực ghim.
-
-## Kết quả mong đợi
-- [ ] Dòng chuyển lên khu vực ghim, đứng yên khi cuộn danh sách chính.
-- [ ] Bỏ ghim → dòng biến mất khỏi khu vực ghim, xuất hiện lại trong danh sách chính.
-
----
-
 # [TC_BANGGIA_38] Cuộn ngang đồng bộ header + khu ghim + danh sách chính
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify qua đọc code**
@@ -795,7 +752,11 @@
 # [TC_BANGGIA_43] Tab "Watchlist" (border) — component riêng, khác `/watchlist` và khác panel Dashboard
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế, phát hiện đáng chú ý**
-- **Phát hiện đáng chú ý:** Component `TabWatchlist` được gọi với prop **`page="dashboard"` cố định** trong
+- **Cập nhật 10/11/2026:** tab giờ dùng `dashboard/board/tabs/Watchlist.vue` (commit `263e3dcfa`, 13/10) — phát
+  hiện `page="dashboard"` bên dưới thuộc component cũ, không còn áp dụng. Test vỡ ở lưới an toàn: tab tải tin liên
+  quan bằng `POST /api/news/news-related-by-mack` (chỉ đọc, có `skip/take`) → thêm vào danh sách POST chỉ đọc được
+  phép. Pass.
+- **Phát hiện đáng chú ý (component cũ):** Component `TabWatchlist` được gọi với prop **`page="dashboard"` cố định** trong
   `reactLayoutIBD.js` (`factory()`), dù đang chạy trong ngữ cảnh `/bang-gia` chứ không phải Dashboard — cần xác
   nhận với dev đây có phải chủ đích (component tự dùng chung `page` để phân biệt hành vi hiển thị) hay là sao
   chép nhầm khi tách code từ Dashboard, vì có thể ảnh hưởng tới 1 số nhánh hiển thị điều kiện theo `page` bên
@@ -812,45 +773,18 @@
 
 ---
 
-# [TC_BANGGIA_44] Tab "Cảnh báo" (border)
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
-
-## Các bước thực hiện
-1. Chuyển sang tab border "Cảnh báo".
-
-## Kết quả mong đợi
-- [ ] Hiển thị danh sách cảnh báo cổ phiếu của tài khoản (hoặc trạng thái rỗng hợp lệ), không lỗi JS.
-
----
-
 # [TC_BANGGIA_45] Tab "Ghi chú" (border)
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify thực tế: Pass**
+- **Cập nhật 10/11/2026:** tab dùng chung component Ghi chú của Dashboard (`dashboard/board/tabs/NoteV2.vue`, commit
+  `263e3dcfa`) — không còn tiêu đề "KungFuStocksPro Note". Đổi assert sang thanh lọc + nút thêm ghi chú. Pass.
 
 ## Các bước thực hiện
 1. Chuyển sang tab border "Ghi chú".
 
 ## Kết quả mong đợi
-- [ ] Hiển thị icon "Thêm mới ghi chú", tiêu đề "KungFuStocksPro Note", ô tìm kiếm, danh sách ghi chú (hoặc
-      trạng thái rỗng).
-
----
-
-# [TC_BANGGIA_46] Tab "Cộng đồng" (border) — dùng đúng component `/cong-dong` với `rightTab=true`
-
-- **Trạng thái:** 🆕 — **Đã verify thực tế, khớp hành vi đã ghi nhận ở Dashboard**
-- **Ghi chú:** Đây là component `Feed.vue`/`Post.vue` GIỐNG HỆT `/cong-dong` (không phải wrapper riêng như
-  Dashboard's `Social.vue`), chỉ truyền `rightTab={true}` — hành vi khi `rightTab=true` (ẩn tab "AI Cập Nhật",
-  ẩn thanh soạn bài) đã được test đầy đủ ở [dashboard-panel-phai.md](dashboard-panel-phai.md)
-  TC_DASHBOARD_PP_16/17 — ở đây chỉ xác nhận lại ngắn gọn.
-
-## Các bước thực hiện
-1. Chuyển sang tab border "Cộng đồng".
-
-## Kết quả mong đợi
-- [ ] Hiển thị đúng 3 tab: "Mới nhất" (active mặc định), "Quan tâm", "Phổ biến" — KHÔNG có tab "AI Cập Nhật".
-- [ ] KHÔNG hiển thị thanh soạn bài "Bạn có nhận định gì muốn chia sẻ?".
+- [ ] Hiển thị thanh lọc "Tất cả" / "Cá nhân" / "Giao dịch", danh sách ghi chú (hoặc trạng thái rỗng) và nút
+      "Thêm ghi chú mới".
 
 ---
 
@@ -887,6 +821,11 @@
 # [TC_BANGGIA_49] Tài khoản Free — tab "Ghi chú" BỊ KHOÁ
 
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** tab dùng `NoteV2.vue` (commit `263e3dcfa`) — tài khoản Free vẫn bị khoá nhưng bằng
+  `UpdateRequire` (`.free-user-img-wrapper`: ảnh nền + "Bạn cần nâng cấp gói hội viên để sử dụng chức năng này" +
+  nút "Nâng cấp ngay", **hiện sẵn, không cần hover**) thay cho `ProtectedView` (`.blurred-image`). Đã sửa assert
+  theo cách khoá mới + kiểm tra nội dung ghi chú ("Thêm ghi chú mới") không render. Pass. Phân tích bên dưới là
+  của component cũ.
 - **Cập nhật 2026-09-22 (ĐẢO NGƯỢC kỳ vọng so với bản ghi 2026-08-20):** người dùng xác nhận kỳ vọng nghiệp vụ
   đúng là **tài khoản Free PHẢI bị khoá** tab "Ghi chú". Đo lại bằng automation trên nhánh UI mới: đúng như
   vậy — `ProtectedView featureName="ghi_chu"` ĐANG hiện (ảnh mờ + thông điệp nâng cấp). Bản ghi cũ ("KHÔNG bị
@@ -909,8 +848,8 @@
 3. Rê chuột vào vùng nội dung bị khoá.
 
 ## Kết quả mong đợi
-- [ ] Nội dung tab "Ghi chú" bị che bằng `ProtectedView` (ảnh mờ), KHÔNG xem được ghi chú.
-- [ ] Khi hover: hiện thông điệp "Bạn cần nâng cấp gói hội viên để sử dụng chức năng này." + nút "Đăng ký ngay".
+- [ ] Nội dung tab "Ghi chú" thay bằng khung nâng cấp (`UpdateRequire`), KHÔNG xem được ghi chú.
+- [ ] Hiện sẵn thông điệp "Bạn cần nâng cấp gói hội viên để sử dụng chức năng này" + nút "Nâng cấp ngay".
 
 ---
 
@@ -963,10 +902,26 @@
 
 ---
 
-## Tổng hợp trạng thái (46 testcase)
+## Tổng hợp trạng thái (41 testcase)
 
 Đã tự động hoá bằng Playwright: [tests/bang-gia.spec.ts](../tests/bang-gia.spec.ts)
-(POM: [pages/BangGiaPage.ts](../pages/BangGiaPage.ts)).
+(POM: [pages/BangGiaPage.ts](../pages/BangGiaPage.ts); mở trang an toàn qua
+[pages/BangGiaGhimPage.ts](../pages/BangGiaGhimPage.ts) `open()`).
+
+**Cập nhật 10/11/2026:** xoá TC_BANGGIA_35, TC_BANGGIA_53 (bug được user chấp nhận) — tổng **43 → 41**, `test.fixme` còn 2 (TC_07/38); xoá ghi chú nghi vấn tài khoản "kẹt" khi đổi sàn/bộ lọc liên tục (Phát hiện #11) và phát hiện #2/#10.
+
+**Cập nhật 10/11/2026 (preprod `21d9d1d04`, localhost:8080):** tổng **46 → 43**, chạy cả file: **39 pass, 3
+`test.fixme`** (TC_07/38/53, không đổi) + TC_19 tự skip nhầm do chờ API chưa đủ → đã sửa, chạy lại riêng TC_19:
+pass. Không có request ghi nào lọt lưới an toàn.
+| Case | Thay đổi | Lý do |
+|---|---|---|
+| `TC_BANGGIA_36` | Xoá | Cột ghim mặc định thu gọn + lưu đồng bộ app — đã phủ đầy đủ ở [bang-gia-ghim.md](bang-gia-ghim.md) |
+| `TC_BANGGIA_44`, `TC_BANGGIA_46` | Xoá | Tab "Cảnh báo"/"Cộng đồng" bị gỡ khỏi panel phải (`3ee23420d`, 12/10) |
+| `TC_BANGGIA_03`, `TC_BANGGIA_06`, `TC_BANGGIA_08` | Sửa | Panel phải còn 4 tab (TC_08 trước đó pass rỗng vì locator "Cảnh báo" không khớp gì) |
+| `TC_BANGGIA_31` | Sửa | Dòng mặc định không còn icon ghim (cột thu gọn, `f5545a114`) |
+| `TC_BANGGIA_19` | Sửa | Chờ danh sách bộ lọc tải xong trước khi đếm (tránh skip nhầm) |
+| `TC_BANGGIA_43` | Sửa lưới an toàn | Tab Watchlist mới gọi `POST news/news-related-by-mack` (chỉ đọc) |
+| `TC_BANGGIA_45`, `TC_BANGGIA_49` | Sửa | Tab Ghi chú dùng `NoteV2.vue`; Free khoá bằng `UpdateRequire` thay `ProtectedView` (`263e3dcfa`) |
 
 **Cập nhật 2026-09-22 (nhánh UI mới):** tổng số đổi **52 → 46**. Đã xoá 7 case (theo quy ước: tính năng không
 còn trên UI thì xoá hẳn, không giữ N/A) và thêm 1:
@@ -978,14 +933,14 @@ còn trên UI thì xoá hẳn, không giữ N/A) và thêm 1:
 | `TC_BANGGIA_37` | Kéo-thả đổi vị trí dòng — người dùng xác nhận chưa có chức năng này |
 | `TC_BANGGIA_41` | Tab "Thông tin" (sổ lệnh mã đang chọn) — người dùng yêu cầu bỏ |
 | **Case đã thêm** | |
-| `TC_BANGGIA_53` | Nghi vấn bug nút "Ẩn/hiện các cột" (`test.fixme`, chờ dev xác nhận hành vi đúng) |
+| `TC_BANGGIA_53` | Nghi vấn bug nút "Ẩn/hiện các cột" (`test.fixme`) — đã xoá 10/11/2026 (bug được user chấp nhận) |
 
 **Trạng thái chạy automation (nhánh UI mới, đo bằng `--workers=1` trên `http://localhost:8080` — chưa merge lên
 production):**
-- **43/46 có code tự động hoá** (không `test.fixme`) — đã fix xong toàn bộ locator/hành vi vỡ do 2 đợt đổi UI
+- ~~**43/46 có code tự động hoá**~~ (nay 40/43, xem cập nhật 10/11/2026 ở trên) (không `test.fixme`) — đã fix xong toàn bộ locator/hành vi vỡ do 2 đợt đổi UI
   liên tiếp trong ngày 2026-09-22 (segment-control → dropdown gộp sàn + overflow filter panel).
-- **3/46 `test.fixme`** — `TC_BANGGIA_07` (giả lập kéo resize border), `TC_BANGGIA_38` (đo `scrollLeft` 3 vùng),
-  `TC_BANGGIA_53` (chờ dev xác nhận bug) — xem bảng trong [TRACKER.md](../TRACKER.md).
+- **2 `test.fixme`** (sau 10/11/2026) — `TC_BANGGIA_07` (giả lập kéo resize border), `TC_BANGGIA_38` (đo `scrollLeft` 3 vùng)
+  — xem bảng trong [TRACKER.md](../TRACKER.md).
 - Tab "Bài viết"/"Chatbot" không còn tồn tại trên nhánh này → nghi vấn flaky cũ của TC_BANGGIA_03/42/47 (mục
   "Phát hiện đáng chú ý" #1 bên dưới) coi như đã được GIẢI ĐÁP (2 tab đơn giản không còn render vì không còn
   tồn tại) — TC_BANGGIA_03 giữ lại (đổi expect 6 tab), TC_BANGGIA_42/47 đã xoá.
@@ -1015,10 +970,6 @@ pass sai. Xem phân tích đầy đủ ở TC_BANGGIA_49.
    muốn (có lúc 8/8 tab hiện đủ nhiều lần liên tiếp, có lúc 6/8 nhiều lần liên tiếp trong cùng 1 lượt chạy
    test, đổi giữa các lượt `npx playwright test` khác nhau). Test đã được viết để KHÔNG che giấu vấn đề này
    (fail rõ ràng kèm thông báo trỏ về đúng phát hiện này) thay vì tự động thử lại cho tới khi pass.
-2. **Modal biểu đồ (`showModalChart`, CoreUI `CModal`) không đóng được bằng phím Escape** (TC_BANGGIA_35) —
-   cùng dạng với bug/UX-gap đã ghi nhận ở modal "Thêm mới Watchlist" của Dashboard (TC_DASHBOARD_PP_07). Có vẻ
-   là vấn đề chung của mọi `CModal` dùng class `modal-hide-header-footer` trong hệ thống — đáng báo dev xử lý ở
-   mức component chung thay vì từng nơi.
 3. **Click vào text mã CK kích hoạt đồng thời 2 hành vi** (mở modal biểu đồ + đổi mã đang chọn cho tab "Thông
    tin") do thiếu `stopPropagation()`, trong khi click vùng khác của dòng chỉ đổi mã đang chọn — hành vi có vẻ
    chủ đích nhưng nên xác nhận lại với dev vì không có tài liệu nào mô tả rõ 2 hành vi khác nhau này.
@@ -1055,15 +1006,3 @@ pass sai. Xem phân tích đầy đủ ở TC_BANGGIA_49.
    ký tự đặc biệt như "^MU" ở đầu bảng chữ cái). Chỉ sau khi người dùng CHỦ ĐỘNG click sort, thuật toán
    `localeCompare` thật mới chạy trên toàn bộ dữ liệu (TC_BANGGIA_28/29) — 2 khái niệm "asc" (label mặc định
    vs. kết quả sort thật) không hoàn toàn tương đương, đáng lưu ý nếu có yêu cầu đồng bộ.
-10. **[NGHI VẤN BUG THẬT, MỚI 2026-09-22] Nút "Ẩn/hiện các cột" mở nhầm modal "Chi tiết sự kiện"** — xem chi
-    tiết đầy đủ ở TC_BANGGIA_53. Đã loại trừ khả năng do overlay panel "Bộ lọc" còn mở chồng lấp (đã thử đóng
-    panel trước khi click, vẫn tái hiện y hệt) — nghi vấn nhầm lẫn ref/id modal dùng chung giữa 2 tính năng
-    không liên quan trong codebase.
-11. **[NGHI VẤN, MỚI 2026-09-22] Tài khoản test có thể rơi vào trạng thái "kẹt" sau nhiều lần đổi sàn/Phái
-    sinh/bộ lọc liên tục trong thời gian ngắn** — dropdown "Danh sách sàn" hiện nhãn rỗng "Sàn" (không phải tên
-    sàn cụ thể nào) kèm bảng dữ liệu trống hoàn toàn, dù tải lại trang nhiều lần vẫn giữ nguyên trạng thái này.
-    Phục hồi được bằng cách mở dropdown và chọn "Toàn bộ" thủ công (không cần đăng nhập lại). Nghi ngờ 1 tổ hợp
-    state server-side (`type_list`/`type_board`/`current_category_id`, lưu qua `saveMultiSettings`) bị ghi
-    không nhất quán khi nhiều request đổi state gối lên nhau quá nhanh — CHƯA xác định chắc chắn đây là bug thật
-    ảnh hưởng người dùng thường (thao tác tay khó nhanh bằng automation) hay chỉ là rủi ro riêng khi test tự
-    động thao tác dồn dập — cần dev xác nhận nếu muốn loại trừ hẳn khả năng người dùng thật gặp phải.

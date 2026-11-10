@@ -357,24 +357,6 @@ trong test; ảnh/poster/player video là tài nguyên giả (không tải YouTu
 
 ---
 
-# [TC_CDMEDIA_25] 🐞 Free vào thẳng Cộng đồng vẫn thấy "Sự kiện 30 ngày tới"
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (nghi bug)
-- **Kết quả đo được:** thẻ ẩn theo `$store.state.isAccountFree` (UpcomingEvents.vue — chú thích code: "Dashboard khoá phần
-  sự kiện với tài khoản miễn phí, ô này theo đúng quy định đó"), nhưng cờ chỉ được `TheContainer.getFeaturesDisabled()`
-  bật; trang Cộng đồng dùng `CommunityLayout` không gọi → vào thẳng `/cong-dong` cờ vẫn `false`, Free thấy thẻ sự kiện.
-  Đi từ Dashboard rồi bấm menu "Cộng đồng" thì thẻ bị ẩn đúng.
-
-## Các bước thực hiện
-1. Đăng nhập `FREE_USER_*`, mở thẳng `/cong-dong/moi-nhat`.
-2. Mở `/dashboard`, bấm menu "Cộng đồng".
-
-## Kết quả mong đợi
-- [ ] (Theo thiết kế) cả 2 cách đều không có thẻ "Sự kiện 30 ngày tới".
-- [ ] Đo được: bước 1 vẫn có thẻ (cờ Free = false); bước 2 không có thẻ, các thẻ khác vẫn hiện.
-
----
-
 # [TC_CDMEDIA_26] Màn hẹp hơn 1200px — ẩn cột phải
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -393,15 +375,15 @@ trong test; ảnh/poster/player video là tài nguyên giả (không tải YouTu
 |---|---|
 | ✅ Áp dụng | 0 |
 | 🆕 Testcase mới | 25 |
-| ⚠️ Cần xác nhận thêm | 1 (TC_25) |
-| **Tổng** | **26** |
+| ⚠️ Cần xác nhận thêm | 0 |
+| **Tổng** | **25** |
 
 Kết quả chạy 10/11/2026 trên kfsp.vn: 26/26 pass, không có `test.fixme`.
 
+**Cập nhật 10/11/2026:** xoá TC_CDMEDIA_25 (bug được user chấp nhận) — tổng 26 → 25.
+
 ## Phát hiện đáng chú ý
 
-1. **🐞 TC_CDMEDIA_25 — Free vào thẳng Cộng đồng thấy thẻ sự kiện bị khoá ở Dashboard:** cờ `isAccountFree` chỉ được
-   layout app (`TheContainer`) tính; `CommunityLayout` không tính → hành vi phụ thuộc người dùng vào trang từ đâu.
 2. Video không phát sẵn: chỉ tải player (≈1 MB script) khi bấm phát — đúng chủ ý, đã kiểm (TC_05).
 3. Link-preview được gọi cho cả bài có link video (để lấy tiêu đề/ảnh dự phòng) — một request cho mỗi bài có link khi
    tải dòng tin.

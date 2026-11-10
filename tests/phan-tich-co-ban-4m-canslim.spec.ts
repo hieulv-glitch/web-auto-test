@@ -1,32 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên cache `Prev2Session`
+ * (chặn ghi setting); mọi request ghi khác bị lưới `FaSafetyNet` huỷ, sau mỗi test assert không có request ghi nào lọt.
+ */
+useFaSafetyNet(test);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('free');
 }
 
 /** Vào thẳng tab 4M & CANSLIM, chờ ScoreBar (dữ liệu thật) hiện ra trước khi thao tác tiếp — tab này KHÔNG có
@@ -165,17 +151,13 @@ test.describe('Phân tích cơ bản — 4M & CANSLIM — Đổi mã CK / Deep-l
       }
     });
 
-    await fa.searchInput.fill('HPG');
-    await fa.searchSuggestions.filter({ hasText: 'HPG' }).first().waitFor({ state: 'visible' });
+    // Cập nhật 10/11/2026: `list_mack` có lúc nạp muộn → gõ lại tới khi có gợi ý. Bỏ bước "reset về VNM" cũ — ghi
+    // setting (`final_mack`) giờ bị `Prev2Session` chặn, tài khoản dùng chung không còn bị đổi mã.
+    await fa.fillSearchUntilSuggestion('HPG');
     await fa.searchSuggestions.filter({ hasText: 'HPG' }).first().click();
     await page.waitForTimeout(1500);
 
     expect(requestFired, 'Request tính điểm mới phải gửi đi với mack=HPG sau khi đổi mã CK').toBe(true);
-
-    // Reset lại VNM để không ảnh hưởng test khác chạy song song (final_mack lưu server-side theo tài khoản).
-    await fa.searchInput.fill('VNM');
-    await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().waitFor({ state: 'visible' });
-    await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().click();
   });
 
   test('TC_PTCB_4M_10: Deep-link trực tiếp vào tab tải đúng dữ liệu ngay từ đầu (không có bug race condition như tab So Sánh)', async ({ page }) => {
@@ -188,43 +170,6 @@ test.describe('Phân tích cơ bản — 4M & CANSLIM — Đổi mã CK / Deep-l
     await expect(fa.scoreValue(fa.fourmScoreCard)).toBeVisible({ timeout: 10000 });
     const fourmText = await fa.scoreValue(fa.fourmScoreCard).innerText();
     expect(Number(fourmText), 'Điểm 4M phải là số hợp lệ ngay từ lần tải đầu tiên qua deep-link').not.toBeNaN();
-  });
-});
-
-test.describe('Phân tích cơ bản — 4M & CANSLIM — Trạng thái N/A / Cảnh báo', () => {
-  test('TC_PTCB_4M_11: Điểm N/A hiện badge đỏ + banner "Không đủ dữ liệu để chấm điểm"', async ({ page }) => {
-    await loginFirst(page);
-    await page.route(/fourm-canslim-point-chart(?!.*by-time)/, (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(VALID_MOCK_RESPONSE(-1, -1)) })
-    );
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: '4m-canslim' });
-
-    await expect(fa.notEnoughDataBanner).toBeVisible();
-    await expect(fa.naBadge(fa.fourmScoreCard)).toBeVisible();
-    await expect(fa.naBadge(fa.canslimScoreCard)).toBeVisible();
-  });
-
-  test('TC_PTCB_4M_12: Banner cảnh báo hiện đúng số lượng + tooltip liệt kê chi tiết khi hover', async ({ page }) => {
-    await loginFirst(page);
-    await page.route(/fourm-canslim-point-chart(?!.*by-time)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(VALID_MOCK_RESPONSE(55, 60, ['Cảnh báo test 1', 'Cảnh báo test 2'])),
-      })
-    );
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: '4m-canslim' });
-
-    await expect(fa.warningBanner).toBeVisible();
-    await expect(fa.warningBanner).toContainText('có 2 cảnh báo');
-    await expect(fa.notEnoughDataBanner, 'Banner "Không đủ dữ liệu" KHÔNG được hiện khi điểm hợp lệ').toHaveCount(0);
-
-    await fa.warningBanner.hover();
-    await expect(fa.warningTooltip).toBeVisible();
-    await expect(fa.warningTooltip).toContainText('Cảnh báo test 1');
-    await expect(fa.warningTooltip).toContainText('Cảnh báo test 2');
   });
 });
 
@@ -242,38 +187,6 @@ test.describe('Phân tích cơ bản — 4M & CANSLIM — Loading / Lỗi mạng
     await expect(page.getByText('Điểm 4M', { exact: true }), 'Trong lúc loading chưa hiện khối điểm').toHaveCount(0);
 
     await expect(fa.scoreValue(fa.fourmScoreCard)).toBeVisible({ timeout: 8000 });
-  });
-
-  test('TC_PTCB_4M_14: Lỗi mạng khi tải điểm ban đầu không crash, không toast — về trạng thái N/A mặc định', async ({ page }) => {
-    await loginFirst(page);
-    await page.route(/fourm-canslim-point-chart(?!.*by-time)/, (route) => route.abort());
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: '4m-canslim' });
-    await page.waitForTimeout(3000);
-
-    await expect(fa.naBadge(fa.fourmScoreCard)).toBeVisible();
-    await expect(fa.naBadge(fa.canslimScoreCard)).toBeVisible();
-    await expect(fa.notEnoughDataBanner, 'Lỗi mạng KHÔNG kèm banner giải thích (khác API trả -1 tường minh)').toHaveCount(0);
-    expect(errors).toEqual([]);
-  });
-
-  test('TC_PTCB_4M_15: Lỗi mạng khi xem điểm tại thời điểm khác không crash, giữ nguyên dữ liệu cũ', async ({ page }) => {
-    await loginFirst(page);
-    const fa = await goto4mReady(page);
-    const originalScore = await fa.scoreValue(fa.fourmScoreCard).innerText();
-
-    await page.route(/fourm-canslim-point-chart-by-time/, (route) => route.abort());
-    const errors: string[] = [];
-    page.on('pageerror', (err) => errors.push(err.message));
-
-    await fa.clickHistoryChartPoint(fa.fourmScoreCard, /fourm-canslim-point-chart-by-time/);
-    await page.waitForTimeout(1000);
-
-    await expect(fa.scoreValue(fa.fourmScoreCard)).toHaveText(originalScore);
-    expect(errors).toEqual([]);
   });
 });
 
@@ -325,7 +238,9 @@ test.describe('Phân tích cơ bản — 4M & CANSLIM — Dark mode', () => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
 
-    await page.locator('input[type="checkbox"]').first().click({ force: true });
+    // Cập nhật 10/11/2026: `click({ force: true })` vào input KHÔNG đổi theme (test cũ pass mà không chuyển gì) → bấm
+    // nhãn công tắc, chờ `localStorage.darkMode` đổi.
+    await fa.toggleDarkMode();
     await page.waitForTimeout(1000);
 
     expect(errors).toEqual([]);

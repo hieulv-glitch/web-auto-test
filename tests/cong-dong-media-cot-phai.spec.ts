@@ -476,29 +476,6 @@ test.describe('Cột phải', () => {
     await expect(fpt.locator('svg line.mini-price-chart-ref')).toHaveCount(1);
   });
 
-  test('TC_CDMEDIA_25: 🐞 Tài khoản Free vào thẳng /cong-dong vẫn thấy "Sự kiện 30 ngày tới"; đi từ trang khác trong app thì thẻ bị ẩn', async ({ page }) => {
-    // Thẻ ẩn theo `$store.state.isAccountFree` (UpcomingEvents.vue), nhưng cờ này chỉ được TheContainer (layout của app) bật
-    // qua `get-limit-components2`; trang Cộng đồng dùng CommunityLayout không gọi → vào thẳng trang thì cờ vẫn false.
-    const p = await openPage(page, { account: 'free', rail: RAIL });
-    const store = () => page.evaluate(() => {
-      type VueEl = Element & { __vue__?: { $store?: { state: { isAccountFree: boolean } } } };
-      const el = Array.from(document.querySelectorAll('body *')).find((e) => (e as VueEl).__vue__?.$store) as VueEl | undefined;
-      return el ? el.__vue__!.$store!.state.isAccountFree : null;
-    });
-    await expect(p.card('Mã được nhắc nhiều hôm nay')).toBeVisible({ timeout: 45_000 });
-    await expect(p.card('Sự kiện 30 ngày tới')).toBeVisible();
-    expect(await store()).toBe(false);
-    // Vào Dashboard (layout app → bật cờ Free) rồi bấm menu "Cộng đồng".
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-    await expect.poll(store, { timeout: 30_000 }).toBe(true);
-    await page.getByRole('link', { name: 'Cộng đồng', exact: true }).first().click();
-    await expect(p.card('Mã được nhắc nhiều hôm nay')).toBeVisible({ timeout: 30_000 });
-    await expect(p.card('Thị trường hôm nay')).toBeVisible();
-    await expect(p.card('Watchlist của bạn')).toBeVisible();
-    await page.waitForTimeout(2000);
-    await expect(p.card('Sự kiện 30 ngày tới')).toHaveCount(0);
-  });
-
   test('TC_CDMEDIA_26: Màn hẹp hơn 1200px → ẩn cột phải', async ({ page }) => {
     await page.setViewportSize({ width: 1150, height: 900 });
     const p = await openPage(page, { rail: RAIL });

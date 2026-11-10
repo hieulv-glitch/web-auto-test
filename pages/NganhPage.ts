@@ -37,7 +37,9 @@ export class NganhPage extends BasePage {
     this.tooltipChart = page.locator('#tooltip-chart');
     this.protectedOverlay = this.mainContent.locator('.register-content-center');
 
-    this.headerMenuLink = page.getByRole('link', { name: 'Toàn cảnh thị trường' });
+    // Cập nhật 10/11/2026: menu header "Toàn cảnh thị trường" đã bỏ — "Ngành" giờ là mục con của "Thị Trường"
+    // (src/containers/mainMenu.js), cùng "Bảng giá chứng khoán"/"Bảng giá crypto"/"Sức mạnh dòng tiền"/"Thông tin và Sự Kiện".
+    this.headerMenuLink = page.getByRole('link', { name: 'Thị Trường', exact: true }).first();
     this.headerSubmenu = page.locator('.menu-child-items').filter({ hasText: 'Sức mạnh dòng tiền' });
   }
 

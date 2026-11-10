@@ -269,17 +269,6 @@ lượt mẫu (đã đóng băng trong fixture).
   "MACD cắt đường tín hiệu".
 - [ ] Ô tìm trống → đủ 15 dòng.
 
-# [TC_BACKTEST_19] Tìm không khớp
-
-- **Trạng thái:** 🆕 Testcase mới
-
-## Các bước thực hiện
-1. Gõ "khongcochienluocnay".
-
-## Kết quả mong đợi
-- [ ] Hiện "Không có chiến lược nào khớp chữ Bạn tìm." (lưu ý: chữ "Bạn" viết hoa giữa câu — lỗi chính tả nhỏ),
-  không còn dòng nào.
-
 # [TC_BACKTEST_20] Đóng bảng chọn: nút ×, Esc, bấm nền ngoài
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -291,25 +280,6 @@ lượt mẫu (đã đóng băng trong fixture).
 
 ## Kết quả mong đợi
 - [ ] Cả 3 cách đều đóng bảng; danh sách chiến lược chạy không đổi.
-
-# [TC_BACKTEST_21] 🐞 Mở lại bảng chọn: chữ tìm cũ không được xoá, ô tìm không tự focus
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (bug đo được)
-- **Kết quả đo được:** mỗi lần mở bảng, console báo `TypeError: this.applySearch.cancel is not a function`. Nguyên
-  nhân: `applySearch` khai trong `methods` bằng `lodash/debounce`, Vue 2 bind lại method nên mất thuộc tính `.cancel`;
-  watcher `open` ném lỗi ngay dòng đầu nên các dòng sau (xoá `searchText`/`term`, focus ô tìm) không chạy. Hệ quả: mở
-  lại bảng vẫn còn chữ tìm cũ + danh sách đã lọc, ô tìm không tự focus. `beforeDestroy` cũng gọi `.cancel()` nên rời
-  trang cũng ném lỗi tương tự.
-
-## Các bước thực hiện
-1. Mở bảng chọn, gõ "rsi", đóng bảng.
-2. Mở lại bảng chọn.
-
-## Kết quả mong đợi
-- [ ] (Theo thiết kế trong code) Ô tìm trống, đủ 15 dòng, con trỏ đứng sẵn ở ô tìm, không lỗi JS.
-- [ ] (Thực tế đo được) Ô tìm vẫn "rsi", chỉ 1 dòng, không focus, có lỗi console `applySearch.cancel`.
-
----
 
 ## Nhóm: Thời gian chạy
 
@@ -346,21 +316,6 @@ lượt mẫu (đã đóng băng trong fixture).
 ## Kết quả mong đợi
 - [ ] Bước 1 → "01/02/2024" (chữ cái bị bỏ).
 - [ ] Bước 2 → "01/02", ô viền đỏ (lớp `sai`) vì ngày chưa đủ.
-
-# [TC_BACKTEST_25] 🐞 Ngày chưa đủ (01/02) → ô đỏ nhưng vẫn chạy
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (bug đo được)
-- **Kết quả đo được:** ô Từ ngày viền đỏ (ô dùng `moment(..., 'DD/MM/YYYY', true)` — strict) nhưng bấm Chạy **không báo
-  lỗi** mà chạy luôn kỳ "01/02/<năm nay> – <hôm nay>": `checkRunInput` dùng `moment(...)` **không strict** nên "01/02"
-  được hiểu là 01/02 năm hiện tại. Hai chỗ kiểm cùng 1 ô cho 2 kết luận ngược nhau; người dùng gõ dở có thể chạy nhầm kỳ.
-
-## Các bước thực hiện
-1. Tuỳ chỉnh, Từ ngày "01/02", Tới ngày hôm nay, bấm Chạy.
-
-## Kết quả mong đợi
-- [ ] Ô Từ ngày viền đỏ, ô Tới ngày không.
-- [ ] (Đúng ra) Hộp lỗi "Khoảng thời gian chưa dùng được.", không chạy.
-- [ ] (Thực tế đo được) Không lỗi, chạy kỳ 01/02/<năm nay> → hôm nay, lượt được gửi lưu với `from_date` đó.
 
 # [TC_BACKTEST_26] Từ ngày sau hoặc bằng Tới ngày
 
@@ -691,25 +646,6 @@ lượt mẫu (đã đóng băng trong fixture).
 - [ ] Toast "Chưa xoá hết được lịch sử (mã 500)"; danh sách nạp lại đúng như máy chủ (vẫn 2 lượt).
 
 > TC_BACKTEST_55 (bấm tiêu đề "Lịch sử các lần chạy" để thu gọn) đã xoá: thẻ Lịch sử luôn mở.
-
-# [TC_BACKTEST_56] 🐞 Lượt đã bị máy chủ dọn chi tiết (chỉ còn tóm tắt)
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (bug nghi vấn)
-- **Cập nhật 09/11/2026 (preprod, chạy trên kfsp.vn):** dải cảnh báo "Lượt này chỉ còn phần tóm tắt." KHÔNG còn hiện. Chú thích trong code (`combineSummaries`, index.vue)
-  vẫn nói trang phải hiện dải này để người dùng không lẫn "đã bị dọn" với "không có lệnh / không có giá", nhưng template
-  không còn vẽ nó. Đo được: thẻ "Tỷ lệ thắng" ghi "— · 0/0 lệnh", "Lãi lỗ đậm nhất" ghi "Chưa có lệnh nào đã bán", mục Chi
-  tiết giao dịch ghi "Không có dữ liệu giá cho mã MBB trong khoảng thời gian đã chọn." — đúng cái bẫy chú thích cảnh báo.
-
-## Các bước thực hiện
-1. Lịch sử có 1 lượt đã bị dọn tầng 2 (`tier2_purged`), bấm mở.
-
-## Kết quả mong đợi
-- [ ] Số tóm tắt vẫn đúng (Tổng lãi lỗ +38.15%); mục lục còn 2 mục: Lãi lỗ, Chi tiết giao dịch.
-- [ ] (Đúng ra) Có dải "Lượt này chỉ còn phần tóm tắt." giải thích vì sao thiếu chi tiết.
-- [ ] (Thực tế đo được) Không có dải; trang hiện các câu "0/0 lệnh", "Chưa có lệnh nào đã bán", "Không có dữ liệu giá
-  cho mã MBB…", "Chưa có deal nào trong phạm vi này." như một lượt không có dữ liệu.
-
----
 
 ## Nhóm: Kết quả — tổng quan & mục lục
 
@@ -1075,23 +1011,18 @@ lượt mẫu (đã đóng băng trong fixture).
 
 | Trạng thái | Số lượng |
 |---|---|
-| 🆕 Testcase mới | 75 |
-| ⚠️ Cần xác nhận thêm | 6 (TC_05, TC_21, TC_25, TC_41, TC_43, TC_56) |
-| **Tổng** | **81** |
+| 🆕 Testcase mới | 74 |
+| ⚠️ Cần xác nhận thêm | 3 (TC_05, TC_41, TC_43) |
+| **Tổng** | **77** |
 
 Cập nhật 09/11/2026: 84 → 81 TC (xoá TC_31, 50, 51, 55, 61; thêm TC_85, 86; TC_83 chuyển từ ⚠️ bug sang 🆕 vì đã sửa;
 TC_56 thành ⚠️ bug nghi vấn). Không có `test.fixme` — cả 81 case chạy tự động trên kfsp.vn. Case ⚠️ assert đúng hành vi
 đo được, nên khi dev sửa thì test sẽ fail — lúc đó đổi assert về hành vi đúng.
 
+**Cập nhật 10/11/2026:** xoá TC_BACKTEST_19, TC_BACKTEST_21, TC_BACKTEST_25, TC_BACKTEST_56 (bug được user chấp nhận). 81 → 77 TC.
+
 ## Phát hiện đáng chú ý
 
-1. **🐞 Lượt đã bị dọn chi tiết trông như lượt không có dữ liệu** (TC_56, mới 09/11/2026) — dải "Lượt này chỉ còn phần
-   tóm tắt." không còn được vẽ; trang hiện "0/0 lệnh", "Chưa có lệnh nào đã bán", "Không có dữ liệu giá cho mã …". Chính
-   chú thích trong `combineSummaries` cảnh báo không được để hai trường hợp này lẫn nhau.
-2. **🐞 Bảng chọn chiến lược ném lỗi JS mỗi lần mở** (TC_21, vẫn còn) — `this.applySearch.cancel is not a function`
-   (debounce khai trong `methods` bị Vue bind mất `.cancel`). Mở lại bảng còn chữ tìm cũ, ô tìm không tự focus.
-3. **🐞 Ngày gõ dở vẫn chạy được** (TC_25, vẫn còn) — ô "01/02" viền đỏ nhưng bấm Chạy lại chạy kỳ 01/02/<năm nay>: ô
-   kiểm strict, `checkRunInput` kiểm không strict.
 4. **Đã sửa:** lượt vừa chạy không được mở khi máy chủ trả lời quá nhanh (TC_83) — `adoptServerId` nay đổi cả
    `viewedRunId`.
 5. **Double-click nút Chạy** (TC_41) — nút Dừng thế chỗ nút Chạy; không đẻ 2 lượt, nhưng hành vi cụ thể phụ thuộc
@@ -1100,4 +1031,3 @@ TC_56 thành ⚠️ bug nghi vấn). Không có `test.fixme` — cả 81 case ch
 7. **Chế độ `?demo=1` vẫn lưu lượt lên lịch sử tài khoản** (TC_43).
 8. **Không còn toast nào báo thành công** (TC_38, TC_53) — app tắt mọi `$toast.success` từ 12/10/2026; chạy trùng và
    xoá toàn bộ không còn câu báo.
-9. Lỗi chính tả nhỏ: "Không có chiến lược nào khớp chữ **Bạn** tìm." (TC_19).

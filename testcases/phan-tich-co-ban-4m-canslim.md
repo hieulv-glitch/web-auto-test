@@ -1,5 +1,11 @@
 # Màn hình: Phân tích cơ bản — Tab "4M & CANSLIM"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod` 21d9d1d04, backend PRODUCTION). `FourmAndCanslim.vue`
+chỉ đổi URL API sang NestJS (cùng đường dẫn `/api/stocks/chart/fourm-canslim-point-chart[-by-time]` → mọi mock trong spec
+vẫn trúng) + bo tròn nút. Đăng nhập chuyển sang `FaAnalysisPage.login()` (phiên cache `Prev2Session`, chặn ghi setting) +
+lưới `FaSafetyNet` (huỷ mọi request ghi, assert rỗng sau mỗi test). Sửa TC_PTCB_4M_09 (gõ mã) và TC_PTCB_4M_18 (trước
+đây "pass sai": bấm công tắc theo cách cũ không đổi theme). Không có case xoá/fixme.
+
 - **URL:** `/phan-tich-co-ban?mack=<mack>&tab=4m-canslim`.
 - **Component:** [stocks/src/views/pages/FourmAndCanslim.vue](../../stocks/src/views/pages/FourmAndCanslim.vue)
   (`name: "FourmAndCanslim"`), nhận prop `:mack="stockcode"` từ shell
@@ -218,6 +224,8 @@ lầm cho người đọc sau.
 # [TC_PTCB_4M_09] Đổi mã CK qua ô tìm kiếm tự động tải lại dữ liệu 4M & CANSLIM theo mã mới
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** gõ mã bằng `fa.fillSearchUntilSuggestion()` (`list_mack` có lúc nạp muộn → gợi ý rỗng, test
+  treo); bỏ bước "đổi lại về VNM" cuối test vì ghi `final_mack` giờ bị chặn, không còn ảnh hưởng tài khoản dùng chung.
 - **Ghi chú:** `watch: "$store.state.mack"` gọi lại `getFourmAndCanslim()` mỗi khi đổi mã CK ở bất kỳ đâu trên
   trang (kể cả ở tab khác, do component không unmount — `v-show`).
 
@@ -250,46 +258,6 @@ lầm cho người đọc sau.
 
 ---
 
-## Nhóm: Trạng thái N/A / Cảnh báo (mock API)
-
-# [TC_PTCB_4M_11] Điểm N/A hiện badge đỏ + banner "Không đủ dữ liệu để chấm điểm"
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation (mock API): Pass**
-- **Ghi chú:** `is_show_explain` chỉ thật sự phụ thuộc `fourm_point == 'N/A'` (nhánh `canslim_point < 'N/A'`
-  trong code luôn `false` về mặt logic JS — so sánh number với string 'N/A' luôn ép kiểu NaN — nhiều khả năng là
-  dead code/lỗi nhỏ của dev, không phải business rule thật). Mock cả `fourm_point`/`canslim_point = -1` (→
-  "N/A") để kiểm tra đủ cả 2 khối.
-
-## Các bước thực hiện
-1. Mock `GET .../fourm-canslim-point-chart` trả về `fourm_point: -1, canslim_point: -1`.
-2. Vào tab 4M & CANSLIM.
-
-## Kết quả mong đợi
-- [ ] Banner đỏ "Không đủ dữ liệu để chấm điểm" hiển thị (thay cho vùng biểu đồ/thanh điểm phía trên).
-- [ ] Cả 2 badge đỏ "N/A" hiện thay cho ScoreBar ở cả khối 4M và Canslim.
-
----
-
-# [TC_PTCB_4M_12] Banner cảnh báo hiện đúng số lượng + tooltip liệt kê chi tiết khi hover
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation (mock API): Pass**
-- **⚠️ Phát hiện đáng chú ý:** Banner cảnh báo (`v-else-if="warning.length"`) và banner "Không đủ dữ liệu"
-  (`v-if="is_show_explain"`) dùng CHUNG 1 vị trí, LOẠI TRỪ LẪN NHAU — nếu điểm là N/A (TC_PTCB_4M_11), banner
-  cảnh báo SẼ KHÔNG hiển thị dù `warning` có dữ liệu (đã xác nhận qua automation: mock cả `fourm_point: -1` LẪN
-  `fourm_warning` có 2 phần tử → chỉ banner "Không đủ dữ liệu" hiện, cảnh báo bị ẩn hoàn toàn, không có cách nào
-  xem được nội dung cảnh báo trong trường hợp này).
-
-## Các bước thực hiện
-1. Mock `GET .../fourm-canslim-point-chart` trả về điểm hợp lệ (VD `fourm_point: 55`) + `fourm_warning: ['Cảnh
-   báo test 1', 'Cảnh báo test 2']`.
-2. Vào tab 4M & CANSLIM, hover vào icon cảnh báo.
-
-## Kết quả mong đợi
-- [ ] Banner "Mã VNM có 2 cảnh báo" hiển thị (kèm icon).
-- [ ] Hover vào banner hiện tooltip liệt kê đủ 2 dòng cảnh báo đúng nội dung mock.
-
----
-
 ## Nhóm: Loading / Lỗi mạng
 
 # [TC_PTCB_4M_13] Loading toàn tab khi tải lần đầu chậm
@@ -306,44 +274,6 @@ lầm cho người đọc sau.
 - [ ] Trong lúc chờ: spinner loading hiện, KHÔNG hiển thị thang điểm/biểu đồ (khối "Điểm 4M"/"Điểm Canslim"
       chưa render).
 - [ ] Sau khi response về: loading biến mất, đầy đủ nội dung hiện ra bình thường.
-
----
-
-# [TC_PTCB_4M_14] Lỗi mạng khi tải điểm ban đầu không crash, không toast — về trạng thái N/A mặc định
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **⚠️ Phát hiện đáng chú ý (UX gap, không phải crash):** `.catch()` chỉ `console.error(err)` + reset các
-  `options_chart_*` về `{}` + `is_loading = false` — KHÔNG gọi toast lỗi nào, cùng pattern "nuốt lỗi âm thầm" đã
-  ghi nhận ở tab So Sánh (`getAll()`, xem TC_PTCB_SS_23). Vì `fourm_point`/`canslim_point` giữ nguyên giá trị
-  mặc định `"N/A"` (không được set lại trong catch), badge đỏ "N/A" hiện — NHƯNG banner "Không đủ dữ liệu để
-  chấm điểm" KHÔNG hiện (khác TC_PTCB_4M_11) vì `is_show_explain` cũng giữ nguyên giá trị mặc định `false`
-  (không được set trong catch) — cùng 1 biểu hiện "N/A" nhưng banner giải thích có/không tùy nguyên nhân (lỗi
-  mạng vs. API trả `-1` tường minh), dễ gây khó hiểu cho người dùng.
-
-## Các bước thực hiện
-1. Chặn `GET .../fourm-canslim-point-chart` (`route.abort()`).
-2. Vào tab 4M & CANSLIM.
-
-## Kết quả mong đợi
-- [ ] Không có lỗi JS console (`pageerror`), không có toast lỗi nào hiển thị.
-- [ ] Loading tắt sau vài giây, badge "N/A" hiện ở cả 2 khối, KHÔNG có banner "Không đủ dữ liệu để chấm điểm",
-      không có biểu đồ radar/lịch sử nào render.
-
----
-
-# [TC_PTCB_4M_15] Lỗi mạng khi xem điểm tại thời điểm khác (click biểu đồ lịch sử) không crash, giữ nguyên dữ liệu cũ
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** `clickChart4MHistory().catch()` cũng chỉ `console.error` + tắt `is_loading_4m`, KHÔNG revert hay
-  toast — dữ liệu HIỆN TẠI (trước khi click) vẫn giữ nguyên trên UI vì không bị ghi đè bởi giá trị lỗi.
-
-## Các bước thực hiện
-1. Chặn `GET .../fourm-canslim-point-chart-by-time` (`route.abort()`).
-2. Click vào 1 điểm trên biểu đồ lịch sử "Điểm 4M".
-
-## Kết quả mong đợi
-- [ ] Không có lỗi JS console, không có toast lỗi.
-- [ ] Thang điểm + radar "Điểm 4M" VẪN hiện đúng dữ liệu cũ (trước khi click), không bị xóa/reset về N/A.
 
 ---
 
@@ -393,6 +323,9 @@ lầm cho người đọc sau.
 # [TC_PTCB_4M_18] Chuyển dark mode không crash, đổi màu theme + logo tương ứng
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** test cũ `click({ force: true })` vào `input[type=checkbox]` đầu trang — đo lại thấy KHÔNG đổi
+  theme (`localStorage.darkMode` giữ nguyên) → trước đây "pass sai". Đổi sang `fa.toggleDarkMode()` (bấm nhãn
+  `label.c-switch` ở header, chờ `localStorage.darkMode` đổi). Lượt ghi setting `darkMode` bị `Prev2Session` chặn.
 - **Ghi chú:** `watch: "$store.state.darkMode"` gọi lại `getChartOption()` để re-render 2 radar chart theo màu
   chữ mới; logo (`.p-logo278 img`) đổi giữa `logo-stocks-new.png` (dark mode)/`logo-stocks-new-dark.png` (light
   mode) qua `v-if`/`v-else` tĩnh (KHÔNG phải cùng 1 ảnh đổi màu).
@@ -422,7 +355,7 @@ lầm cho người đọc sau.
 
 ---
 
-## Tổng hợp trạng thái (19 testcase)
+## Tổng hợp trạng thái (15 testcase)
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-4m-canslim.spec.ts](../tests/phan-tich-co-ban-4m-canslim.spec.ts) (POM: section "Tab
@@ -431,25 +364,20 @@ lầm cho người đọc sau.
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 4 | TC_PTCB_4M_01, 02, 05, 06 |
-| 🆕 Mới (riêng web) | 15 | TC_PTCB_4M_03, 04, 07, 08, 09, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 |
+| 🆕 Mới (riêng web) | 11 | TC_PTCB_4M_03, 04, 07, 08, 09, 10, 13, 16, 17, 18, 19 |
 | ⚠️ Cần xác nhận thêm | 0 | — |
+
+Kết quả chạy 10/11/2026 (localhost:8080, preprod 21d9d1d04): 19/19 pass, 0 fixme, không request ghi nào lọt lưới.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_4M_11, TC_PTCB_4M_12, TC_PTCB_4M_14, TC_PTCB_4M_15 (bug được user chấp nhận).
 
 **Phát hiện đáng chú ý cần theo dõi:**
 1. **[ĐÍNH CHÍNH] Ghi chú cũ về gating tài khoản Free của tab này SAI** (TC_PTCB_4M_16/17) — không phải "chỉ 2
    radar bị mờ", mà TOÀN BỘ tab (kể cả thang điểm + lịch sử) bị thay bằng 1 ảnh mockup tĩnh duy nhất, API tính
    điểm thật không được gọi. Khuyến nghị cập nhật lại `phan-tich-co-ban.md` (TC_PTCB_16) và
    `tests/phan-tich-co-ban.spec.ts` (comment TC_PTCB_17) trong 1 lượt riêng.
-2. **Banner "Không đủ dữ liệu để chấm điểm" và banner cảnh báo loại trừ lẫn nhau** (TC_PTCB_4M_12) — nếu điểm là
-   N/A, mọi cảnh báo trong `warning` bị ẩn hoàn toàn dù có dữ liệu, không có cách nào xem lại nội dung cảnh báo
-   trong trường hợp đó.
-3. **Không nhất quán khi lỗi mạng vs. API trả `-1` tường minh** (TC_PTCB_4M_11 vs. TC_PTCB_4M_14) — cả 2 đều ra
-   badge "N/A", nhưng chỉ trường hợp API trả `-1` tường minh mới kèm banner giải thích "Không đủ dữ liệu để chấm
-   điểm"; lỗi mạng thì badge "N/A" xuất hiện mà KHÔNG có banner giải thích, dễ gây hiểu lầm cho người dùng cuối.
-4. **`.catch()` của cả `getFourmAndCanslim()` lẫn `clickChart4MHistory()`/`clickChartCanslimHistory()` đều nuốt
-   lỗi hoàn toàn, không có toast** (TC_PTCB_4M_14/15) — cùng pattern đã ghi nhận nhiều lần ở tab So Sánh
-   (`getAll()`, xem `phan-tich-co-ban-so-sanh.md` TC_PTCB_SS_23).
-5. **Biểu thức `canslim_point < 'N/A'` trong `getFourmAndCanslim()` là dead code/lỗi nhỏ** — so sánh number với
+2. **Biểu thức `canslim_point < 'N/A'` trong `getFourmAndCanslim()` là dead code/lỗi nhỏ** — so sánh number với
    string 'N/A' trong JS luôn ép kiểu về `NaN`, khiến điều kiện này luôn `false` — `is_show_explain` trên thực
    tế chỉ phụ thuộc `fourm_point == 'N/A'`, không như tên biến/vị trí code gợi ý là xét cả 2 điểm.
-6. **Không có bug race condition deep-link như tab So Sánh** (TC_PTCB_4M_10) — `FourmAndCanslim` chỉ phụ thuộc
+3. **Không có bug race condition deep-link như tab So Sánh** (TC_PTCB_4M_10) — `FourmAndCanslim` chỉ phụ thuộc
    `$store.state.mack` (set đồng bộ), không đọc bất kỳ state nào nạp bất đồng bộ như `list_mack_company`.

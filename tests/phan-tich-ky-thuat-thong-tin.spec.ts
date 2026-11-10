@@ -1,30 +1,33 @@
 import { test, expect } from '@playwright/test';
 import { TechnicalChartPage } from '../pages/TechnicalChartPage';
-import { LoginPage } from '../pages/LoginPage';
+import { useLegacySafetyNet, safeLoginTa, ReadOnlyRule } from '../pages/LegacySafetyNet';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/** POST chỉ đọc của màn này (cho đi thật). */
+const READ_ONLY_EXTRA: ReadOnlyRule[] = [
+  { pattern: /\/api\/news\/news-related-by-mack(\?|$)/, reason: 'panel "Thông tin" tải tin liên quan theo mã (POST chỉ đọc)' },
+  { pattern: /\/api\/stock-signals\//, reason: 'panel AI Chart tra mẫu hình/tín hiệu (POST chỉ đọc, AiInsightPanel.vue)' },
+];
+
+/**
+ * AN TOÀN DỮ LIỆU (10/11/2026): chạy trên localhost:8080 (nhánh preprod) gọi backend PRODUCTION → đăng nhập bằng phiên
+ * cache `Prev2Session` (chặn ghi setting, ghi lại ở `settingWrites`) + lưới `useLegacySafetyNet` huỷ mọi request ghi
+ * khác tới production và assert không có request nào lọt sau mỗi test (pages/LegacySafetyNet.ts).
+ */
+useLegacySafetyNet(test, READ_ONLY_EXTRA);
+// Đăng nhập + mở trang PTKT (iframe TradingView) mất 15-25s trên localhost → timeout mặc định 30s không đủ.
+test.describe.configure({ timeout: 90000 });
+// 10/11/2026: thanh công cụ TradingView thêm nút (Mẫu chỉ báo, Lưu…) — ở 1280px thanh công cụ bị co, một số nút
+// bị ẩn; dùng màn rộng như bộ phan-tich-ky-thuat-replay-chia-khung.
+test.use({ viewport: { width: 1600, height: 900 } });
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  // Bố cục cố định 1 khung (ACB + HPG) thay bố cục thật của tài khoản — xem `safeLoginTa`.
+  return safeLoginTa(page, 'paid');
 }
 
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  test.skip(!process.env.FREE_USER_EMAIL || !process.env.FREE_USER_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
+  return safeLoginTa(page, 'free');
 }
 
 async function searchAndSelectSymbol(page: any, ta: TechnicalChartPage, symbol: string) {
@@ -35,11 +38,11 @@ async function searchAndSelectSymbol(page: any, ta: TechnicalChartPage, symbol: 
   await page.waitForTimeout(1500);
 }
 
+// (10/11/2026: ghi chú dưới đây LỖI THỜI — ghi setting bị chặn + bố cục cố định theo test nên chạy song song được, đã bỏ mode 'serial'.)
 // ⚠️ AN TOÀN DỮ LIỆU — chạy file này BẮT BUỘC kèm `--workers=1` khi chạy chung nhiều describe block/nhiều file
 // cùng lúc (xem ghi chú đầy đủ ở đầu tests/phan-tich-ky-thuat.spec.ts + TRACKER.md mục "Phân tích kỹ thuật").
 
 test.describe('Phân tích kỹ thuật — Thông tin — Header giá (mã cổ phiếu thường)', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_TT_01: Header hiển thị đúng thông tin giá mã cổ phiếu thường', async ({ page }) => {
     test.setTimeout(90000);
@@ -52,38 +55,15 @@ test.describe('Phân tích kỹ thuật — Thông tin — Header giá (mã cổ
 
     await expect(ta.companyNameLink).toBeVisible({ timeout: 10000 });
     await expect(ta.infoHeaderPriceRow).toBeVisible();
-    await expect(ta.bellAlertIcon).toBeVisible();
+    // 10/11/2026: icon chuông đã bỏ khỏi header panel (cảnh báo giá chuyển lên biểu đồ — bộ canh-bao-gia).
     await expect(ta.headerInfoTooltipIcon).toBeVisible();
 
     await ta.deleteLastChartTab(true);
     await ta.waitForLayoutSaved();
   });
 
-  test('TC_PTKT_TT_02: Click icon chuông mở đúng modal theo gói hội viên', async ({ page, browser }) => {
-    test.setTimeout(90000);
-    await loginFirst(page);
-    const ta = new TechnicalChartPage(page);
-    await ta.goto();
-    await expect(ta.bellAlertIcon).toBeVisible({ timeout: 15000 });
-    await ta.bellAlertIcon.click();
-    await page.waitForTimeout(800);
-    // Modal đặt cảnh báo (không chi tiết nội dung — chỉ verify mở đúng loại modal, không phải modal nâng cấp gói)
-    const alertModalOpened = await page.getByRole('dialog').filter({ hasText: /[Cc]ảnh báo/ }).first().isVisible().catch(() => false);
-    expect(alertModalOpened).toBeTruthy();
-    await page.keyboard.press('Escape');
-
-    const freeContext = await browser.newContext();
-    const freePage = await freeContext.newPage();
-    await loginFreeOrSkip(freePage);
-    const taFree = new TechnicalChartPage(freePage);
-    await taFree.goto();
-    await expect(taFree.bellAlertIcon).toBeVisible({ timeout: 15000 });
-    await taFree.bellAlertIcon.click();
-    await freePage.waitForTimeout(800);
-    const upgradeModalOpened = await freePage.getByRole('dialog').filter({ hasText: /nâng cấp|gói/i }).first().isVisible().catch(() => false);
-    expect(upgradeModalOpened).toBeTruthy();
-    await freeContext.close();
-  });
+  // TC_PTKT_TT_02 (icon chuông mở modal cảnh báo) đã xoá 10/11/2026 — icon chuông bỏ khỏi panel, cảnh báo giá đã chuyển
+  // sang bộ canh-bao-gia.
 
   test('TC_PTKT_TT_03: Hover icon tooltip hiện giải thích cách tính % thay đổi giá', async ({ page }) => {
     await loginFirst(page);
@@ -118,14 +98,13 @@ test.describe('Phân tích kỹ thuật — Thông tin — Header giá (mã ch�
 });
 
 test.describe('Phân tích kỹ thuật — Thông tin — Tổng quan (mã cổ phiếu thường)', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_TT_05: Mini chart "Biểu đồ" hiển thị trong panel', async ({ page }) => {
     await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
     await expect(ta.infoPanel.getByText('Biểu đồ', { exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(ta.infoPanel.locator('canvas').first()).toBeVisible();
+    await expect(ta.infoPanel.locator('canvas').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('TC_PTKT_TT_06: Toggle "Tổng quan"/"NN & TD" chuyển đúng nội dung', async ({ page }) => {
@@ -214,7 +193,6 @@ test.describe('Phân tích kỹ thuật — Thông tin — Tổng quan (mã cổ
 });
 
 test.describe('Phân tích kỹ thuật — Thông tin — NN & TD (mã cổ phiếu thường)', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_TT_11: Nội dung "NN & TD" — 2 khối xếp chồng', async ({ page }) => {
     await loginFirst(page);
@@ -255,7 +233,6 @@ test.describe('Phân tích kỹ thuật — Thông tin — NN & TD (mã cổ phi
 });
 
 test.describe('Phân tích kỹ thuật — Thông tin — Nhánh mã chỉ số (Indexcode)', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_TT_14: Tab "Thông tin" mã chỉ số — field khác mã cổ phiếu thường', async ({ page }) => {
     test.setTimeout(90000);
@@ -354,17 +331,12 @@ test.describe('Phân tích kỹ thuật — Thông tin — Nhánh mã chỉ số
     // `addChartTab()` (sẽ hit toast giới hạn thay vì thêm tab thật, đã gặp lỗi thật). Phải đổi mã NGAY trên tab
     // duy nhất sẵn có (mặc định "BSR") sang "VNINDEX" để test nhánh Indexcode, rồi đổi LẠI đúng mã gốc sau khi
     // xong — tab này KHÔNG phải tab test tự thêm nên không được xóa, chỉ được mượn tạm rồi trả lại nguyên trạng.
-    const originalTabText = (await ta.chartTabButtons.first().textContent())?.trim() || '';
-    const originalSymbol = originalTabText.split(/\s+/)[0];
     await searchAndSelectSymbol(page, ta, 'VNINDEX');
 
     await expect(ta.infoPanel.getByText('Tổng quan', { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(ta.protectedViewImage).toBeVisible({ timeout: 10000 });
     await expect(ta.infoPanel.getByText('Định giá', { exact: true })).toHaveCount(0);
 
-    // Trả lại đúng mã gốc trước khi kết thúc test.
-    await searchAndSelectSymbol(page, ta, originalSymbol);
-    await ta.waitForLayoutSaved();
   });
 
   test('TC_PTKT_TT_19: Tab ngoài mã chỉ số chỉ có "Thông tin"/"NN & TD"', async ({ page }) => {
@@ -391,8 +363,6 @@ test.describe('Phân tích kỹ thuật — Thông tin — Nhánh mã chỉ số
     await ta.goto();
     await ta.waitForChartReady();
     // Cùng lý do TC_PTKT_TT_18 — tài khoản Free chỉ có 1 tab, KHÔNG được `addChartTab()`, phải mượn tạm tab gốc.
-    const originalTabText = (await ta.chartTabButtons.first().textContent())?.trim() || '';
-    const originalSymbol = originalTabText.split(/\s+/)[0];
     await searchAndSelectSymbol(page, ta, 'VNINDEX');
     await ta.gotoInfoOuterTab('NN & TD');
     await page.waitForTimeout(800);
@@ -412,14 +382,10 @@ test.describe('Phân tích kỹ thuật — Thông tin — Nhánh mã chỉ số
       await expect(ta.infoPanel.getByText('Giao dịch nước ngoài')).toBeVisible({ timeout: 10000 });
     }
 
-    // Trả lại đúng mã gốc trước khi kết thúc test.
-    await searchAndSelectSymbol(page, ta, originalSymbol);
-    await ta.waitForLayoutSaved();
   });
 });
 
 test.describe('Phân tích kỹ thuật — Thông tin — Đồng bộ & ngoài phạm vi', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_TT_21: Panel "Thông tin" luôn đồng bộ theo tab biểu đồ đang active', async ({ page }) => {
     test.setTimeout(90000);

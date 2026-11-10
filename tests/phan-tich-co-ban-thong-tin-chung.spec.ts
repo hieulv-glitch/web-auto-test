@@ -1,40 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Cập nhật 10/11/2026: chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên
+ * cache `Prev2Session` qua `fa.login` (chặn ghi setting → đổi mã CK giữa test KHÔNG còn đổi "mã đang xem" của tài
+ * khoản dùng chung, nên bỏ bước reset về VNM cuối test); mọi request ghi khác bị lưới `FaSafetyNet` huỷ.
+ */
+useFaSafetyNet(test);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
-}
-
-/** Reset lại mã VNM qua ô search — dùng cho các test đổi mã CK giữa chừng (không qua `goto()`), để không ảnh
- * hưởng test khác chạy song song (tài khoản test dùng chung, `final_mack` lưu server-side). */
-async function resetToVNM(page: any, fa: FaAnalysisPage) {
-  await fa.searchInput.fill('VNM');
-  await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().waitFor({ state: 'visible' });
-  await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().click();
+  await new FaAnalysisPage(page).login('free');
 }
 
 test.describe('Phân tích cơ bản — Thông tin chung — Cột trái (Left.vue)', () => {
@@ -46,7 +25,7 @@ test.describe('Phân tích cơ bản — Thông tin chung — Cột trái (Left.
     await expect(fa.stockNameHeader).toContainText('(VNM)');
     await expect(fa.stockNameHeader).toContainText('HOSE');
     await expect(fa.watchlistStarIcon).toBeVisible();
-    await expect(fa.alertBellIcon).toBeVisible();
+    // Cập nhật 10/11/2026: icon "Tạo cảnh báo" (chuông) đã bỏ khỏi Left.vue (cảnh báo chuyển về "Trung tâm thông báo").
     await expect(fa.addTransactionIcon).toBeVisible();
     await expect(fa.candleChartContainer).toBeVisible();
     await expect(fa.candleTimeframeButton('1m')).toHaveClass(/active/);
@@ -93,6 +72,8 @@ test.describe('Phân tích cơ bản — Thông tin chung — Cột trái (Left.
     await expect(fa.companyInfoRows.first()).toBeVisible();
 
     const rows = fa.companyInfoRows;
+    // Cập nhật 10/11/2026: 3 dòng Beta/biến động/CAPM render sẵn trước khi `common-info` về — chờ dòng công ty rồi mới đếm.
+    await expect(rows.filter({ hasText: 'Tên công ty' })).toBeVisible();
     const count = await rows.count();
     await expect(rows.nth(count - 3)).toContainText('Beta');
     await expect(rows.nth(count - 2)).toContainText('Mức độ biến động');
@@ -164,16 +145,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Cột trái (Left.
     await expect(fa.watchlistDropdownText('VNM')).toBeVisible();
   });
 
-  test('TC_PTCB_TTC_08: Click icon "Tạo cảnh báo" mở modal "Tạo cảnh báo"', async ({ page }) => {
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-    await expect(fa.alertBellIcon).toBeVisible();
-
-    await fa.alertBellIcon.click();
-    await expect(fa.alertModal).toBeVisible();
-  });
-
   test('TC_PTCB_TTC_09: Icon "Thêm giao dịch" chỉ hiện với mã loại cổ phiếu, click mở modal "Thêm giao dịch"', async ({ page }) => {
     await loginFirst(page);
     const fa = new FaAnalysisPage(page);
@@ -186,29 +157,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Cột trái (Left.
 
   test.describe('Free', () => {
     test.describe.configure({ mode: 'serial' });
-
-    test('TC_PTCB_TTC_10: Free — click icon "Tạo cảnh báo"/"Thêm giao dịch" mở modal nâng cấp gói thay vì modal thật', async ({ page }) => {
-      test.setTimeout(60000);
-      await loginFreeOrSkip(page);
-      const fa = new FaAnalysisPage(page);
-      await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-      await expect(fa.alertBellIcon).toBeVisible({ timeout: 20000 });
-
-      await fa.alertBellIcon.click();
-      await expect(fa.membershipModal).toBeVisible();
-      await expect(fa.alertModal).toHaveCount(0);
-
-      // Modal "Thông báo" dùng class `modal-hide-header-footer` (ẩn cả header lẫn nút đóng "×") — không có
-      // điểm vào UI để đóng lại (đã đo thật: Escape KHÔNG đóng được). Tải lại trang để reset trạng thái modal
-      // trước khi thử icon thứ 2, thay vì cố đóng modal đang mở.
-      await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-      const hasAddTransactionIcon = await fa.addTransactionIcon.count();
-      if (hasAddTransactionIcon > 0) {
-        await fa.addTransactionIcon.click();
-        await expect(fa.membershipModal).toBeVisible();
-        await expect(fa.quickTransactionModal).toHaveCount(0);
-      }
-    });
   });
 
   test('TC_PTCB_TTC_11: Đổi mã CK qua search cập nhật đúng candlestick + bảng "Thông tin chung" theo mã mới', async ({ page }) => {
@@ -227,7 +175,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Cột trái (Left.
     await expect(fa.stockNameHeader).toContainText('(HPG)');
     await expect(fa.companyInfoRowByLabel('Mã').locator('td').nth(1)).toHaveText('HPG');
 
-    await resetToVNM(page, fa);
   });
 
   test('TC_PTCB_TTC_12: [Phát hiện] Deep-link mã ngân hàng — header/Sàn niêm yết trống tạm thời rồi tự phục hồi', async ({ page }) => {
@@ -331,7 +278,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Thanh 7 sub-tab (R
 
     await expect(fa.ttcSubTab('Cổ đông'), 'Vẫn ở sub-tab "Cổ đông" sau khi đổi mã CK').toHaveClass(/active/);
 
-    await resetToVNM(page, fa);
   });
 
   test('TC_PTCB_TTC_18: Chuyển sub-tab KHÔNG đổi URL — F5 quay về sub-tab mặc định', async ({ page }) => {

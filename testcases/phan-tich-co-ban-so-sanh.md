@@ -32,7 +32,7 @@
 
 **[BUG] Deep-link/full-reload thẳng vào `?tab=so-sanh` khiến bảng dữ liệu so sánh TRỐNG VĨNH VIỄN trong suốt
 session đó** — xác nhận 100% qua automation (đo bằng script Playwright tạm thời theo dõi network + websocket
-frame, xem chi tiết TC_PTCB_SS_02). Tóm tắt cơ chế:
+frame). Bug đã được user chấp nhận (10/11/2026, đã xoá TC_PTCB_SS_02) nhưng vẫn còn, nên vẫn cần lách. Tóm tắt cơ chế:
 
 1. `Compare.created()` gọi `getAll()` NGAY LẬP TỨC lúc component mount. `getAll()` đọc ĐỒNG BỘ
    `store.state.list_mack_company.hasOwnProperty(store.state.mack)` để tính `type_mack` (`"nonbank"` |
@@ -59,7 +59,7 @@ frame, xem chi tiết TC_PTCB_SS_02). Tóm tắt cơ chế:
 
 Vì bug này, MỌI testcase bên dưới cần bảng CÓ dữ liệu thật đều gọi `fa.waitForCompareDataReady()` (helper mới
 trong `FaAnalysisPage`) ngay sau `fa.goto({..., tabQuery: 'so-sanh'})` — đây KHÔNG phải "che bug" mà là bước bắt
-buộc để tách biệt bug đã ghi nhận riêng (TC_PTCB_SS_02) khỏi các testcase khác đang kiểm tra tính năng CHỨC NĂNG
+buộc để tách biệt bug đã ghi nhận (TC_PTCB_SS_02 đã xoá) khỏi các testcase khác đang kiểm tra tính năng CHỨC NĂNG
 của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng luôn trống).
 
 ---
@@ -87,27 +87,6 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
       với header màu đỏ (VD "Định giá", "Doanh thu và lợi nhuận", "Chỉ tiêu Hiệu quả", "Chỉ tiêu Thanh toán"),
       mỗi nhóm có nhiều dòng chỉ tiêu con (VD "Giá thị trường (D)", "PE (D)", "ROE (TTM)"...) với giá trị số +
       icon biểu đồ sparkline nhỏ ở cột "Biểu đồ".
-
----
-
-# [TC_PTCB_SS_02] ⚠️ [BUG] Deep-link thẳng vào tab So sánh khiến bảng dữ liệu trống vĩnh viễn
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, PHÁT HIỆN BUG THẬT: Pass (test xác nhận đúng
-  hành vi lỗi)**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** xem phân tích đầy đủ ở đầu tài liệu. Tóm tắt: `page.goto()` thẳng vào
-  `/phan-tich-co-ban?mack=VNM&tab=so-sanh` (1 lượt tải trang, không qua điều hướng SPA) khiến `Compare.getAll()`
-  tính `type_mack = ""` do đọc `list_mack_company` trước khi nó kịp nạp — bảng `<tbody>` trống hoàn toàn, header
-  cột vẫn hiển thị bình thường (dễ gây nhầm "trang tải xong, chỉ chưa có mã nào để so sánh"). Đã đo xác nhận chờ
-  30 giây KHÔNG tự phục hồi.
-
-## Các bước thực hiện
-1. Đăng nhập, điều hướng thẳng `/phan-tich-co-ban?mack=VNM&tab=so-sanh` (1 lượt `page.goto`, KHÔNG thao tác gì
-   thêm).
-2. Chờ 20 giây.
-
-## Kết quả mong đợi (hành vi THẬT — bug)
-- [ ] Header bảng (`thead`) hiển thị bình thường (4 cột cố định + cột mã).
-- [ ] `<tbody>` HOÀN TOÀN TRỐNG (0 dòng) dù đã chờ 20 giây — không tự phục hồi.
 
 ---
 
@@ -298,29 +277,6 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 
 ---
 
-# [TC_PTCB_SS_14] ⚠️ Nhấn "Đóng" (không Lưu) vẫn giữ nguyên thay đổi Danh sách mã khi mở lại modal
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **Tham chiếu App:** TC 177 (Sheet) — **khác biệt hành vi:** app chỉ mô tả "Popup đóng lại, về bảng so sánh",
-  không đề cập việc dữ liệu có được giữ lại hay không.
-- **⚠️ Phát hiện đáng chú ý:** `myArray` (danh sách mã đang chỉnh trong modal) là 1 data property SỐNG của toàn
-  component `Compare`, KHÔNG bị reset khi đóng modal qua nút "Đóng" (`warningModal = false` — chỉ ẩn modal,
-  không revert `myArray`). Vì vậy: thêm 1 mã trong modal rồi bấm "Đóng" (không "Lưu") → bảng chính KHÔNG đổi
-  (đúng như mong đợi, vì chưa gọi lại `getAll()`) — NHƯNG mở lại modal "Thêm mã" lần sau, mã vừa thêm VẪN CÒN
-  trong "Danh sách mã" (không bị revert). Đây là hành vi thật của code (không phải bug ngẫu nhiên), nhưng có
-  thể gây nhầm lẫn cho người dùng nghĩ rằng "Đóng" = huỷ thao tác.
-
-## Các bước thực hiện
-1. Mở modal "Thêm mã", thêm mã "FPT".
-2. Click "Đóng" (KHÔNG click "Lưu").
-3. Mở lại modal "Thêm mã".
-
-## Kết quả mong đợi
-- [ ] Sau bước 2: bảng chính ở header KHÔNG có cột "FPT" (chưa áp dụng).
-- [ ] Sau bước 3: "Danh sách mã" trong modal VẪN CÒN "FPT" (thay đổi không bị huỷ dù đã "Đóng" không "Lưu").
-
----
-
 # [TC_PTCB_SS_15] Kéo-thả sắp xếp lại thứ tự mã trong Danh sách mã
 
 - **Trạng thái:** ⚠️ Cần xác nhận thêm — **`test.fixme`, chưa tự động hoá**
@@ -451,31 +407,10 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 
 ## Nhóm: Lỗi mạng / trạng thái đặc biệt
 
-# [TC_PTCB_SS_23] Mất mạng khi tải bảng so sánh không crash, nhưng KHÔNG có thông báo lỗi cho người dùng
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **⚠️ Phát hiện đáng chú ý (UX gap, không phải crash):** `getAll().catch()` chỉ `console.error(err)` +
-  `self.is_loading = false` — KHÔNG gọi `this.$toast.error(...)` như các API khác trong cùng file (VD
-  `getList()`, `deleteRowItem()` đều có toast lỗi). Người dùng mất mạng lúc tải bảng so sánh sẽ thấy trang
-  ngưng loading nhưng KHÔNG có bất kỳ thông báo nào giải thích vì sao bảng trống — dễ nhầm với bug
-  TC_PTCB_SS_02 ở trên (2 nguyên nhân hoàn toàn khác nhau nhưng triệu chứng giống hệt: bảng trống, không lỗi
-  hiển thị).
-
-## Các bước thực hiện
-1. Chặn `GET .../api/stocks/compare` (`route.abort()`).
-2. Vào tab "So sánh".
-
-## Kết quả mong đợi
-- [ ] Không có lỗi JS console (`pageerror`).
-- [ ] Loading tắt sau vài giây, bảng trống, KHÔNG có toast/thông báo lỗi nào hiển thị cho người dùng.
-
----
-
 # [TC_PTCB_SS_24] Lỗi 500 khi tải danh sách mẫu đã lưu hiện toast lỗi
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** `getList().catch()` CÓ gọi `this.$toast.error("Có lỗi xảy ra, vui lòng thử lại")` — khác
-  `getAll()` ở TC_PTCB_SS_23 (thiếu nhất quán giữa các API trong cùng file).
+- **Ghi chú:** `getList().catch()` CÓ gọi `this.$toast.error("Có lỗi xảy ra, vui lòng thử lại")`.
 
 ## Các bước thực hiện
 1. Mock `GET .../save_compare/get-templates` trả lỗi 500.
@@ -541,7 +476,7 @@ của bảng (nếu không tách, mọi test khác sẽ fail giả vì bảng lu
 
 ---
 
-## Tổng hợp trạng thái (28 testcase)
+## Tổng hợp trạng thái (25 testcase)
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-so-sanh.spec.ts](../tests/phan-tich-co-ban-so-sanh.spec.ts) (POM: section "Tab So sánh"
@@ -550,28 +485,17 @@ trong [pages/FaAnalysisPage.ts](../pages/FaAnalysisPage.ts)).
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 7 | TC_PTCB_SS_01, 06, 07, 08, 09, 11, 13 |
-| 🆕 Mới (riêng web) | 20 | TC_PTCB_SS_02, 03, 04, 05, 10, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 (27, 28 thêm 09/11) |
+| 🆕 Mới (riêng web) | 17 | TC_PTCB_SS_03, 04, 05, 10, 12, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28 (27, 28 thêm 09/11) |
 | ⚠️ Cần xác nhận thêm | 1 | TC_PTCB_SS_15 (`test.fixme` — kéo-thả `vuedraggable`, chưa tìm được cách giả lập ổn định) |
 
 **Phát hiện đáng chú ý cần theo dõi:**
-1. **[BUG NGHIÊM TRỌNG] Race condition khiến bảng so sánh trống vĩnh viễn khi deep-link** (TC_PTCB_SS_02) —
-   `Compare.getAll()` tính `type_mack` đồng bộ từ `list_mack_company` chưa kịp nạp (nạp bất đồng bộ qua socket
-   `TheContainer.getAllMack()`). Ảnh hưởng THẬT tới người dùng cuối: bất kỳ ai bấm F5, mở link trực tiếp, hoặc
-   được chia sẻ link `?tab=so-sanh` đều thấy bảng trống hoàn toàn cho tới khi họ tự đổi mã CK — không có gợi ý
-   nào trên UI báo họ cần làm vậy. Khuyến nghị sửa: thêm nhánh `else` cho `items_table`, hoặc watch
-   `list_mack_company` thay vì đọc 1 lần.
-2. **Gating "So sánh" hoạt động ở 2 CẤP ĐỘC LẬP:** cấp shell (`features_disabled['fa_so_sanh']`, đã đo KHÔNG
+1. **Gating "So sánh" hoạt động ở 2 CẤP ĐỘC LẬP:** cấp shell (`features_disabled['fa_so_sanh']`, đã đo KHÔNG
    khoá tài khoản Free hiện tại — xem TC_PTCB_17) và cấp widget riêng của chính `Compare/index.vue`
    (`$store.state.isAccountFree`, LUÔN giới hạn 6 dòng + hiện `UpdateRequire` bất kể `features_disabled`) —
    TC_PTCB_SS_05. Cùng pattern đã ghi nhận ở "4M & CANSLIM" (TC_PTCB_16).
-3. **Nút "Đóng" trong modal "Thêm mã" không huỷ thay đổi đã thao tác** (TC_PTCB_SS_14) — thêm/xoá mã trong
-   "Danh sách mã" rồi "Đóng" (không "Lưu") vẫn giữ nguyên state khi mở lại modal, dù bảng chính chưa bị ảnh
-   hưởng. Không phải bug nghiêm trọng nhưng có thể gây nhầm lẫn.
-4. **Không nhất quán xử lý lỗi mạng giữa các API trong cùng file:** `getAll()` (bảng chính) nuốt lỗi hoàn toàn
-   không toast (TC_PTCB_SS_23), trong khi `getList()`/`deleteRowItem()`/`saveRowItem()`/`addNewRow()` đều có
-   toast lỗi rõ ràng (TC_PTCB_SS_24) — gây trải nghiệm không đồng nhất khi mất mạng ở các thao tác khác nhau
-   trong cùng tab.
-5. **`maxRows: 100` khai báo trong `data()` nhưng KHÔNG được dùng ở bất kỳ đâu trong component** — không có cơ
+2. **`maxRows: 100` khai báo trong `data()` nhưng KHÔNG được dùng ở bất kỳ đâu trong component** — không có cơ
    chế giới hạn số mã có thể thêm vào so sánh (khác kỳ vọng "tùy business giới hạn" ở Sheet app TC 178) — có
    thể là dead code hoặc tính năng dự kiến chưa hoàn thiện, không kết luận là bug vì không rõ có đúng là yêu
    cầu nghiệp vụ hay không.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_SS_02, TC_PTCB_SS_14, TC_PTCB_SS_23 (bug được user chấp nhận).

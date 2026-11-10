@@ -1,5 +1,14 @@
 # Màn hình: Phân tích cơ bản — Tab "Tài chính doanh nghiệp"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod` 21d9d1d04, backend PRODUCTION). BS/IS/CF/TM/
+FinancialRatios viết lại lớn (815152821 tối ưu bảng, f222e4338 màu hover): sub-tab đã mở được giữ sống (`v-if` + `v-show`)
+→ nhiều bảng cùng trong DOM, POM `bfTable`/`bfTableWrapper` đổi sang lấy wrapper đang hiện (`.table-scroll:visible`) — đây
+là nguyên nhân 13/16 case vỡ ở lượt chạy đầu. Thay TC_PTCB_TCDN_07 (case "không cache" mất nghĩa), sửa TC_PTCB_TCDN_17/18
+(icon caret không còn `data-icon`), TC_PTCB_TCDN_36 (highlight cột đổi cơ chế). URL API vẫn `/api/stocks?type=...` và
+`/api/stocks/financial-ratios` (NestJS) → các mock delay/abort/500/rỗng trong spec vẫn trúng. Đăng nhập chuyển sang
+`FaAnalysisPage.login()` (phiên cache `Prev2Session`) + lưới `FaSafetyNet`. Không xoá case, không fixme. TC_PTCB_TCDN_04 tự
+skip: tài khoản trả phí hiện chỉ có role `User` (không còn `coworker`) nên không thấy "Thuyết minh".
+
 - **URL:** `/phan-tich-co-ban?mack=<mack>&tab=tai-chinh-doanh-nghiep`.
 - **Component:** [stocks/src/views/faAnalysis/BusinessFinance/index.vue](../../stocks/src/views/faAnalysis/BusinessFinance/index.vue)
   (`name: "BusinessFinance"`) — shell 5 sub-report con, mỗi sub-report 1 component riêng:
@@ -61,10 +70,11 @@ cả BS/IS/CF không bị khoá).** `watch: "$store.state.isAccountFree"` (`imme
 `"bilion"` (Tỷ đồng) và `type_time_bctc` về `"year"` (Năm) ngay khi mount, đồng thời CẢ 2 `CSelect` (đơn vị +
 Quý/Năm) đều `:disabled="isAccountFree"`. Xem TC_PTCB_TCDN_30.
 
-**#4. KHÔNG có caching client-side — mỗi lần chuyển sub-tab đều gọi lại API từ đầu.** 5 component con dùng
-`v-if` (không phải `v-show`) để chuyển đổi trong `BusinessFinance/index.vue`, nên mỗi lần chuyển sang 1 sub-tab
-(kể cả quay lại đúng sub-tab đã xem trước đó) đều UNMOUNT rồi MOUNT LẠI, `created()` LUÔN gọi lại API — xác
-nhận qua đo network (TC_PTCB_TCDN_07).
+**#4. [Cập nhật 10/11/2026 — đảo ngược so với bản cũ] Sub-tab đã mở được GIỮ SỐNG, quay lại KHÔNG gọi lại API.**
+Từ commit 815152821 (09/2026) `BusinessFinance/index.vue` dùng `v-if="active_tab[x]"` + `v-show` (comment của dev:
+"quay lại một tab đã xem không phải gọi lại API và dựng lại bảng"); `deactiveTab()` chỉ huỷ các sub-tab khác khi đổi mã
+CK hoặc đổi Quý/Năm. Hệ quả cho test: nhiều bảng cùng nằm trong DOM (bảng sub-tab khác chỉ bị ẩn) → POM lấy bảng
+trong wrapper đang hiện (`.table-scroll:visible`). Xem TC_PTCB_TCDN_07 (đã thay).
 
 ## Nhóm: Tổng quan & chuyển sub-tab
 
@@ -117,6 +127,8 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass** (tự `test.skip` nếu tài khoản test
   không có role `coworker`)
+- **Cập nhật 10/11/2026:** đang tự skip — `roles` của tài khoản trả phí (`TEST_USER_*`) hiện chỉ là `User`. Cần 1 tài
+  khoản có role `coworker` để chạy thật.
 - **Ghi chú:** Xem phát hiện #1 — sub-tab này chỉ tồn tại với tài khoản có `localStorage.roles` chứa
   `"coworker"`.
 
@@ -161,18 +173,19 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 
 ---
 
-# [TC_PTCB_TCDN_07] Mỗi lần chuyển sub-tab luôn gọi lại API mới (không cache)
+# [TC_PTCB_TCDN_07] Quay lại sub-tab đã xem KHÔNG gọi lại API (sub-tab được giữ sống)
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation (đo network thật): Pass**
-- **Ghi chú:** Xem phát hiện #4 — 5 component con dùng `v-if` (unmount/remount thật sự), không phải `v-show`.
+- **Cập nhật 10/11/2026 — thay case cũ** "Mỗi lần chuyển sub-tab luôn gọi lại API mới (không cache)": hành vi đã đổi
+  CÓ CHỦ ĐÍCH (commit 815152821, xem phát hiện #4) nên case cũ mất nghĩa; thay trực tiếp bằng kỳ vọng ngược lại.
 
 ## Các bước thực hiện
-1. Từ "Bảng cân đối kế toán", chuyển sang "Kết quả kinh doanh" rồi quay lại "Bảng cân đối kế toán", theo dõi
-   network.
+1. Từ "Bảng cân đối kế toán" (đã tải xong), chuyển sang "Kết quả kinh doanh" (chờ bảng IS hiện) rồi quay lại
+   "Bảng cân đối kế toán", theo dõi network.
 
 ## Kết quả mong đợi
-- [ ] Có thêm ÍT NHẤT 1 request `GET /api/stocks?type=bs...` mới khi quay lại (không dùng lại dữ liệu đã tải
-      trước đó).
+- [ ] Bảng BS hiện lại ngay với dữ liệu cũ.
+- [ ] KHÔNG có request `GET /api/stocks?type=bs...` mới khi quay lại.
 
 ---
 
@@ -315,22 +328,26 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 
 # [TC_PTCB_TCDN_17] Icon caret đổi hướng đúng theo trạng thái thu gọn/mở rộng
 
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation (đo `data-icon` SVG thật): Pass**
+- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** TC 110 (Sheet, "Check icon expand/collapse các dòng")
+- **Cập nhật 10/11/2026:** SVG caret giờ viết tay trong `BS.vue` (815152821), không còn thuộc tính `data-icon` → assert
+  qua class `fa-caret-down` / `fa-caret-right`.
 
 ## Các bước thực hiện
 1. Quan sát icon caret của dòng "A. Tài sản lưu động và đầu tư ngắn hạn" (mặc định mở rộng).
 2. Click để thu gọn, quan sát lại icon.
 
 ## Kết quả mong đợi
-- [ ] Mặc định: icon `caret-down` (▼).
-- [ ] Sau khi thu gọn: icon đổi thành `caret-right` (▶).
+- [ ] Mặc định: icon `fa-caret-down` (▼).
+- [ ] Sau khi thu gọn: icon đổi thành `fa-caret-right` (▶).
 
 ---
 
 # [TC_PTCB_TCDN_18] "Chỉ tiêu tài chính" không có cấu trúc cây thu gọn/mở rộng
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
+- **Cập nhật 10/11/2026:** đếm caret bằng `svg[class*="fa-caret"]` (selector cũ `data-icon` không còn khớp gì, sẽ luôn
+  ra 0 → pass sai).
 - **⚠️ Khác biệt quan trọng so với app:** Sheet app (TC 126, 127, 136) mô tả "Chỉ tiêu TC" của app có 7 NHÓM chỉ
   tiêu thu gọn/mở rộng được (Định giá, Doanh thu và lợi nhuận...). Đọc `FinancialRatios.vue` template: hiển thị
   PHẲNG toàn bộ `financial_ratios_items`, KHÔNG có `is_parent`/`checkHideShow`/icon caret nào — các "nhóm"
@@ -477,25 +494,6 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 
 ---
 
-# [TC_PTCB_TCDN_27] Lỗi 500 — nuốt lỗi im lặng, không toast, không crash
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **⚠️ Phát hiện đáng chú ý (UX gap, không phải crash):** `.catch((error) => { this.data_bctc = []; ... })`
-  KHÔNG gọi `this.$toast.error(...)` — người dùng gặp lỗi 500 khi tải BS/IS/CF/TM/Chỉ tiêu tài chính sẽ chỉ
-  thấy bảng trống, KHÔNG có bất kỳ thông báo nào giải thích lý do. CÙNG PATTERN đã ghi nhận ở `getAll()` tab So
-  sánh (TC_PTCB_SS_23) — nhưng ở đây hành vi NHẤT QUÁN trên cả 5 sub-report (không có sub-report nào toast lỗi
-  khác biệt).
-
-## Các bước thực hiện
-1. Mock `GET /api/stocks?type=bs...` trả lỗi 500.
-2. Vào tab.
-
-## Kết quả mong đợi
-- [ ] Bảng trống (0 dòng), không có toast/thông báo lỗi nào hiển thị cho người dùng.
-- [ ] Không phát sinh lỗi JS console (`pageerror`) nào.
-
----
-
 ## Nhóm: Giới hạn theo gói hội viên (Free)
 
 # [TC_PTCB_TCDN_28] Free — "Bảng cân đối kế toán"/"Kết quả kinh doanh"/"Lưu chuyển tiền tệ" KHÔNG bị khoá
@@ -627,7 +625,11 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 # [TC_PTCB_TCDN_36] Hover highlight cột theo quý ở chế độ "Quý", KHÔNG highlight ở "Năm"
 
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
-- **Ghi chú:** `list_column_..._contain_quarter` computed (mỗi sub-report có bản riêng) chỉ trả về danh sách cột
+- **Cập nhật 10/11/2026:** cơ chế highlight viết lại (815152821, f222e4338): mỗi ô dữ liệu có `data-q="Q1..Q4"` (computed
+  `column_quarters`, chỉ ở chế độ "Quý"), rê chuột thì wrapper `.table-bs` nhận class `hl-Qn` và CSS tô mọi ô
+  `td[data-q="Qn"]` (cùng quý ở mọi năm) — không còn class `bghover` trên từng ô. Ở "Năm" ô không có `data-q` → không
+  highlight. Test assert class `hl-Qn` trên wrapper + màu nền ô cùng quý khác ô quý khác.
+- **Ghi chú (cũ):** `list_column_..._contain_quarter` computed (mỗi sub-report có bản riêng) chỉ trả về danh sách cột
   cần highlight khi `type_time == "quarter"` VÀ nhãn cột bắt đầu bằng "Q" — ở chế độ "Năm" (nhãn cột là số năm,
   không có "Q") danh sách này luôn rỗng nên hover không highlight gì.
 
@@ -636,7 +638,7 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 2. Đổi sang "Năm", hover vào ô dữ liệu tương ứng.
 
 ## Kết quả mong đợi
-- [ ] Ở "Quý": cả cột (class `bghover`) được highlight khi hover.
+- [ ] Ở "Quý": mọi ô cùng quý với ô đang rê được tô màu (wrapper có class `hl-Qn`).
 - [ ] Ở "Năm": không có highlight nào khi hover.
 
 ---
@@ -656,7 +658,7 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 
 ---
 
-## Tổng hợp trạng thái (37 testcase)
+## Tổng hợp trạng thái (36 testcase)
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-tai-chinh-doanh-nghiep.spec.ts](../tests/phan-tich-co-ban-tai-chinh-doanh-nghiep.spec.ts)
@@ -665,10 +667,15 @@ nhận qua đo network (TC_PTCB_TCDN_07).
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 8 | TC_PTCB_TCDN_02, 03, 08, 11, 12, 16, 17, 34 |
-| 🆕 Mới (riêng web) | 29 | TC_PTCB_TCDN_01, 04, 05, 06, 07, 09, 10, 13, 14, 15, 18-33, 35, 36, 37 |
+| 🆕 Mới (riêng web) | 28 | TC_PTCB_TCDN_01, 04, 05, 06, 07, 09, 10, 13, 14, 15, 18-26, 28-33, 35, 36, 37 |
 | ⚠️ Cần xác nhận thêm | 0 | — |
 
-Không có `test.fixme` nào trong file spec này — toàn bộ 37 testcase đều tự động hoá và pass được (không có
+Kết quả chạy 10/11/2026 (localhost:8080, preprod 21d9d1d04): 36 pass, 1 skip (TC_PTCB_TCDN_04 — tài khoản trả phí không còn
+role `coworker`), 0 fixme, không request ghi nào lọt lưới.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TCDN_27 (bug được user chấp nhận).
+
+Không có `test.fixme` nào trong file spec này — toàn bộ 36 testcase đều tự động hoá và pass được (không có
 tính năng kéo-thả/upload/download nào trong tab này, khác các tab "So sánh"/"Biểu đồ" có modal "Thêm mã" dùng
 `vuedraggable`).
 
@@ -684,11 +691,8 @@ tính năng kéo-thả/upload/download nào trong tab này, khác các tab "So s
    thị bình thường. Xem phát hiện #2, TC_PTCB_TCDN_28/29.
 4. **Free còn bị ép mặc định "Tỷ đồng"/"Năm" + khoá đổi đơn vị/kỳ, độc lập với gate #3** (áp dụng cho MỌI
    sub-tab kể cả không bị khoá nội dung). Xem phát hiện #3, TC_PTCB_TCDN_30.
-5. **Không có caching client-side** — mỗi lần chuyển sub-tab luôn gọi lại API (unmount/remount thật). Xem phát
-   hiện #4, TC_PTCB_TCDN_07.
-6. **Lỗi mạng/500 bị nuốt im lặng, không toast** trên cả 5 sub-report — cùng pattern UX gap đã ghi nhận ở
-   `getAll()` tab So sánh, nhưng ở đây NHẤT QUÁN trên toàn bộ tab (không có sub-report nào toast khác biệt). Xem
-   TC_PTCB_TCDN_27.
-7. **"Chỉ tiêu tài chính" KHÔNG có cấu trúc cây thu gọn/mở rộng như app mô tả** (Sheet TC 126/127/136 kỳ vọng 7
+5. **[Cập nhật 10/11/2026] Sub-tab đã mở được giữ sống** — quay lại không gọi lại API (trước 09/2026 thì luôn gọi
+   lại). Xem phát hiện #4, TC_PTCB_TCDN_07.
+6. **"Chỉ tiêu tài chính" KHÔNG có cấu trúc cây thu gọn/mở rộng như app mô tả** (Sheet TC 126/127/136 kỳ vọng 7
    nhóm thu gọn được) — web hiển thị PHẲNG toàn bộ, các "nhóm" chỉ là dòng tiêu đề trực quan không click được.
    Xem TC_PTCB_TCDN_18.

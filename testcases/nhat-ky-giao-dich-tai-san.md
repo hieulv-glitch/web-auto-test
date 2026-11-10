@@ -217,19 +217,6 @@
 
 ---
 
-# [TC_NKGD_TS_17] Xuất Excel
-- **Trạng thái:** ✅ Áp dụng
-- **Ghi chú:** code đặt tên `Lãi/lỗ Nhật ký giao dịch.xlsx` — dấu "/" không hợp lệ trong tên file nên trình duyệt đổi (Chromium: "_").
-  Đề nghị dev đổi tên không có "/".
-
-## Các bước thực hiện
-1. Bấm "Xuất Excel".
-
-## Kết quả mong đợi
-- [ ] Tải file "Lãi?lỗ Nhật ký giao dịch.xlsx" (ký tự giữa do trình duyệt thay).
-
----
-
 # [TC_NKGD_TS_18] Mua/Bán từ dòng mã
 - **Trạng thái:** ✅ Áp dụng (thay TC_TS_18/19 cũ)
 
@@ -337,15 +324,17 @@
 
 ---
 
-## Tổng hợp trạng thái (26 testcase)
+## Tổng hợp trạng thái (25 testcase)
 
 Tự động hoá: [tests/nhat-ky-giao-dich-tai-san.spec.ts](../tests/nhat-ky-giao-dich-tai-san.spec.ts).
 
+**Cập nhật 10/11/2026:** xoá TC_NKGD_TS_17 (bug được user chấp nhận) — tổng 26 → 25.
+
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
-| ✅ Áp dụng | 10 | TS_01–04, 11, 16, 17, 18, 25, 26 |
+| ✅ Áp dụng | 9 | TS_01–04, 11, 16, 18, 25, 26 |
 | 🆕 Mới (riêng web) | 16 | TS_05–10, 12–15, 19–24 |
 | ⚠️ Cần xác nhận thêm | 0 | |
 
-**Phát hiện đáng chú ý:** tên file Excel chứa "/" (TS_17). Bug cũ TC_TS_16 (crash `tong_tai_san` thiếu optional chaining) và
+**Phát hiện đáng chú ý:** bug cũ TC_TS_16 (crash `tong_tai_san` thiếu optional chaining) và
 TC_TS_21 (modal Xem giao dịch mất mạng) không còn tương ứng — các luồng đó đã viết lại.

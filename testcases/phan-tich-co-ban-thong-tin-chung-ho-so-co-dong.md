@@ -1,5 +1,9 @@
 # Màn hình: Phân tích cơ bản — Tab "Thông tin chung" — Sub-tab "Hồ sơ" + "Cổ đông"
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). Đăng nhập chuyển sang
+`FaAnalysisPage.login()` (phiên cache `Prev2Session`, chặn ghi setting) + lưới `FaSafetyNet`; bỏ bước reset về VNM
+cuối test. Toàn bộ 22 case pass, không sửa/xoá/fixme case nào.
+
 - **URL:** `/phan-tich-co-ban?mack=<mack>&tab=thong-tin-chung`, sau đó click sub-tab con "Hồ sơ" hoặc "Cổ đông"
   (bên trong thanh 7 sub-tab của `Right.vue`) — KHÔNG có query param riêng cho sub-tab con, xác nhận qua đọc
   source (`Right.vue data(): type_tab` là state cục bộ, không đọc `$route.query`) + DOM thật.
@@ -46,45 +50,8 @@
 
 ## Phát hiện đáng chú ý — đọc trước khi viết/chạy test
 
-**#1. [BUG dữ liệu] Free — donut "Tổng quan" (Cơ cấu sở hữu) ở sub-tab "Cổ đông" hiển thị SAI/THIẾU phần "Nước
-ngoài" VĨNH VIỄN trong suốt session, do API cấp dữ liệu cho phần đó KHÔNG BAO GIỜ được gọi cho tài khoản
-Free.** Xác nhận qua automation (đo network + so sánh ảnh chụp donut giữa 2 tài khoản):
-
-- `Common/index.vue created()`: `getCountPageForeignTransaction()`/`getListForeignTransaction(true)`/
-  `getListTransaction()` đều bọc trong `if (!this.$store.state.isAccountFree) { ... }` (bên trong
-  `setTimeout(..., 1000)`) — với tài khoản Free, `getListForeignTransaction(true)` (nguồn set
-  `this.so_huu_nuoc_ngoai_final`) KHÔNG BAO GIỜ được gọi. Đo network xác nhận: tài khoản trả phí gọi
-  `GET /api/foreign-trading` đúng 1 lần khi vào sub-tab "Cổ đông"; tài khoản Free gọi **0 lần**.
-- `so_huu_nuoc_ngoai_final` giữ nguyên giá trị khởi tạo `""` (chuỗi rỗng) suốt session cho tài khoản Free.
-  `computed: data_co_cau_so_huu` tính `so_huu_khac = 100 - so_huu_nha_nuoc - so_huu_nuoc_ngoai` — do JS coerce
-  `"" → 0` trong phép trừ số, `so_huu_khac` bị tính SAI (cộng dồn luôn cả phần lẽ ra thuộc "Nước ngoài" vào
-  "Khác"), còn `so_huu_nuoc_ngoai` trong `chartdata_co_cau_so_huu` giữ nguyên `""` (chuỗi rỗng, không phải số).
-- Đo thật (mã VNM, cùng thời điểm): tài khoản trả phí hiển thị đúng "Nhà nước: 36.07%", "Nước ngoài: 49.74%",
-  "Khác: 14.19%" (tổng 100%). Tài khoản Free hiển thị "Nhà nước: 36.07%" (đúng), **"Nước ngoài: %" (RỖNG, không
-  có số)**, "Khác: 63.93%" (SAI — đáng lẽ ~14.19%, bị cộng nhầm phần "Nước ngoài" vào).
-- **Giới hạn kỹ thuật khi tự động hoá:** legend donut vẽ bằng ECharts `CanvasRenderer` (cùng pattern đã ghi
-  nhận xuyên suốt màn hình này) — text "Nước ngoài: %"/"Khác: 63.93%" KHÔNG phải DOM text thật (`getByText` xác
-  nhận 0 kết quả dù nhìn thấy rõ trên ảnh chụp), nên KHÔNG assert được trực tiếp nội dung sai. Test tự động chỉ
-  verify được PHẦN NGUYÊN NHÂN (network: `/api/foreign-trading` không được gọi cho Free) — phần HẬU QUẢ hiển thị
-  sai chỉ xác nhận được qua ảnh chụp thủ công (đã đính kèm trong quá trình khảo sát, không lưu vào repo). Xem
-  TC_PTCB_TTC_HSCD_17.
-- Đáng chú ý: gate này KHÁC HẲN `features_disabled`/`ProtectedView` — không có bất kỳ overlay che nào, dữ liệu
-  vẫn hiển thị đầy đủ nhưng SAI ngầm, người dùng khó nhận ra đây là hành vi cố ý giới hạn theo gói.
-
-**#2. [BUG hiển thị] Mã không phải cổ phiếu thường (VD ETF `E1VFVN30`) — donut "Tổng quan" hiển thị "NaN%" cho
-2/3 phần, bảng "Cổ đông lớn" trống hoàn toàn KHÔNG có thông báo "Không có dữ liệu".** Xác nhận qua automation
-(ảnh chụp DOM thật với mã `E1VFVN30`):
-
-- Response API `common-info` cho mã ETF không có field `so_huu_nha_nuoc` hợp lệ (`undefined`) →
-  `(undefined * 100).toFixed(2)` = chuỗi `"NaN"` → donut "Tổng quan" hiển thị "Nhà nước: NaN%", và vì phép trừ
-  tiếp theo dùng `"NaN"` (kiểu số học với NaN luôn lan truyền), "Khác: NaN%" cũng sai theo — CHỈ "Nước ngoài" giữ
-  đúng số (%75.14 đo được, do lấy từ nguồn dữ liệu khác — `/api/foreign-trading`).
-- `cong_ty_co_dong_items` trả về mảng rỗng cho mã này → `TableShareHolder.vue` render `<tbody>` với **0 dòng**,
-  không có `v-if`/`#no-items-view` nào xử lý trạng thái rỗng (khác `Events.vue`/`CDataTable` ở sub-tab khác vốn
-  có sẵn text "Không có dữ liệu") — người dùng thấy bảng trống hoàn toàn, chỉ còn header cột, dễ nhầm "trang
-  chưa tải xong" hơn là "mã này không có dữ liệu cổ đông".
-- Cùng giới hạn kỹ thuật canvas như phát hiện #1 — chỉ verify được phần bảng trống (DOM thật) bằng automation,
-  phần "NaN%" trên donut chỉ xác nhận được qua ảnh chụp. Xem TC_PTCB_TTC_HSCD_14/16.
+**#1, #2:** đã xoá 10/11/2026 (bug donut "Tổng quan" của tài khoản Free / mã ETF và bảng "Cổ đông lớn" trống không
+thông báo — user chấp nhận, xoá TC_PTCB_TTC_HSCD_14/16/17).
 
 **#3. Sub-tab con "Ngành nghề"/"Lịch sử" (state cục bộ của `Profile.vue`) KHÔNG bị reset khi đổi mã CK — khác
 hẳn hành vi "trống lại từ đầu" thường thấy ở các bảng dữ liệu khác trong màn này.** `Right.vue` chỉ
@@ -338,22 +305,6 @@ trong bất kỳ trường hợp nào (khác "Cổ đông"), xem TC_PTCB_TTC_HSC
 
 ---
 
-# [TC_PTCB_TTC_HSCD_14] 🆕 [Phát hiện bug] Mã ETF — bảng "Cổ đông lớn" trống hoàn toàn, KHÔNG có thông báo
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation, phát hiện đáng chú ý: Pass**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** xem phát hiện #2 đầu tài liệu.
-
-## Các bước thực hiện
-1. Deep-link `/phan-tich-co-ban?mack=E1VFVN30&tab=thong-tin-chung`, click sub-tab "Cổ đông".
-
-## Kết quả mong đợi
-- [ ] `<tbody>` của bảng "Cổ đông lớn" có 0 dòng.
-- [ ] KHÔNG có bất kỳ text "Không có dữ liệu"/thông báo tương đương nào hiển thị — chỉ còn header cột trống bên
-      dưới (khuyến nghị báo dev thêm trạng thái rỗng rõ ràng, cùng pattern `#no-items-view` đã có sẵn ở
-      `Events.vue`).
-
----
-
 ## Nhóm: Panel "Tổng quan" (`ChartAnalysis.vue`)
 
 # [TC_PTCB_TTC_HSCD_15] 2 donut "Tổng quan"/"Cổ đông lớn" hiển thị đúng, không lỗi console
@@ -371,41 +322,6 @@ trong bất kỳ trường hợp nào (khác "Cổ đông"), xem TC_PTCB_TTC_HSC
 ## Kết quả mong đợi
 - [ ] Nhãn "Tổng quan" + "Cổ đông lớn" hiển thị đúng thứ tự (Tổng quan ở trên).
 - [ ] Có đúng 2 `<canvas>` (1 cho mỗi donut), không lỗi console.
-
----
-
-# [TC_PTCB_TTC_HSCD_16] 🆕 [Phát hiện bug] Mã ETF — donut "Tổng quan" NaN% (chỉ xác nhận qua ảnh chụp)
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm — **Đã verify PHẦN KHÔNG-CRASH bằng automation; phần nội dung NaN% chỉ
-  xác nhận qua ảnh chụp thủ công (không assert được qua code, xem giới hạn kỹ thuật ở phát hiện #2)**
-- **⚠️ Phát hiện đáng chú ý (bug thật, xác nhận qua ảnh chụp DOM):** xem phát hiện #2 đầu tài liệu.
-
-## Các bước thực hiện
-1. Deep-link `/phan-tich-co-ban?mack=E1VFVN30&tab=thong-tin-chung`, click sub-tab "Cổ đông".
-
-## Kết quả mong đợi
-- [ ] Automation xác nhận được: 2 `<canvas>` vẫn render (không crash), không có lỗi JS console (`pageerror`)
-      phát sinh dù dữ liệu `NaN`.
-- [ ] (Quan sát thủ công qua ảnh chụp, KHÔNG assert bằng code): donut "Tổng quan" hiển thị "Nhà nước: NaN%" và
-      "Khác: NaN%" — chỉ "Nước ngoài: 75.14%" hiển thị đúng số.
-
----
-
-# [TC_PTCB_TTC_HSCD_17] 🆕 [Phát hiện bug] Free — API nguồn dữ liệu "Nước ngoài" của donut không bao giờ được gọi
-
-- **Trạng thái:** 🆕 Testcase mới — **Đã verify PHẦN NGUYÊN NHÂN (network) bằng automation với tài khoản Free
-  thật: Pass; phần HẬU QUẢ hiển thị sai chỉ xác nhận qua ảnh chụp thủ công**
-- **⚠️ Phát hiện đáng chú ý (bug thật):** xem phát hiện #1 đầu tài liệu — đo network xác nhận tài khoản trả phí
-  gọi `GET /api/foreign-trading` đúng 1 lần khi vào sub-tab "Cổ đông" (mã VNM), tài khoản Free gọi 0 lần.
-
-## Các bước thực hiện
-1. Đăng nhập tài khoản Free.
-2. Theo dõi network, click sub-tab "Cổ đông" (mã VNM).
-
-## Kết quả mong đợi
-- [ ] KHÔNG có request nào tới `/api/foreign-trading` được gửi trong suốt quá trình (khác tài khoản trả phí).
-- [ ] (Quan sát thủ công qua ảnh chụp, KHÔNG assert bằng code): donut "Tổng quan" hiển thị "Nước ngoài: %"
-      (rỗng, không có số) và "Khác" bị cộng sai (cao hơn thực tế).
 
 ---
 
@@ -495,7 +411,7 @@ trong bất kỳ trường hợp nào (khác "Cổ đông"), xem TC_PTCB_TTC_HSC
 
 ---
 
-## Tổng hợp trạng thái (22 testcase — phạm vi sub-tab "Hồ sơ" + "Cổ đông")
+## Tổng hợp trạng thái (19 testcase — phạm vi sub-tab "Hồ sơ" + "Cổ đông")
 
 Đã tự động hoá bằng Playwright:
 [tests/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.spec.ts](../tests/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.spec.ts)
@@ -505,35 +421,26 @@ trong bất kỳ trường hợp nào (khác "Cổ đông"), xem TC_PTCB_TTC_HSC
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
 | ✅ Áp dụng | 5 | TC_PTCB_TTC_HSCD_03, 04, 06, 09, 12 |
-| 🆕 Mới (riêng web) | 16 | TC_PTCB_TTC_HSCD_01, 02, 05, 07, 08, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22 |
-| ⚠️ Cần xác nhận thêm | 1 | TC_PTCB_TTC_HSCD_16 (phần "NaN%" trên donut chỉ xác nhận được qua ảnh chụp thủ công, không assert được bằng code do ECharts `CanvasRenderer`) |
+| 🆕 Mới (riêng web) | 14 | TC_PTCB_TTC_HSCD_01, 02, 05, 07, 08, 10, 11, 13, 15, 18, 19, 20, 21, 22 |
+| ⚠️ Cần xác nhận thêm | 0 | — |
 
-Không có `test.fixme` nào trong file spec này — toàn bộ 22 testcase đều tự động hoá và pass được (kể cả
-TC_PTCB_TTC_HSCD_16, phần automation-verifiable của nó là "không crash console" vẫn chạy pass bình thường, chỉ
-phần nội dung NaN% là ghi chú thủ công không assert).
+Không có `test.fixme` nào trong file spec này — toàn bộ 19 testcase đều tự động hoá và pass được.
+
+**Cập nhật 10/11/2026:** xoá TC_PTCB_TTC_HSCD_14, TC_PTCB_TTC_HSCD_16, TC_PTCB_TTC_HSCD_17 (bug được user chấp nhận).
 
 **Phát hiện đáng chú ý cần theo dõi:**
-1. **[BUG dữ liệu] Free — donut "Tổng quan" ở sub-tab "Cổ đông" hiển thị SAI/THIẾU phần "Nước ngoài" vĩnh viễn**
-   do `getListForeignTransaction()` (nguồn `so_huu_nuoc_ngoai_final`) bị bọc trong `if (!isAccountFree)` —
-   KHÔNG BAO GIỜ gọi cho tài khoản Free. Khác hẳn cơ chế `ProtectedView`/`features_disabled` quen thuộc — không
-   có overlay che, dữ liệu vẫn hiển thị nhưng SAI ngầm ("Nước ngoài" rỗng, "Khác" bị cộng nhầm). Xem phát hiện
-   #1, TC_PTCB_TTC_HSCD_17.
-2. **[BUG hiển thị] Mã không phải cổ phiếu thường (ETF) — donut "Tổng quan" hiển thị "NaN%"** do field
-   `so_huu_nha_nuoc` không hợp lệ trong response API cho loại mã này; đồng thời bảng "Cổ đông lớn" trống hoàn
-   toàn KHÔNG có thông báo "Không có dữ liệu" (khác `Events.vue` đã có sẵn `#no-items-view`). Xem phát hiện #2,
-   TC_PTCB_TTC_HSCD_14/16.
-3. **Sub-tab con "Ngành nghề"/"Lịch sử" không bị reset khi đổi mã CK** — do `Profile.vue` không unmount khi đổi
+1. **Sub-tab con "Ngành nghề"/"Lịch sử" không bị reset khi đổi mã CK** — do `Profile.vue` không unmount khi đổi
    mã CK (chỉ đổi props). Cùng tinh thần "state không bị reset" đã ghi nhận nhiều lần trong màn hình này, nhưng
    ở đây là cấp sub-tab CON (sâu hơn 1 bậc so với các phát hiện trước). Xem phát hiện #3, TC_PTCB_TTC_HSCD_05.
-4. **Click 1 dòng cổ đông trong bảng "Cổ đông lớn" không có hành động gì — khác click 1 lãnh đạo (mở modal chi
+2. **Click 1 dòng cổ đông trong bảng "Cổ đông lớn" không có hành động gì — khác click 1 lãnh đạo (mở modal chi
    tiết)** — khác biệt kiến trúc thật giữa `TableShareHolder.vue` (không có `@click`) và `LeaderShip.vue` (có
    `shareholderDetail()`). Xem phát hiện #4, TC_PTCB_TTC_HSCD_13.
-5. **[XÁC NHẬN AN TOÀN] Verify đầy đủ 2 cấp gate `features_disabled` cho "Cổ đông"** theo đúng bài học từ tài
+3. **[XÁC NHẬN AN TOÀN] Verify đầy đủ 2 cấp gate `features_disabled` cho "Cổ đông"** theo đúng bài học từ tài
    liệu 1/4 — tài khoản Free hiện tại KHÔNG bị khoá ở CẢ 2 CẤP (`fa_co_dong` cho nội dung chính,
    `fa_co_dong_va_gd_co_dong_bieu_do` cho panel biểu đồ), verify TÁCH RIÊNG từng cấp thay vì gộp chung. "Hồ sơ"
    về mặt code KHÔNG THỂ bị khoá qua cơ chế này ở cả 2 cấp (không có case/`ProtectedView` nào tương ứng). Xem
    phát hiện #5, TC_PTCB_TTC_HSCD_10/18/19.
-6. **Không có API mutate nào trong phạm vi 2 sub-tab này** — toàn bộ chỉ đọc (`common-info`,
+4. **Không có API mutate nào trong phạm vi 2 sub-tab này** — toàn bộ chỉ đọc (`common-info`,
    `common-info/shareholder`), an toàn tuyệt đối cho tài khoản test dùng chung.
 
 **Ngoài phạm vi lần sinh này:** nội dung chi tiết sub-tab "Thông tin giao dịch"/"Sự kiện" và "Nước ngoài"/"Tự

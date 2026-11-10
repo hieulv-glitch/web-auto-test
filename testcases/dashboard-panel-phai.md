@@ -113,25 +113,6 @@
 
 ---
 
-# [TC_DASHBOARD_PP_07] Mở modal "Thêm mới Watchlist"
-
-- **Trạng thái:** 🆕 — **Đã verify bằng automation, phát hiện hành vi Escape**
-- **Kết quả đo được:** Click "Tạo mới" → mở modal "Thêm mới Watchlist" (input "Nhập tên Watchlist" + nút "Thêm
-  mới"). Nhấn phím **Escape KHÔNG đóng được modal** (CModal của CoreUI ở đây không bind sự kiện đóng qua phím
-  Escape) — phải đóng bằng icon "×" ở góc phải tiêu đề modal.
-
-## Các bước thực hiện
-1. Click nút "Tạo mới" cạnh dropdown watchlist.
-2. Thử nhấn Escape.
-3. Click icon "×" trên modal.
-
-## Kết quả mong đợi
-- [ ] Modal mở đúng với input + nút "Thêm mới".
-- [ ] Escape không có tác dụng đóng modal (ghi nhận, không phải bug chặn luồng — vẫn đóng được bằng "×").
-- [ ] Click "×" đóng modal thành công, không tạo watchlist mới nào.
-
----
-
 # [TC_DASHBOARD_PP_08] Mở dropdown sắp xếp danh sách watchlist
 
 - **Trạng thái:** 🆕 — **Đã verify thực tế: Pass**
@@ -204,19 +185,19 @@
 
 ---
 
-## Tổng hợp trạng thái (12 testcase)
+## Tổng hợp trạng thái (11 testcase)
 
 Đã tự động hoá bằng Playwright: [tests/dashboard-panel-phai.spec.ts](../tests/dashboard-panel-phai.spec.ts)
 (mở rộng POM [pages/DashboardPage.ts](../pages/DashboardPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| 🆕 Mới (riêng web) | 12 | PP_01–08, PP_13–15, PP_20. PP_09–12 và PP_16–19 đã xoá 09/11/2026 (tab đã gỡ khỏi web) |
+| 🆕 Mới (riêng web) | 11 | PP_01–06, PP_08, PP_13–15, PP_20. PP_09–12 và PP_16–19 đã xoá 09/11/2026 (tab đã gỡ khỏi web); PP_07 xoá 10/11/2026 |
 
 **Phát hiện đáng chú ý:**
 1. Watchlist-panel **dùng lại phần lớn component** với trang đầy đủ `/watchlist` đã có testcase riêng — tài liệu này
    chỉ bổ sung phần khung/khác biệt, tránh trùng lặp công sức kiểm thử.
-2. Modal "Thêm mới Watchlist" (CModal của CoreUI) **không đóng được bằng phím Escape** — phải dùng đúng icon
-   "×". Không phải bug chặn luồng nhưng là điểm UX khác thường có thể báo dev.
 3. `Watchlist.vue` giữ nguyên nội dung modal "Tạo mới" trong DOM ngay cả khi chưa mở (CModal chỉ ẩn bằng CSS, không
    unmount) — cần ưu tiên `:visible` hoặc scope theo class riêng khi viết locator.
+
+**Cập nhật 10/11/2026:** xoá TC_DASHBOARD_PP_07 (bug được user chấp nhận — modal CModal không đóng bằng Esc).

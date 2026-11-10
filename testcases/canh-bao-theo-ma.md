@@ -143,21 +143,6 @@ chứ không viết cứng.
 ## Kết quả mong đợi
 - [ ] Ô mã trống, không điều kiện nào được chọn, không gọi API lưu.
 
-# [TC_CBM_10] Đổi sang mã khác thì ô "Mức giá" vẫn giữ giá của mã cũ
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Kết quả đo được:** chọn HPG (ô mức giá = giá HPG), đổi sang VNM → hai ô vẫn là giá HPG. `addPriceCondition` chỉ điền
-  ô đang trống. Người dùng dễ đặt nhầm mức giá của mã trước cho mã sau. Cần dev xác nhận có cố ý không.
-
-## Các bước thực hiện
-1. Mở hộp tạo, chọn HPG, chờ ô mức giá điền giá HPG.
-2. Gõ chọn VNM.
-
-## Kết quả mong đợi
-- [ ] (Theo code hiện tại, đã tự động hoá) ô mức giá vẫn giữ giá HPG. Nếu dev sửa để điền lại theo mã mới thì đổi assert.
-
----
-
 ## Nhóm: Hộp cập nhật cảnh báo
 
 # [TC_CBM_11] Sửa 1 điều kiện chỉ nạp đúng điều kiện đó
@@ -225,12 +210,12 @@ chứ không viết cứng.
 | Trạng thái | Số lượng |
 |---|---|
 | 🆕 Testcase mới | 14 |
-| ⚠️ Cần xác nhận thêm | 1 (TC_CBM_10) |
-| **Tổng** | **15** |
+| **Tổng** | **14** |
+
+**Cập nhật 10/11/2026:** xoá TC_CBM_10 (bug được user chấp nhận). 15 → 14 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **TC_CBM_10 — giá mã cũ dính lại khi đổi mã** (nghi vấn): `addPriceCondition` chỉ điền ô mức giá đang trống.
 2. **Thông báo "Lưu cảnh báo thành công" không bao giờ hiện**: code vẫn gọi `$toast.success` nhưng `main.js` tắt mọi
    toast thành công (yêu cầu 12/10/2026). Đây là chủ đích, ghi lại để khỏi viết test chờ toast.
 3. **Bấm Sửa quá sớm thì hộp trống**: hộp chỉ nạp cảnh báo khi danh sách mã của app (`list_mack_company`) đã có mã đó.

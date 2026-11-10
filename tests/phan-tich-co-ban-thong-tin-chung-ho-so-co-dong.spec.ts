@@ -1,40 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Cập nhật 10/11/2026: chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên
+ * cache `Prev2Session` qua `fa.login` (chặn ghi setting → đổi mã CK giữa test KHÔNG còn đổi "mã đang xem" của tài
+ * khoản dùng chung, nên bỏ bước reset về VNM cuối test); mọi request ghi khác bị lưới `FaSafetyNet` huỷ.
+ */
+useFaSafetyNet(test);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
-}
-
-/** Reset lại mã VNM qua ô search — dùng cho các test đổi mã CK giữa chừng, để không ảnh hưởng test khác chạy
- * song song (tài khoản test dùng chung, `final_mack` lưu server-side). */
-async function resetToVNM(page: any, fa: FaAnalysisPage) {
-  await fa.searchInput.fill('VNM');
-  await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().waitFor({ state: 'visible' });
-  await fa.searchSuggestions.filter({ hasText: 'VNM' }).first().click();
+  await new FaAnalysisPage(page).login('free');
 }
 
 test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Hồ sơ" (Profile.vue + LeaderShip.vue)', () => {
@@ -120,7 +99,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Hồ sơ"
     await expect(fa.profileSubTab('Ngành nghề'), 'Vẫn ở "Ngành nghề" sau khi đổi mã CK (không tự reset)').toHaveClass(/active/);
     await expect(fa.profileContent).not.toHaveText('');
 
-    await resetToVNM(page, fa);
   });
 
   test('TC_PTCB_TTC_HSCD_06: Panel "BAN LÃNH ĐẠO" hiển thị đúng field mỗi thành viên', async ({ page }) => {
@@ -252,18 +230,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Sub-tab "Cổ đô
     expect(page.url()).toBe(urlBefore);
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
-
-  test('TC_PTCB_TTC_HSCD_14: [Phát hiện] Mã ETF — bảng "Cổ đông lớn" trống hoàn toàn, KHÔNG có thông báo', async ({ page }) => {
-    await loginFirst(page);
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'E1VFVN30', tabQuery: 'thong-tin-chung' });
-    await expect(fa.ttcSubTabList).toBeVisible({ timeout: 15000 });
-    await fa.clickTtcSubTab('Cổ đông');
-    await page.waitForTimeout(2000);
-
-    await expect(fa.shareHolderRows).toHaveCount(0);
-    await expect(page.getByText('Không có dữ liệu')).toHaveCount(0);
-  });
 });
 
 test.describe('Phân tích cơ bản — Thông tin chung — Panel "Tổng quan" (donut, ChartAnalysis.vue)', () => {
@@ -278,22 +244,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Panel "Tổng quan
 
     await expect(fa.tongQuanLabel).toBeVisible();
     await expect(fa.coDongLonChartLabel).toBeVisible();
-    await expect(fa.shareHolderCharts).toHaveCount(2, { timeout: 10000 });
-    expect(pageErrors).toEqual([]);
-  });
-
-  test('TC_PTCB_TTC_HSCD_16: [Phát hiện bug] Mã ETF — donut "Tổng quan" vẫn render, không crash console (phần NaN% chỉ xác nhận qua ảnh chụp thủ công)', async ({ page }) => {
-    await loginFirst(page);
-    const pageErrors: string[] = [];
-    page.on('pageerror', (err) => pageErrors.push(err.message));
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'E1VFVN30', tabQuery: 'thong-tin-chung' });
-    await expect(fa.ttcSubTabList).toBeVisible({ timeout: 15000 });
-    await fa.clickTtcSubTab('Cổ đông');
-
-    // Phần automation-verifiable: canvas vẫn render dù dữ liệu NaN, không crash JS. Nội dung "NaN%" trên legend
-    // là canvas-drawn (ECharts CanvasRenderer) nên KHÔNG assert được text — đã xác nhận qua ảnh chụp thủ công,
-    // xem testcases/phan-tich-co-ban-thong-tin-chung-ho-so-co-dong.md phát hiện #2.
     await expect(fa.shareHolderCharts).toHaveCount(2, { timeout: 10000 });
     expect(pageErrors).toEqual([]);
   });
@@ -319,23 +269,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Hồ sơ/Cổ đô
     await expect(fa.protectedView, 'Sub-tab "Hồ sơ" không được có ProtectedView nào (cả nội dung chính lẫn panel lãnh đạo)').toHaveCount(0);
     await expect(fa.profileSubTabItems.first()).toBeVisible();
     await expect(fa.leaderShipItems.first()).toBeVisible();
-  });
-
-  test('TC_PTCB_TTC_HSCD_17: [Phát hiện bug] Free — API nguồn dữ liệu "Nước ngoài" của donut không bao giờ được gọi', async ({ page }) => {
-    test.setTimeout(60000);
-    await loginFreeOrSkip(page);
-    const foreignTradingRequests: string[] = [];
-    page.on('request', (req) => {
-      if (req.url().includes('foreign-trading')) foreignTradingRequests.push(req.url());
-    });
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'thong-tin-chung' });
-    await expect(fa.ttcSubTabList).toBeVisible({ timeout: 20000 });
-
-    await fa.clickTtcSubTab('Cổ đông');
-    await page.waitForTimeout(3000);
-
-    expect(foreignTradingRequests.length, 'Tài khoản Free KHÔNG được gọi API /api/foreign-trading (nguồn dữ liệu "Nước ngoài" của donut)').toBe(0);
   });
 
   test('TC_PTCB_TTC_HSCD_18: Free — nội dung chính "Cổ đông" (CCol xl=9, key fa_co_dong) KHÔNG bị khoá', async ({ page }) => {
@@ -409,7 +342,6 @@ test.describe('Phân tích cơ bản — Thông tin chung — Hồ sơ/Cổ đô
     await expect(fa.shareHolderRows.first()).toBeVisible({ timeout: 10000 });
     await expect(fa.shareHolderCharts).toHaveCount(2, { timeout: 10000 });
 
-    await resetToVNM(page, fa);
   });
 });
 

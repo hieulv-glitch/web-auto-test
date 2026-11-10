@@ -250,20 +250,6 @@ cáo bạch & BCTN" (xáo thứ tự, 1 cái không có tệp), 3 nghị quyết
 ## Kết quả mong đợi
 - [ ] Hai ô trống, nút **"Tất cả"** được chọn (không quay về "Mới nhất"), bảng hiện đủ 7 báo cáo, 20 dòng/trang.
 
-# [TC_TTSK_18] Chọn đúng 1 ngày: tab Bài viết không lọc
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞 nghi vấn)
-- **Kết quả đo được:** `khoangNgay()` gửi khoảng **rỗng** cho API bài viết khi Từ = Đến ("như News.vue — API hiểu là
-  không lọc"), trong khi API báo cáo vẫn lọc đúng ngày. Người dùng chọn 1 ngày thì tab Bài viết (cả ô số) hiện bài viết của
-  **mọi thời gian**.
-
-## Các bước thực hiện
-1. Nhập Từ = Đến = 05/01/<năm nay>.
-
-## Kết quả mong đợi
-- [ ] Báo cáo phân tích gửi `from_date = to_date = <ngày đó>`, bảng còn 1 báo cáo.
-- [ ] Bài viết và bộ đếm bài viết gửi `from_date=''`, `to_date=''` (hành vi hiện tại — cần dev xác nhận có đúng ý không).
-
 # [TC_TTSK_19] Lọc tài liệu theo ngày
 
 - **Trạng thái:** 🆕 Testcase mới
@@ -372,16 +358,6 @@ cáo bạch & BCTN" (xáo thứ tự, 1 cái không có tệp), 3 nghị quyết
 
 ## Kết quả mong đợi
 - [ ] Mỗi tab hiện đúng câu: "Không có báo cáo / tài liệu / nghị quyết / báo cáo / bài viết trong khoảng đã chọn", ô số 0.
-
-# [TC_TTSK_30] Lỗi API danh sách
-
-- **Trạng thái:** 🆕 Testcase mới
-
-## Các bước thực hiện
-1. Báo cáo 500, tài liệu mất mạng, bài viết 500, chi tiết 500.
-
-## Kết quả mong đợi
-- [ ] Mọi tab về trạng thái rỗng, ô số 0, không có lỗi JS (không có thông báo lỗi riêng — giống "không có dữ liệu").
 
 # [TC_TTSK_31] Đổi mã liên tiếp — bỏ phản hồi muộn của mã cũ
 
@@ -521,31 +497,6 @@ cáo bạch & BCTN" (xáo thứ tự, 1 cái không có tệp), 3 nghị quyết
 - [ ] 500 → "Không lấy được tóm tắt (lỗi 500)." + nút "Thử lại"; mất mạng → "(lỗi mạng)".
 - [ ] Bấm "Thử lại" khi API đã ổn → hiện tóm tắt + khuyến nghị. Không có lỗi JS.
 
-# [TC_TTSK_46] Đóng cửa sổ báo cáo
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-- **Kết quả đo được:** phím **Esc không đóng** cửa sổ (CModal của CoreUI không bắt phím Esc — giống các modal CoreUI khác
-  của app, nhưng khác thói quen chung của cửa sổ nổi). Nút × và bấm ra nền đóng được.
-
-## Kết quả mong đợi
-- [ ] Đóng được bằng nút × và bấm ra nền.
-- [ ] (Đo được — test assert) Ấn Esc cửa sổ vẫn mở.
-
-# [TC_TTSK_47] Bấm báo cáo khi chi tiết chưa về
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (trải nghiệm)
-- **Kết quả đo được:** `moBaoCao` **chờ API chi tiết trả về rồi mới mở cửa sổ** (để quyết định mở PDF hay mở cửa sổ). Mạng
-  chậm thì bấm dòng không có phản hồi gì (không khung chờ, không con trỏ chờ) cho tới khi API về. Khung chờ 4 dòng trong
-  cửa sổ thực tế không bao giờ hiện khi mở từ trang này.
-
-## Các bước thực hiện
-1. API chi tiết chậm 4 giây. Bấm ngay báo cáo thứ 4.
-
-## Kết quả mong đợi
-- [ ] Sau 1,2 giây chưa có cửa sổ; cửa sổ mở khi API về, có sẵn tóm tắt.
-
----
-
 ## Nhóm: Phân quyền & điều hướng trong app
 
 # [TC_TTSK_48] Tài khoản Free
@@ -576,46 +527,20 @@ cáo bạch & BCTN" (xáo thứ tự, 1 cái không có tệp), 3 nghị quyết
 - [ ] Hiện "Chưa chọn mã cổ phiếu" + "Nhập mã ở ô tìm kiếm phía trên để xem tài liệu, báo cáo và sự kiện của doanh
   nghiệp", ẩn thanh tab, không gọi API.
 
-# [TC_TTSK_51] Robot KFSP AI che nút "Trang sau"
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (🐞 bug)
-- **Kết quả đo được:** thanh phân trang canh phải sát đáy khung; nút robot KFSP AI cố định ở góc dưới phải (50×50px) nằm
-  đè lên nút › "Trang sau" ở cả 1366×768, 1600×900, 1920×1080 — `elementFromPoint` ở giữa nút trả về robot. Bấm chuột
-  vào › là bấm trúng robot (mở chat AI) thay vì sang trang; chỉ sang trang được bằng bàn phím hoặc bấm số trang.
-  Trang Backtest đã có cách ẩn robot riêng (`bt-hide-robot`), trang này chưa có.
-
-## Các bước thực hiện
-1. 45 báo cáo, bấm "Tất cả" để có thanh phân trang; đo phần tử nằm trên cùng ở tâm nút › tại 3 kích thước cửa sổ.
-
-## Kết quả mong đợi
-- [ ] (Đúng) Nút › bấm được bằng chuột.
-- [ ] (Đo được — test assert) Tâm nút › bị robot che ở cả 3 kích thước.
-
----
-
 ## Tổng hợp
 
 | Trạng thái | Số lượng |
 |---|---|
-| 🆕 Testcase mới | 47 |
-| ⚠️ Cần xác nhận thêm | 4 (🐞 TC_51 · 🐞 nghi vấn TC_18 · trải nghiệm TC_46 Esc, TC_47) |
-| **Tổng** | **51** |
+| 🆕 Testcase mới | 46 |
+| **Tổng** | **46** |
 
-Cả 51 case chạy tự động (pass 2 lần liên tiếp với `--workers=2`), không có `test.fixme`. Case 🐞 assert đúng hành vi đo được, nên khi dev sửa thì test sẽ fail —
-lúc đó đổi assert về hành vi đúng.
+Cả 46 case chạy tự động, không có `test.fixme`.
+
+**Cập nhật 10/11/2026:** xoá TC_TTSK_18, TC_TTSK_30, TC_TTSK_46, TC_TTSK_47, TC_TTSK_51 (bug được user chấp nhận). 51 → 46 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **🐞 Robot KFSP AI che nút › "Trang sau"** (TC_51) ở mọi kích thước cửa sổ thường gặp — bấm chuột vào › mở chat AI
-   thay vì sang trang.
-2. **🐞 nghi vấn — chọn đúng 1 ngày thì tab Bài viết không lọc** (TC_18): `khoangNgay()` gửi khoảng rỗng khi Từ = Đến
-   (chép hành vi của `News.vue` cũ), trong khi tab Báo cáo phân tích lọc đúng ngày → hai tab cùng bộ lọc cho kết quả
-   không nhất quán.
-3. **Bấm báo cáo khi mạng chậm không có phản hồi** (TC_47): trang chờ API chi tiết rồi mới mở cửa sổ; bình thường không
-   thấy vì chi tiết đã được nạp trước (TC_39).
 4. **Tab PTCB "Bài viết & Phân tích" đã thành "BCTC gốc"** trên preprod — nội dung chuyển sang trang này; testcase
    `TC_PTCB_BVPT_*` cần cập nhật khi chạy lại màn PTCB.
 5. Tài khoản Free xem được toàn bộ trang (không có ProtectedView) — cần xác nhận đây là chủ đích kinh doanh.
-6. Cửa sổ báo cáo không đóng bằng phím Esc (TC_46) — chỉ × hoặc bấm nền.
-7. Lỗi API danh sách không có thông báo riêng, hiện y như "không có dữ liệu" (TC_30).
 8. Không có ?mack= thì trang tải 1 lượt theo mã mặc định rồi tải lại lượt nữa khi setting `final_mack` về (TC_04, bước 2).

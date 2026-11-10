@@ -606,61 +606,11 @@
 
 ---
 
-# [TC_LOGIN_44] Click button liên tục nhiều lần
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify thực tế, PHÁT HIỆN KHÁC BIỆT QUAN TRỌNG**
-- **Tham chiếu App:** TC_48
-- **⚠️ Phát hiện:** Test thực tế cho thấy khi bấm liên tục, API `/api/login` bị gọi **4 lần** (không phải 1 lần như kỳ vọng của app). Source code không có cờ `loading`/`disabled` để chặn double-submit. Đây là điểm khác biệt/khả năng phát sinh lỗi cần báo lại cho dev.
-
-## Các bước thực hiện
-1. Nhập dữ liệu hợp lệ.
-2. Click "Đăng nhập" nhiều lần liên tục thật nhanh.
-
-## Kết quả mong đợi (thực tế đo được)
-- [ ] Hiện tại: gọi API nhiều lần (không đạt kỳ vọng "chỉ xử lý 1 lần" như app). Đề xuất kiểm thử tự động hoá bằng cách đếm số request `/api/login` qua `page.on('request', ...)`.
-
----
-
-# [TC_LOGIN_45] Loading khi đăng nhập
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: XÁC NHẬN chưa implement**
-- **Tham chiếu App:** TC_49
-- **Kết quả đo được:** Giả lập API trễ 1.5s bằng `page.route()`, kiểm tra `button.isDisabled()` ngay sau khi click → kết quả **`false`** (nút vẫn bấm được, không có loading/disable). Xác nhận đúng như dự đoán từ đọc code: web **chưa có** loading indicator như app.
-
-## Các bước thực hiện
-1. Giả lập mạng chậm (`page.route()` delay response).
-2. Nhập dữ liệu hợp lệ, click "Đăng nhập".
-
-## Kết quả mong đợi
-- [ ] Hiện tại: button KHÔNG disable, không có spinner trong lúc chờ phản hồi (khác với app). Đề xuất báo dev bổ sung.
-
----
-
-# [TC_LOGIN_46] Đăng nhập khi mất kết nối mạng
-
-- **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: XÁC NHẬN LÀ BUG**
-- **Tham chiếu App:** TC_50
-- **🐞 BUG xác nhận:** Test tự động với `context.setOffline(true)` bắt được lỗi JS runtime chưa xử lý:
-  ```
-  Cannot read properties of undefined (reading 'data')
-  ```
-  Đúng như dự đoán từ đọc code: khối `catch` trong `login()` truy cập `error.response.data.user_status` mà không kiểm tra `error.response` có tồn tại hay không. Khi mất mạng hoàn toàn, `axios` không trả về `error.response` → ném lỗi JS ngay tại dòng này, người dùng **không thấy bất kỳ thông báo lỗi thân thiện nào**, chỉ có nút bị "đứng" (vì không có xử lý loading để tắt). **Cần báo bug cho dev.**
-
-## Các bước thực hiện
-1. Ngắt kết nối mạng (`context.setOffline(true)` trong Playwright, hoặc DevTools → Network → Offline).
-2. Nhập dữ liệu hợp lệ, click "Đăng nhập".
-
-## Kết quả mong đợi
-- [ ] **Thực tế (bug):** Không hiển thị thông báo lỗi, ném exception JS `Cannot read properties of undefined (reading 'data')` trong console.
-- [ ] **Kỳ vọng đúng:** Nên hiển thị thông báo dạng "Không có kết nối mạng, vui lòng thử lại" như mô tả ở app.
-
----
-
 # [TC_LOGIN_47] Đăng nhập khi server lỗi (500)
 
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** TC_51
-- **Kết quả đo được:** Mock API `/api/login` trả 500 qua `page.route()` → không crash, hiển thị đúng alert lỗi chung (khác với TC_LOGIN_46 vì lần này `error.response` vẫn tồn tại nên không rơi vào nhánh gây lỗi JS).
+- **Kết quả đo được:** Mock API `/api/login` trả 500 qua `page.route()` → không crash, hiển thị đúng alert lỗi chung (lần này `error.response` vẫn tồn tại nên không rơi vào nhánh gây lỗi JS).
 
 ## Các bước thực hiện
 1. Mock API `/api/login` trả về lỗi 500.
@@ -795,24 +745,23 @@
 
 ---
 
-## Tổng hợp trạng thái (51 testcase — đã lược bỏ 15 case không áp dụng cho web; 09/11/2026 xoá TC_LOGIN_35–38, thêm TC_LOGIN_55)
+## Tổng hợp trạng thái (48 testcase — đã lược bỏ 15 case không áp dụng cho web; 09/11/2026 xoá TC_LOGIN_35–38, thêm TC_LOGIN_55; 10/11/2026 xoá TC_LOGIN_44–46)
 
 Đã tự động hoá bằng Playwright: [tests/login.spec.ts](../tests/login.spec.ts) (POM: [pages/LoginPage.ts](../pages/LoginPage.ts)).
 
 | Trạng thái | Số lượng | Ghi chú |
 |---|---|---|
-| ✅ Áp dụng | 46 | Đã tự động hoá & verify trực tiếp trên web thật bằng Playwright |
+| ✅ Áp dụng | 43 | Đã tự động hoá & verify trực tiếp trên web thật bằng Playwright |
 | ⚠️ Cần xác nhận thêm | 3 | Cần tài khoản test riêng (dạng email, đã bị khóa, dùng để thử khóa tạm thời) — hiện chỉ có 1 tài khoản test dạng SĐT nên chưa an toàn để tự động hoá các case này |
 | 🆕 Mới (riêng web) | 2 | TC_LOGIN_54 (router guard redirect khi đã đăng nhập), TC_LOGIN_55 (gửi `persist_login: true`) |
 
 **Phát hiện đáng chú ý cần báo lại team dev (đã verify bằng automation, không còn là dự đoán):**
-1. **Không có validate required/format phía client** — mọi lỗi input đều trả về 1 thông báo chung "Tài khoản hoặc mật khẩu không đúng...", kém thân thiện hơn app.
-2. **Không chống double-submit** — nút "Đăng nhập" không disable khi đang xử lý → spam click gọi API `/api/login` tới **4 lần** (đo được bằng cách đếm request qua `page.on('request')`).
-3. **🐞 BUG xác nhận:** mất kết nối mạng hoàn toàn → ném lỗi JS runtime chưa xử lý `Cannot read properties of undefined (reading 'data')` trong `catch` của `login()`, người dùng không thấy thông báo lỗi nào cả (khác với lỗi server 500 — trường hợp đó vẫn hiển thị alert bình thường, đã verify không crash).
-4. **Không có loading indicator** khi đang xử lý đăng nhập (button vẫn `enabled` trong lúc chờ API, đo bằng cách giả lập API trễ 1.5s).
+1. ~~**Không có validate required/format phía client**~~ — mọi lỗi input đều trả về 1 thông báo chung "Tài khoản hoặc mật khẩu không đúng..." — **Không phải bug** (user xác nhận 10/11/2026): chỉ là khác biệt validate so với app.
 5. ~~Checkbox "Duy trì đăng nhập" có tác dụng thật (~29 ngày chênh lệch `expires_in`)~~ → **06/11/2026 preprod gỡ checkbox**,
    mọi lần đăng nhập đều xin phiên dài hạn (TC_LOGIN_55).
 6. **Ngoài màn Đăng nhập, cùng commit ff0dbcdc8:** `App.vue` so `roles` trả về từ `get-info` với `localStorage.roles`; khác thì ghi
    lại rồi `window.location.reload()` (tài khoản hết hạn bị cron hạ về `free` mà token cũ vẫn hợp lệ). Chưa viết test ở
    đây vì thuộc phạm vi toàn app — nên thêm khi prev2 lên bản có commit này (đổi `roles` trong localStorage → kỳ vọng
    trang tải lại 1 lần và `roles` khớp máy chủ, không tải lại liên tục).
+
+**Cập nhật 10/11/2026:** xoá TC_LOGIN_44, TC_LOGIN_45, TC_LOGIN_46 (bug được user chấp nhận).

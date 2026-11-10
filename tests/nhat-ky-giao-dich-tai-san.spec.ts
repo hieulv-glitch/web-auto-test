@@ -218,12 +218,6 @@ test.describe('Bảng Danh mục đầu tư', () => {
     await expect.poll(vol).not.toEqual(a);
   });
 
-  test('TC_NKGD_TS_17: "Xuất Excel" tải file lãi/lỗ (tên có dấu "/" bị trình duyệt đổi thành "_")', async ({ page }) => {
-    await openTab();
-    const [download] = await Promise.all([page.waitForEvent('download'), nk.tsExportBtn.click()]);
-    expect(download.suggestedFilename()).toMatch(/^Lãi.lỗ Nhật ký giao dịch\.xlsx$/);
-  });
-
   test('TC_NKGD_TS_18: Nút "Mua"/"Bán" ở dòng mã → phiếu lệnh điền sẵn mã + danh mục; Bán điền khối lượng đang nắm', async () => {
     await openTab();
     await nk.tsStockRow('VNM').getByRole('button', { name: 'Mua' }).click();

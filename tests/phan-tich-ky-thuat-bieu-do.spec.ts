@@ -1,30 +1,33 @@
 import { test, expect } from '@playwright/test';
 import { TechnicalChartPage } from '../pages/TechnicalChartPage';
-import { LoginPage } from '../pages/LoginPage';
+import { useLegacySafetyNet, safeLoginTa, ReadOnlyRule } from '../pages/LegacySafetyNet';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/** POST chỉ đọc của màn này (cho đi thật). */
+const READ_ONLY_EXTRA: ReadOnlyRule[] = [
+  { pattern: /\/api\/news\/news-related-by-mack(\?|$)/, reason: 'panel "Thông tin" tải tin liên quan theo mã (POST chỉ đọc)' },
+  { pattern: /\/api\/stock-signals\//, reason: 'panel AI Chart tra mẫu hình/tín hiệu (POST chỉ đọc, AiInsightPanel.vue)' },
+];
+
+/**
+ * AN TOÀN DỮ LIỆU (10/11/2026): chạy trên localhost:8080 (nhánh preprod) gọi backend PRODUCTION → đăng nhập bằng phiên
+ * cache `Prev2Session` (chặn ghi setting, ghi lại ở `settingWrites`) + lưới `useLegacySafetyNet` huỷ mọi request ghi
+ * khác tới production và assert không có request nào lọt sau mỗi test (pages/LegacySafetyNet.ts).
+ */
+useLegacySafetyNet(test, READ_ONLY_EXTRA);
+// Đăng nhập + mở trang PTKT (iframe TradingView) mất 15-25s trên localhost → timeout mặc định 30s không đủ.
+test.describe.configure({ timeout: 90000 });
+// 10/11/2026: thanh công cụ TradingView thêm nút (Mẫu chỉ báo, Lưu…) — ở 1280px thanh công cụ bị co, một số nút
+// bị ẩn; dùng màn rộng như bộ phan-tich-ky-thuat-replay-chia-khung.
+test.use({ viewport: { width: 1600, height: 900 } });
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  // Bố cục cố định 1 khung (ACB + HPG) thay bố cục thật của tài khoản — xem `safeLoginTa`.
+  return safeLoginTa(page, 'paid');
 }
 
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  test.skip(!process.env.FREE_USER_EMAIL || !process.env.FREE_USER_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
+  return safeLoginTa(page, 'free');
 }
 
 /** Đổi mã CK của tab đang active qua ô tìm kiếm gốc TradingView (`#header-toolbar-symbol-search`). */
@@ -36,11 +39,11 @@ async function searchAndSelectSymbol(page: any, ta: TechnicalChartPage, symbol: 
   await page.waitForTimeout(1500);
 }
 
+// (10/11/2026: ghi chú dưới đây LỖI THỜI — ghi setting bị chặn + bố cục cố định theo test nên chạy song song được, đã bỏ mode 'serial'.)
 // ⚠️ AN TOÀN DỮ LIỆU — chạy file này BẮT BUỘC kèm `--workers=1` khi chạy chung nhiều describe block/nhiều file
 // cùng lúc (xem ghi chú đầy đủ ở đầu tests/phan-tich-ky-thuat.spec.ts + TRACKER.md mục "Phân tích kỹ thuật").
 
 test.describe('Phân tích kỹ thuật — Biểu đồ — Tìm & đổi mã CK', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_BD_01: Tìm và chọn mã CK mới qua ô tìm kiếm header', async ({ page }) => {
     test.setTimeout(90000);
@@ -74,7 +77,7 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Tìm & đổi mã C
     await searchAndSelectSymbol(page, ta, 'FPT');
     await expect(ta.lastChartTab).toContainText('FPT');
     await expect(ta.companyNameLink).toBeVisible({ timeout: 10000 });
-    await expect(ta.bellAlertIcon).toBeVisible();
+    // 10/11/2026: icon chuông ở panel "Thông tin" đã bỏ (cảnh báo giá chuyển lên biểu đồ — bộ canh-bao-gia).
 
     await ta.deleteLastChartTab(true);
     await ta.waitForLayoutSaved();
@@ -82,9 +85,10 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Tìm & đổi mã C
 });
 
 test.describe('Phân tích kỹ thuật — Biểu đồ — Khung thời gian & Style', () => {
-  test.describe.configure({ mode: 'serial' });
 
-  test('TC_PTKT_BD_03: Đổi khung thời gian (interval) cập nhật tên tab', async ({ page }) => {
+  // 10/11/2026: sửa 2 lần chưa pass — tên thẻ nay chỉ còn mã ("HPG", không kèm khung thời gian) nên assert "tên thẻ đổi
+  // theo khung" không còn đúng; cần viết lại assert theo nút/legend khung thời gian.
+  test.fixme('TC_PTKT_BD_03: Đổi khung thời gian (interval) cập nhật tên tab', async ({ page }) => {
     test.setTimeout(90000);
     await loginFirst(page);
     const ta = new TechnicalChartPage(page);
@@ -95,7 +99,14 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Khung thời gian &
 
     // Nút "1 giờ" (= 1h) không có data-name riêng — dùng data-tooltip (xem ghi chú intervalButton() trong POM,
     // getByText từng khớp NHẦM 1 div ẩn dùng đo độ rộng dropdown).
-    await ta.intervalButton('1 giờ').click();
+    // 10/11/2026: ở khung rộng TradingView gộp các nút khung thời gian thành 1 nút xổ xuống (nhãn = khung đang chọn,
+    // "1 ngày") → mở nút đó rồi chọn "1 giờ" nếu không có nút "1 giờ" riêng.
+    if (await ta.intervalButton('1 giờ').isVisible().catch(() => false)) {
+      await ta.intervalButton('1 giờ').click();
+    } else {
+      await ta.activeChartFrame.getByRole('button', { name: '1 ngày' }).first().click();
+      await ta.activeChartFrame.getByText('1 giờ', { exact: true }).locator('visible=true').first().click();
+    }
     await page.waitForTimeout(1200);
 
     const afterText = (await ta.lastChartTab.textContent())?.trim() || '';
@@ -129,7 +140,6 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Khung thời gian &
 });
 
 test.describe('Phân tích kỹ thuật — Biểu đồ — Chỉ báo kỹ thuật (fx)', () => {
-  test.describe.configure({ mode: 'serial' });
 
   test('TC_PTKT_BD_05: Mở dialog và thêm chỉ báo RSI', async ({ page }) => {
     test.setTimeout(90000);
@@ -206,27 +216,30 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Chỉ báo kỹ thu
 
 test.describe('Phân tích kỹ thuật — Biểu đồ — 2 dropdown tự viết', () => {
   test('TC_PTKT_BD_07: Dropdown "Biểu đồ ▾" toggle ẩn/hiện sự kiện', async ({ page }) => {
-    await loginFirst(page);
+    test.setTimeout(90000);
+
+    // 10/11/2026: menu "Biểu đồ ▾" dùng chung (src/utils/chartDisplayMenu.js) — 6 dòng: "GD cổ đông lớn", "Sự kiện",
+    // "Cảnh báo giá" + (gộp từ menu NKGD cũ) "Lịch sử giao dịch", "Chọn danh mục", "Chọn loại giao dịch". Nhãn cố định,
+    // trạng thái bật/tắt là ô tick ở cuối dòng; tick xong menu vẫn mở.
+    const session = await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
+    await ta.waitForChartReady();
 
     await ta.customBieuDoBtn.click();
     await page.waitForTimeout(400);
     const items = await ta.customDropdownMenuItems.allTextContents();
-    expect(items.length).toBe(2);
-    expect(items.some((t) => /giao dịch cổ đông lớn/i.test(t))).toBeTruthy();
-    expect(items.some((t) => /sự kiện/i.test(t))).toBeTruthy();
+    expect(items.length).toBe(6);
+    expect(items.some((t) => /GD cổ đông lớn/i.test(t))).toBeTruthy();
+    expect(items.some((t) => /^Sự kiện/i.test(t.trim()))).toBeTruthy();
 
     const firstItem = ta.customDropdownMenuItems.first();
-    const beforeText = (await firstItem.textContent())?.trim();
+    const checkbox = firstItem.locator('input[type="checkbox"]');
+    const before = await checkbox.isChecked();
     await firstItem.click();
-    await page.waitForTimeout(300);
-    await ta.customBieuDoBtn.click();
-    await page.waitForTimeout(400);
-    const afterText = (await ta.customDropdownMenuItems.first().textContent())?.trim();
-    expect(afterText).not.toBe(beforeText);
-    // trả lại trạng thái ban đầu
-    await ta.customDropdownMenuItems.first().click();
+    await expect(checkbox).toBeChecked({ checked: !before });
+    // Lựa chọn được lưu vào setting tài khoản (bị chặn, không tới máy chủ).
+    await expect.poll(() => session.settingWrites.some((w) => w.key === 'tradingview.supports_marks'), { timeout: 10000 }).toBe(true);
     await page.mouse.click(700, 700);
   });
 
@@ -237,7 +250,8 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — 2 dropdown tự vi�
     await ta.goto();
     await ta.waitForChartReady();
 
-    await ta.customNkgdBtn.click();
+    // 10/11/2026: menu "NKGD ▾" riêng đã gộp vào menu "Biểu đồ ▾" (chartDisplayMenu.js).
+    await ta.customBieuDoBtn.click();
     await page.waitForTimeout(400);
     const items = await ta.customDropdownMenuItems.allTextContents();
     expect(items.length).toBeGreaterThanOrEqual(3);
@@ -258,7 +272,9 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — 2 dropdown tự vi�
     await page.mouse.click(700, 700);
   });
 
-  test('TC_PTKT_BD_09: Nút "Tải lại Biểu đồ" — chỉ hiện với tài khoản moderator', async ({ page, browser }) => {
+  // 10/11/2026: tài khoản TEST_USER hiện chỉ có role "user" (localStorage `roles`), không còn moderator → không kiểm được.
+  test.fixme('TC_PTKT_BD_09: Nút "Tải lại Biểu đồ" — chỉ hiện với tài khoản moderator', async ({ page, browser }) => {
+    test.setTimeout(120000);
     await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
@@ -369,7 +385,7 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Thanh công cụ d�
 test.describe('Phân tích kỹ thuật — Biểu đồ — Lưu cấu hình', () => {
   test('TC_PTKT_BD_15: Chỉ báo được giữ nguyên sau khi tải lại trang (F5)', async ({ page }) => {
     test.setTimeout(90000);
-    await loginFirst(page);
+    const session = await loginFirst(page);
     const ta = new TechnicalChartPage(page);
     await ta.goto();
     await ta.addChartTab();
@@ -383,16 +399,10 @@ test.describe('Phân tích kỹ thuật — Biểu đồ — Lưu cấu hình', 
     await ta.activeChartFrame.locator('[data-role="list-item"]').first().click();
     await page.waitForTimeout(800);
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(4000); // auto-save chỉ báo (auto_save_delay + debounce nội bộ TradingView)
-
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await ta.chartTabButtons.first().waitFor({ state: 'visible', timeout: 15000 });
-    await page.waitForTimeout(2000);
-    const legendTexts = (await ta.legendSourceItems.allTextContents()).join(' ');
-    expect(legendTexts).toContain('RSI');
-
-    await ta.deleteLastChartTab(true);
-    await ta.waitForLayoutSaved();
+    // 10/11/2026: ghi setting bị chặn (an toàn dữ liệu) → không F5 kiểm lại được; assert app ĐỊNH lưu biểu đồ
+    // (`chartTASaved_<id thẻ>`, onAutoSaveNeeded trong ReactChartTA.vue) có chỉ báo RSI.
+    await expect.poll(() => session.settingWrites.some((w) => /^chartTASaved_/.test(w.key) && /RSI/.test(String(w.value))),
+      { timeout: 20000 }).toBe(true);
   });
 });
 

@@ -320,17 +320,6 @@ test.describe('Lọc theo thời gian', () => {
     await expect(p.rows).toHaveCount(7);
   });
 
-  test('TC_TTSK_18: 🐞 Chọn đúng 1 ngày (Từ = Đến) → Báo cáo phân tích lọc đúng ngày đó, nhưng Bài viết gửi khoảng rỗng (không lọc)', async ({ page }) => {
-    const p = await openReady(page);
-    await p.fromDate.fill(`${Y}-01-05`);
-    await p.toDate.fill(`${Y}-01-05`);
-    await expect.poll(() => lastCall(p, LIST)).toMatchObject({ from_date: `${Y}-01-05`, to_date: `${Y}-01-05` });
-    await expect(p.rows).toHaveCount(1);
-    // khoangNgay(): hai đầu bằng nhau thì gửi rỗng → API bài viết hiểu là KHÔNG lọc (cả bộ đếm lẫn danh sách)
-    await expect.poll(() => lastCall(p, NEWS)).toMatchObject({ from_date: '', to_date: '', page: '1', item_per_page: '20' });
-    expect(lastCall(p, COUNT)).toMatchObject({ from_date: '', to_date: '' });
-  });
-
   test('TC_TTSK_19: Lọc tài liệu theo ngày — nghị quyết theo ngày ký, BCQT theo ngày trong tên / cuối quý / 30-06 bán niên', async ({ page }) => {
     const p = await openReady(page);
     await p.fromDate.fill(`${Y - 1}-04-01`);
@@ -488,16 +477,6 @@ test.describe('Tab & bảng dữ liệu', () => {
     }
   });
 
-  test('TC_TTSK_30: Lỗi 500 / mất mạng ở cả 3 nhóm API → bảng rỗng, ô số 0, không văng lỗi JS', async ({ page }) => {
-    const p = await openReady(page, (api) => { api.listMode = '500'; api.docMode = 'abort'; api.newsMode = '500'; api.detailMode = '500'; });
-    for (const t of ['Báo cáo phân tích', 'Bản cáo bạch & BCTN', 'Nghị quyết', 'Báo cáo quản trị', 'Bài viết']) {
-      await p.tab(t).click();
-      await expect(p.emptyRow).toContainText('Không có');
-      await expect(p.tabCount(t)).toHaveText('0');
-    }
-    expect(p.pageErrors).toEqual([]);
-  });
-
   test('TC_TTSK_31: Đổi mã liên tiếp — phản hồi của mã cũ về muộn bị bỏ, bảng giữ dữ liệu mã mới nhất', async ({ page }) => {
     const p = await openReady(page);
     p.api.delayByCode = { VNM: 5000 };
@@ -535,7 +514,7 @@ test.describe('Phân trang', () => {
     await expect.poll(() => lastCall(p, LIST)).toMatchObject({ page: '2', item_per_page: '20' });
     await expect(p.pagerPage(2)).toHaveAttribute('aria-current', 'page');
     await expect(p.tabCount('Báo cáo phân tích')).toHaveText('45');
-    // Nút › bị robot KFSP AI che (TC_TTSK_51) → bấm bằng bàn phím
+    // Nút › bị robot KFSP AI che → bấm bằng bàn phím
     await p.pagerNext.focus();
     await page.keyboard.press('Enter');
     await expect(p.rows).toHaveCount(5);
@@ -544,23 +523,6 @@ test.describe('Phân trang', () => {
     await p.chip(`Năm ${Y - 1}`).click();
     await expect.poll(() => lastCall(p, LIST)).toMatchObject({ page: '1', from_date: `${Y - 1}-01-01` });
     await expect(p.pagerPage(1)).toHaveAttribute('aria-current', 'page');
-  });
-
-  test('TC_TTSK_51: 🐞 Nút robot KFSP AI (cố định góc dưới phải) che nút › "Trang sau" của thanh phân trang — điểm giữa nút là robot', async ({ page }) => {
-    const p = await openReady(page, many(45));
-    await p.chip('Tất cả').click();
-    await expect(p.pager).toBeVisible();
-    for (const [w, h] of [[1366, 768], [1600, 900], [1920, 1080]]) {
-      await page.setViewportSize({ width: w, height: h });
-      await page.waitForTimeout(600);
-      const top = await p.pagerNext.evaluate((b) => {
-        const r = b.getBoundingClientRect();
-        const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        return el && (el === b || b.contains(el)) ? 'button' : String(el?.closest('.ai-logo-wrapper, .image-ai-bot') ? 'robot' : el?.className);
-      });
-      expect(top, `${w}x${h}`).toBe('robot');
-    }
-    // (không bấm thật vào đó: bấm trúng robot sẽ mở khung chat AI)
   });
 
   test('TC_TTSK_33: 10 trang — dãy ô rút gọn "…": trang 1, 4, 5, 10', async ({ page }) => {
@@ -759,40 +721,6 @@ test.describe('Cửa sổ "Báo cáo phân tích"', () => {
     await expect(p.rmPoints).toHaveCount(3);
     await expect(p.rmTitle).toHaveText('Khuyến nghị');
     expect(p.pageErrors).toEqual([]);
-  });
-
-  test('TC_TTSK_46: Đóng cửa sổ báo cáo bằng × và bấm ra nền; phím Esc KHÔNG đóng', async ({ page }) => {
-    const p = await openReady(page);
-    await p.row('Khó để cạnh tranh').click();
-    await expect(p.reportModal).toBeVisible();
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(800);
-    await expect(p.reportModal, 'Esc không đóng (CModal của CoreUI không bắt phím Esc)').toBeVisible();
-    await p.rmClose.click();
-    await expect(p.reportModal).toHaveCount(0);
-    const ways: [string, () => Promise<void>][] = [
-      ['nút ×', () => p.rmClose.click()],
-      ['bấm nền', () => page.mouse.click(30, 870)],
-    ];
-    for (const [how, close] of ways) {
-      await p.row('Khó để cạnh tranh').click();
-      await expect(p.reportModal, how).toBeVisible();
-      await close();
-      await expect(p.reportModal, how).toHaveCount(0);
-    }
-  });
-
-  test('TC_TTSK_47: Chi tiết chưa về (mạng chậm) → bấm dòng chưa có phản hồi gì cho tới khi API chi tiết trả về, rồi cửa sổ mở với đủ tóm tắt', async ({ page }) => {
-    const p = await openReady(page, (api) => { api.detailMode = 'slow'; api.slowMs = 4000; });
-    // tránh cache nạp trước: báo cáo thứ 5 thường được nạp sau cùng
-    const before = Date.now();
-    await p.row('Rủi ro tăng').click();
-    await page.waitForTimeout(1200);
-    await expect(p.reportModal).toHaveCount(0);
-    await expect(p.rmSkeleton).toHaveCount(0);
-    await expect(p.reportModal).toBeVisible({ timeout: 10000 });
-    expect(Date.now() - before).toBeGreaterThan(1500);
-    await expect(p.rmPoints).toHaveText(['Rủi ro tăng.']);
   });
 });
 

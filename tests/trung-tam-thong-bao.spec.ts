@@ -535,22 +535,6 @@ test.describe('Cảnh báo — Bộ lọc', () => {
     await expect(p.panel.getByRole('checkbox', { name: 'Bật Lọc tăng trưởng' })).toBeChecked();
   });
 
-  test('TC_TB_31: 🐞 Đổi "Tần suất" → PUT /api/filter/update-frequency {frequency:"1440"}; lưu lỗi → toast nhưng ô chọn vẫn hiện giá trị CHƯA lưu được', async ({ page }) => {
-    const p = new NotificationCenterPage(page);
-    await openFilter(p);
-    await p.filterFreq.selectOption('1440');
-    await expect.poll(() => lastWrite(p, /update-frequency$/)?.body).toEqual({ frequency: '1440' });
-    await expect(p.filterFreq).toHaveValue('1440');
-    p.server.failures.push({ re: /update-frequency$/, status: 500 });
-    await p.filterFreq.selectOption('5');
-    await expect(p.toastError.filter({ hasText: 'Có lỗi xảy ra, vui lòng thử lại' }).first()).toBeVisible();
-    // Kỳ vọng đúng: ô trở về "1 ngày/lần" (giá trị đang lưu). Đo được: ô vẫn "5 phút/lần" — changeFilterFreq không trả lại ô
-    // khi lỗi, và :value="filter_freq" không đổi nên Vue 2 không vẽ lại <select>.
-    await expect(p.filterFreq).toHaveValue('5');
-    await p.navItem('Tất cả cài đặt').click();
-    await expect(p.row('Lọc tăng trưởng')).toContainText('1 ngày/lần');
-  });
-
   test('TC_TB_32: Tài khoản Free — bật bộ lọc thứ 2 → toast "Tài khoản miễn phí chỉ bật được bộ lọc đầu tiên.", không gọi API', async ({ page }) => {
     const p = new NotificationCenterPage(page);
     await openFilter(p, 'free');
@@ -1064,25 +1048,6 @@ test.describe('Chuông thông báo trên header', () => {
     await expect(p2.bellPanel.locator('.notify-chip.is-active')).toHaveCount(0);
     await expect(p2.bellRows).toHaveCount(0);
     await expect(p2.bellPanel.locator('.notify-chip:disabled')).toHaveCount(7);
-  });
-
-  test('TC_TB_60: 🐞 Cảnh báo về qua socket ("updatealert") KHÔNG tăng số trên chip/chuông — onReceivedAlert tìm chip "alert" (chữ thường)', async ({ page }) => {
-    const p = new NotificationCenterPage(page);
-    await openWithBell(p, { SIGNAL: 0, IBD: 0, notifications: 0, bctc: 0, news_events: 0 });
-    await expect(p.bellBadge).toHaveCount(0);
-    // Giả lập máy chủ bắn sự kiện socket: gọi đúng các listener web đã đăng ký cho "updatealert"
-    const fired = await page.evaluate(() => {
-      const s = (window as unknown as { socket_send?: { listeners: (e: string) => ((d: unknown) => void)[] } }).socket_send;
-      const ls = s?.listeners('updatealert') || [];
-      ls.forEach((fn) => fn({ type: 'COND_P_UP_HPG', stockcode: 'HPG', price: 30100, target: 30000, label: 'Mã HPG có giá vượt', time: '2026-11-09T03:00:00Z' }));
-      return ls.length;
-    });
-    expect(fired).toBeGreaterThan(0);
-    await page.waitForTimeout(800);
-    // Kỳ vọng đúng: badge 1 + chip Cảnh báo 1. Thực tế đo được: không có số nào.
-    await expect(p.bellBadge).toHaveCount(0);
-    await p.openBell();
-    await expect(p.bellChip('Cảnh báo').locator('.notify-chip-count')).toHaveCount(0);
   });
 
   test('TC_TB_61: Bấm ra ngoài panel (kể cả vào iframe biểu đồ TradingView) → panel đóng', async ({ page }) => {

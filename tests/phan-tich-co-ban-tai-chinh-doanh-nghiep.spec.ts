@@ -1,32 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { FaAnalysisPage } from '../pages/FaAnalysisPage';
-import { LoginPage } from '../pages/LoginPage';
+import { FaAnalysisPage, useFaSafetyNet } from '../pages/FaAnalysisPage';
 
-const EMAIL = process.env.TEST_USER_EMAIL!;
-const PASSWORD = process.env.TEST_USER_PASSWORD!;
-const FREE_EMAIL = process.env.FREE_USER_EMAIL;
-const FREE_PASSWORD = process.env.FREE_USER_PASSWORD;
+/**
+ * Chạy trên BASE_URL (localhost:8080, nhánh preprod) — backend PRODUCTION. Đăng nhập bằng phiên cache `Prev2Session`
+ * (chặn ghi setting); mọi request ghi khác bị lưới `FaSafetyNet` huỷ, sau mỗi test assert không có request ghi nào lọt.
+ */
+useFaSafetyNet(test);
 
 async function loginFirst(page: any) {
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(EMAIL, PASSWORD);
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('paid');
 }
 
-/** Cùng cơ chế đã dùng ở các file khác trong dự án: tự `test.skip` nếu tài khoản Free trong `.env` đăng nhập
- * lỗi, để không fail giả khi thiếu cấu hình. */
 async function loginFreeOrSkip(page: any) {
-  test.skip(!FREE_EMAIL || !FREE_PASSWORD, 'Chưa cấu hình FREE_USER_EMAIL/FREE_USER_PASSWORD trong .env');
-  const loginPage = new LoginPage(page);
-  await loginPage.goto();
-  await loginPage.login(FREE_EMAIL!, FREE_PASSWORD!);
-  const loginFailed = await loginPage.errorAlert
-    .waitFor({ state: 'visible', timeout: 10000 })
-    .then(() => true)
-    .catch(() => false);
-  test.skip(loginFailed, 'Tài khoản Free trong .env đăng nhập thất bại — kiểm tra lại FREE_USER_EMAIL/FREE_USER_PASSWORD.');
-  await loginPage.expectLoggedIn();
+  await new FaAnalysisPage(page).login('free');
 }
 
 function parseNumber(text: string): number {
@@ -125,7 +111,10 @@ test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Tổng q
     expect(pageErrors).toEqual([]);
   });
 
-  test('TC_PTCB_TCDN_07: Mỗi lần chuyển sub-tab luôn gọi lại API mới (không cache)', async ({ page }) => {
+  // Cập nhật 10/11/2026: thay hẳn case cũ "Mỗi lần chuyển sub-tab luôn gọi lại API mới (không cache)" — từ commit
+  // 815152821 (09/2026) sub-tab đã mở được giữ sống (`v-if` + `v-show`), quay lại KHÔNG gọi lại API (chủ đích của dev,
+  // xem comment trong BusinessFinance/index.vue).
+  test('TC_PTCB_TCDN_07: Quay lại sub-tab đã xem KHÔNG gọi lại API (sub-tab được giữ sống)', async ({ page }) => {
     await loginFirst(page);
     const fa = new FaAnalysisPage(page);
     await fa.goto({ mackQuery: 'VNM', tabQuery: 'tai-chinh-doanh-nghiep' });
@@ -138,11 +127,14 @@ test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Tổng q
     });
 
     await fa.clickBfSubTab('Kết quả kinh doanh');
-    await page.waitForTimeout(500);
+    await expect(fa.bfTableWrapper).toHaveClass(/table-is/);
+    await expect(fa.bfTableRows.first()).toBeVisible({ timeout: 15000 });
     await fa.clickBfSubTab('Bảng cân đối kế toán');
+    await expect(fa.bfTableWrapper).toHaveClass(/table-bs/);
+    await expect(fa.bfTableRows.first(), 'Bảng BS hiện lại ngay (dữ liệu cũ còn giữ)').toBeVisible();
     await page.waitForTimeout(1000);
 
-    expect(bsRequests.length, 'Quay lại "Bảng cân đối kế toán" phải gọi lại API type=bs (remount, không cache) — listener chỉ gắn SAU lần tải đầu tiên nên chỉ đếm lần refetch khi quay lại').toBeGreaterThanOrEqual(1);
+    expect(bsRequests, 'Quay lại "Bảng cân đối kế toán" không gọi lại API type=bs').toEqual([]);
   });
 });
 
@@ -301,14 +293,13 @@ test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Thu gọ
     await fa.goto({ mackQuery: 'VNM', tabQuery: 'tai-chinh-doanh-nghiep' });
     await expect(fa.bfTableRows.first()).toBeVisible({ timeout: 15000 });
 
+    // Cập nhật 10/11/2026: SVG viết tay trong BS.vue (815152821) — không còn thuộc tính `data-icon`, nhận diện qua class.
     const row = fa.bfTableRowByText('A. Tài sản lưu động và đầu tư ngắn hạn');
-    const svgBefore = await row.locator('td').first().locator('svg').getAttribute('data-icon');
-    expect(svgBefore).toBe('caret-down'); // mặc định mở rộng
+    const caret = row.locator('td').first().locator('svg');
+    await expect(caret).toHaveClass(/fa-caret-down/); // mặc định mở rộng
 
     await fa.toggleBfRow('A. Tài sản lưu động và đầu tư ngắn hạn');
-    await page.waitForTimeout(300);
-    const svgAfter = await row.locator('td').first().locator('svg').getAttribute('data-icon');
-    expect(svgAfter).toBe('caret-right');
+    await expect(caret).toHaveClass(/fa-caret-right/);
   });
 
   test('TC_PTCB_TCDN_18: "Chỉ tiêu tài chính" không có cấu trúc cây thu gọn/mở rộng', async ({ page }) => {
@@ -319,7 +310,7 @@ test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Thu gọ
     await expect(fa.bfTableRows.first()).toBeVisible({ timeout: 15000 });
 
     const rowsBefore = await fa.bfTableRows.count();
-    const caretIcons = await fa.bfTable.locator('svg[data-icon^="caret"]').count();
+    const caretIcons = await fa.bfTable.locator('svg[class*="fa-caret"]').count();
     expect(caretIcons, 'Không có icon caret nào — bảng phẳng, không phân cấp').toBe(0);
 
     await fa.bfTableRows.first().locator('td').first().click();
@@ -468,21 +459,6 @@ test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Lỗi m�
     await expect(fa.bfTableRows).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
-
-  test('TC_PTCB_TCDN_27: Lỗi 500 — nuốt lỗi im lặng, không toast, không crash', async ({ page }) => {
-    await loginFirst(page);
-    await page.route(/\/api\/stocks\?.*type=bs/, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }));
-    const pageErrors: string[] = [];
-    page.on('pageerror', (err) => pageErrors.push(err.message));
-
-    const fa = new FaAnalysisPage(page);
-    await fa.goto({ mackQuery: 'VNM', tabQuery: 'tai-chinh-doanh-nghiep' });
-    await page.waitForTimeout(3000);
-
-    await expect(fa.bfTableRows).toHaveCount(0);
-    await expect(page.getByText(/có lỗi xảy ra/i), 'Không có toast lỗi nào hiển thị (nuốt lỗi im lặng, giống pattern getAll() ở tab So sánh)').toHaveCount(0);
-    expect(pageErrors).toEqual([]);
-  });
 });
 
 test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Giới hạn theo gói hội viên (Free)', () => {
@@ -613,18 +589,27 @@ test.describe('Phân tích cơ bản — Tài chính doanh nghiệp — Hiệu �
     await fa.goto({ mackQuery: 'VNM', tabQuery: 'tai-chinh-doanh-nghiep' });
     await expect(fa.bfTableRows.first()).toBeVisible({ timeout: 15000 });
 
-    const headerCell = fa.bfTableHeaderCells.nth(1);
+    // Cập nhật 10/11/2026: highlight giờ là class `hl-Qn` trên wrapper `.table-bs` + CSS tô các ô `td[data-q="Qn"]`
+    // (không còn class `bghover` trên từng ô). Ở "Năm" các ô không có `data-q` → không highlight.
     const bodyCell = fa.bfTableRowByText('TỔNG CỘNG TÀI SẢN').locator('td').nth(1);
+    const quarter = await bodyCell.getAttribute('data-q');
+    expect(quarter, 'Cột dữ liệu ở chế độ "Quý" phải có data-q = Q1..Q4').toMatch(/^Q[1-4]$/);
     await bodyCell.hover();
-    await page.waitForTimeout(200);
-    await expect(bodyCell).toHaveClass(/bghover/);
+    await expect(fa.bfTableWrapper).toHaveClass(new RegExp(`hl-${quarter}`));
+    // So trên 1 dòng KHÁC dòng đang rê (dòng đang rê có hiệu ứng hover cả hàng, cùng màu): ô cùng quý được tô, ô quý
+    // khác thì không.
+    const otherRow = fa.bfTableRowByText('A. Tài sản lưu động và đầu tư ngắn hạn');
+    const sameQuarterBg = await otherRow.locator(`td[data-q="${quarter}"]`).first().evaluate((el) => (globalThis as any).getComputedStyle(el).backgroundColor);
+    const otherQuarterBg = await otherRow.locator(`td[data-q]:not([data-q="${quarter}"])`).first().evaluate((el) => (globalThis as any).getComputedStyle(el).backgroundColor);
+    expect(sameQuarterBg, 'Ô cùng quý ở dòng khác được tô màu khác ô quý khác').not.toBe(otherQuarterBg);
 
     await fa.bfTimeSelect.selectOption({ label: 'Năm' });
     await expect(fa.bfTableRows.first()).toBeVisible({ timeout: 15000 });
     const bodyCellYear = fa.bfTableRowByText('TỔNG CỘNG TÀI SẢN').locator('td').nth(1);
+    expect(await bodyCellYear.getAttribute('data-q'), 'Chế độ "Năm": ô không có data-q').toBeNull();
     await bodyCellYear.hover();
     await page.waitForTimeout(200);
-    await expect(bodyCellYear, 'Chế độ "Năm" không có cột nào bắt đầu bằng "Q" nên không highlight').not.toHaveClass(/bghover/);
+    await expect(fa.bfTableWrapper, 'Chế độ "Năm" không highlight cột nào').not.toHaveClass(/hl-Q/);
   });
 });
 

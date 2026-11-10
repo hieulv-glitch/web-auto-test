@@ -1,5 +1,16 @@
 # Màn hình: Phân tích kỹ thuật — Khu vực Biểu đồ
 
+**Cập nhật 10/11/2026:** chạy lại trên localhost:8080 (nhánh `preprod`, backend PRODUCTION). An toàn dữ liệu:
+đăng nhập bằng `safeLoginTa()` (pages/LegacySafetyNet.ts — phiên cache `Prev2Session`, chặn mọi ghi setting, ghi lại ở
+`settingWrites`) với **bố cục cố định** thay bố cục thật của tài khoản (trả phí: 1 khung, thẻ ACB + HPG; Free: 1 thẻ ACB)
++ lưới `useLegacySafetyNet` huỷ mọi request ghi khác tới production (POST chỉ đọc được cho qua: `news-related-by-mack`,
+`stock-signals/*`), assert rỗng sau mỗi test. Không còn ghi gì lên tài khoản → bỏ mode `serial`/yêu cầu `--workers=1`,
+bỏ các bước "trả lại mã gốc"; viewport 1600×900 (thanh công cụ TradingView nay thêm nút "Mẫu chỉ báo"/"Lưu", ở 1280px
+thanh công cụ trên/dưới biểu đồ bị co, một số nút bị ẩn). Menu "NKGD ▾" riêng đã gộp vào menu "Biểu đồ ▾" dùng chung
+(`src/utils/chartDisplayMenu.js`, 6 dòng: GD cổ đông lớn · Sự kiện · Cảnh báo giá · Lịch sử giao dịch · Chọn danh mục ·
+Chọn loại giao dịch; nhãn cố định, bật/tắt bằng ô tick). **TC_PTKT_BD_03, TC_PTKT_BD_09 → `test.fixme`** (lý do ở từng
+case). Không xoá case.
+
 - **URL:** `/phan-tich-ky-thuat` — tài liệu con của [phan-tich-ky-thuat.md](phan-tich-ky-thuat.md) (đọc tài liệu
   đó trước để biết bối cảnh route/component/an toàn dữ liệu chung).
 - **Component:** [ReactChartTA.vue](../../stocks/src/views/multiLayoutChart/ReactChartTA.vue) (32KB) — wrapper Vue
@@ -50,6 +61,7 @@
 
 # [TC_PTKT_BD_02] Đổi mã sang mã cổ phiếu thường khác
 
+- **Cập nhật 10/11/2026:** bỏ kiểm icon chuông ở panel "Thông tin" (đã bỏ — cảnh báo giá chuyển lên biểu đồ, bộ canh-bao-gia).
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 
 ## Các bước thực hiện
@@ -67,6 +79,7 @@
 
 # [TC_PTKT_BD_03] Đổi khung thời gian (interval) cập nhật tên tab
 
+- **Cập nhật 10/11/2026 — `test.fixme`:** ở khung rộng các nút khung thời gian gộp thành 1 nút xổ xuống (đã sửa thao tác chọn "1 giờ"), nhưng tên thẻ nay chỉ còn mã ("HPG", không kèm khung) nên kỳ vọng "tên thẻ đổi thành `<mã> 60`" không còn đúng — sửa 2 lần chưa pass, cần viết lại assert theo nút/legend khung thời gian.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** tương ứng nhóm nút "D" (timeframe) trong Sheet
 - **Ghi chú:** `handleOnIntervalChanged()` chỉ tự đổi tên tab nếu `is_changed_name = false` (chưa đổi tên tay —
@@ -148,6 +161,7 @@
 
 # [TC_PTKT_BD_07] Dropdown "Biểu đồ ▾" — toggle ẩn/hiện sự kiện & giao dịch cổ đông lớn
 
+- **Cập nhật 10/11/2026:** menu có 6 dòng (gộp menu NKGD); bấm dòng "GD cổ đông lớn" đổi ô tick + app ghi setting `tradingview.supports_marks` (bị chặn, assert qua `settingWrites`); bỏ bước bật lại.
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** Nút tự viết bằng `tvWidget.createButton()` (KHÔNG phải TradingView gốc), CHỈ hiện với tài khoản
   KHÔNG Free (`!store.state.isAccountFree`, xem TC_PTKT_BD_15). Menu có đúng 2 mục, label đổi "Ẩn"⇄"Hiện" theo
@@ -167,6 +181,7 @@
 
 # [TC_PTKT_BD_08] Dropdown "NKGD ▾" — submenu chọn loại giao dịch
 
+- **Cập nhật 10/11/2026:** các dòng NKGD nay nằm trong menu "Biểu đồ ▾" (không còn nút "NKGD ▾").
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** 3 mục: "Ẩn/Hiện lịch sử giao dịch", "Chọn danh mục »" (submenu load từ API
   `/api/stocks/category/get-all`), "Chọn loại giao dịch »" (submenu 3 checkbox Mua/Bán/Cổ tức-Quyền, lưu vào
@@ -184,6 +199,7 @@
 
 # [TC_PTKT_BD_09] Nút "Tải lại Biểu đồ" — chỉ hiện với tài khoản moderator
 
+- **Cập nhật 10/11/2026 — `test.fixme`:** tài khoản TEST_USER hiện chỉ có role `user` (localStorage `roles`), không còn moderator → nút "Tải lại Biểu đồ" không hiện; cần tài khoản moderator.
 - **Trạng thái:** 🆕 Testcase mới — **Đã verify bằng automation: Pass**
 - **Ghi chú:** `isModerator` đọc từ `localStorage.roles` (chứa `"moderator"`). Tài khoản test chính
   (`TEST_USER_EMAIL`) CÓ role này (đã xác nhận nút hiển thị qua DOM thật). Tài khoản Free dùng để đối chứng KHÔNG
@@ -286,6 +302,7 @@
 
 # [TC_PTKT_BD_15] Chỉ báo được giữ nguyên sau khi tải lại trang (F5)
 
+- **Cập nhật 10/11/2026:** ghi setting bị chặn nên không F5 kiểm lại được — assert lượt ghi `chartTASaved_<id thẻ>` (bị chặn) có chỉ báo RSI.
 - **Trạng thái:** ✅ Áp dụng — **Đã verify bằng automation: Pass**
 - **Tham chiếu App:** tương ứng nhóm "lưu cấu hình" trong Sheet
 - **Ghi chú:** `onAutoSaveNeeded` lưu state (indicator/annotation) vào `chartTASaved_<id>` qua `store.commit(

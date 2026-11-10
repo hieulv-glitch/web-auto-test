@@ -53,12 +53,13 @@ export class TechnicalChartPage extends BasePage {
     // khi nội dung THẬT được portal ra vị trí khác trong DOM khi hiện — `hasText` vẫn khớp bản 0px này (đã xác
     // nhận qua debug: `getBoundingClientRect().height === 0`). Dùng `getByRole('dialog')` + lọc theo heading
     // giống pattern đã dùng ở `FaAnalysisPage` — Playwright resolve đúng bản dialog thật đang hiển thị.
+    // Cập nhật 10/11/2026 (preprod): modal đổi tên "Xóa đồ thị" → "Đóng đồ thị", nút "Đóng"/"Xóa" → "Huỷ"/"Xác nhận".
     this.deleteConfirmModal = page
       .getByRole('dialog')
-      .filter({ has: page.getByRole('heading', { name: 'Xóa đồ thị' }) });
+      .filter({ has: page.getByRole('heading', { name: 'Đóng đồ thị' }) });
     this.deleteConfirmCheckbox = this.deleteConfirmModal.getByLabel('Không hỏi lại hôm nay');
-    this.deleteConfirmCloseBtn = this.deleteConfirmModal.getByRole('button', { name: 'Đóng', exact: true });
-    this.deleteConfirmDeleteBtn = this.deleteConfirmModal.getByRole('button', { name: 'Xóa', exact: true });
+    this.deleteConfirmCloseBtn = this.deleteConfirmModal.getByRole('button', { name: 'Huỷ' });
+    this.deleteConfirmDeleteBtn = this.deleteConfirmModal.getByRole('button', { name: 'Xác nhận' });
     // Toast giới hạn số tab/khung hình (`showToast()` trong `index.vue` → `this.$toast.info(string)`).
     this.freeLimitToast = page.locator('.Vue-Toastification__toast-body');
   }
@@ -115,9 +116,21 @@ export class TechnicalChartPage extends BasePage {
    * `confirm=true` → bấm "Xóa" (checkbox "Không hỏi lại hôm nay" KHÔNG bao giờ bị tick). `confirm=false` → bấm
    * "Đóng" để hủy (tab không bị xóa). */
   async deleteLastChartTab(confirm: boolean = true) {
+    await this.deleteChartTab(this.lastChartTab, confirm);
+  }
+
+  /** Cập nhật 10/11/2026 (preprod, reactMultiLayoutChart.js FLEX_LAYOUT_DELETE_TAB): modal "Đóng đồ thị" CHỈ hiện khi thẻ có
+   * nội dung người dùng thêm (chỉ báo/hình vẽ) hoặc thẻ chưa hiện lần nào; thẻ trống đóng ngay không hỏi. `confirm=false`
+   * bắt buộc có modal. */
+  async deleteChartTab(tab: Locator, confirm: boolean = true) {
     const before = await this.chartTabCount();
-    await this.closeIconOf(this.lastChartTab).click();
-    await this.deleteConfirmModal.waitFor({ state: 'visible' });
+    await this.closeIconOf(tab).click();
+    const asked = await this.deleteConfirmModal.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false);
+    if (!asked) {
+      expect(confirm, 'Thẻ đóng ngay không hiện modal xác nhận').toBe(true);
+      await expect(this.chartTabButtons).toHaveCount(before - 1, { timeout: 10000 });
+      return;
+    }
     await expect(this.deleteConfirmCheckbox).not.toBeChecked();
     if (confirm) {
       await this.deleteConfirmDeleteBtn.click();

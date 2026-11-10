@@ -267,20 +267,6 @@ lệnh nào bị huỷ. Ghi setting / lựa chọn Dashboard do `Prev2Session` c
 ## Kết quả mong đợi
 - [ ] Modal MBB mở, URL vẫn `/phan-tich-ky-thuat`.
 
-# [TC_TIMMA_21] Đóng modal bằng × hoặc bấm ra nền; Esc không đóng modal
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-
-## Các bước thực hiện
-1. Mở modal VNM, nhấn Esc.
-2. Bấm ×.
-3. Mở modal SSI, bấm vào nền tối ngoài khung.
-
-## Kết quả mong đợi
-- [ ] Esc: modal **vẫn mở** (CModal của CoreUI không xử lý Esc) — cần PO xác nhận có cần đóng bằng Esc không.
-- [ ] × đóng modal.
-- [ ] Bấm nền đóng modal.
-
 ## Nhóm: Mã gần đây
 
 # [TC_TIMMA_22] Chọn mã → lưu vào "Mã gần đây"; bấm ô trống hiện mã đó kèm tên + giá
@@ -308,17 +294,6 @@ lệnh nào bị huỷ. Ghi setting / lựa chọn Dashboard do `Prev2Session` c
 - [ ] Sau HPG: HPG, VNM, FPT, MBB, SSI.
 - [ ] Sau VIC: VIC, HPG, VNM, FPT, MBB (SSI cũ nhất bị bỏ).
 - [ ] Hộp hiện đúng 5 mã theo thứ tự đó.
-
-# [TC_TIMMA_24] Mã gần đây không còn tồn tại bị ẩn, nhưng hộp hiện ít hơn 5 mã
-
-- **Trạng thái:** ⚠️ Cần xác nhận thêm
-
-## Các bước thực hiện
-1. localStorage có 7 mã: VNM, FPT, XXXX (không tồn tại), HPG, MBB, SSI, VIC.
-2. Bấm ô trống.
-
-## Kết quả mong đợi
-- [ ] Đo được: hiện VNM, FPT, HPG, MBB (4 mã) — `created()` cắt còn 5 phần tử trước, rồi mới lọc mã không có trong danh sách công ty, nên SSI hợp lệ không được bù vào. Cần dev xác nhận.
 
 # [TC_TIMMA_25] Dữ liệu "Mã gần đây" hỏng / không phải mảng / lẫn phần tử lạ → không lỗi
 
@@ -376,16 +351,13 @@ lệnh nào bị huỷ. Ghi setting / lựa chọn Dashboard do `Prev2Session` c
 | Trạng thái | Số lượng |
 |---|---|
 | 🆕 Testcase mới | 26 |
-| ⚠️ Cần xác nhận thêm | 2 (TC_21, TC_24) |
-| **Tổng** | **28** |
+| **Tổng** | **26** |
 
-Cả 28 case chạy tự động, pass trên kfsp.vn ngày 10/11/2026, không có `test.fixme`.
+Cả 26 case chạy tự động, pass trên kfsp.vn ngày 10/11/2026, không có `test.fixme`.
+
+**Cập nhật 10/11/2026:** xoá TC_TIMMA_21, TC_TIMMA_24 (bug được user chấp nhận). 28 → 26 TC.
 
 ## Phát hiện đáng chú ý
 
-1. **⚠️ Phím Esc không đóng modal biểu đồ nhanh** (TC_21) — chỉ đóng được bằng × hoặc bấm ra nền (CModal của CoreUI không
-   xử lý Esc; cùng hiện tượng ở cửa sổ báo cáo màn Thông tin & Sự kiện, TC_TTSK_46).
-2. **⚠️ "Mã gần đây" hiện thiếu mã** (TC_24) — danh sách đọc từ localStorage bị cắt còn 5 phần tử **trước** khi lọc mã không
-   còn tồn tại, nên có mã không hợp lệ thì hộp hiện ít hơn 5 dù còn mã hợp lệ phía sau.
 3. Gõ 1 ký tự chỉ dò theo mã; từ 2 ký tự mới dò thêm tên công ty (cố ý, tránh gần như tên nào cũng khớp).
 4. Khác bản đầu (03/11): chọn mã không còn chuyển sang Phân tích cơ bản mà mở modal biểu đồ ngay trên trang đang đứng.

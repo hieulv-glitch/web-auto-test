@@ -227,16 +227,6 @@
 
 ---
 
-# [TC_NKGD_LS_21] Để trống → toast lỗi; giá 0 bị từ chối
-- **Trạng thái:** ⚠️ Cần xác nhận thêm (✅ phần validate có từ bản cũ TC_LS_20/21)
-- **Kết quả đo được:** giá mặc định `0` bị coi là không hợp lệ (`0 == ""` là true trong JS) trong khi thông báo ghi "Giá thực
-  hiện phải lớn hơn hoặc bằng 0" → mâu thuẫn; cần xác nhận cho phép giá 0 hay không.
-
-## Kết quả mong đợi
-- [ ] Toast "Mã CK không hợp lệ", "Khối lượng phải lớn hơn 0", "Giá thực hiện phải lớn hơn hoặc bằng 0"; không gửi; phiếu vẫn mở.
-
----
-
 # [TC_NKGD_LS_22] Ngày tương lai
 - **Trạng thái:** ✅ Áp dụng
 
@@ -279,15 +269,6 @@
 
 ---
 
-# [TC_NKGD_LS_27] Bấm đúp "Xác nhận mua" gửi 2 lệnh
-- **Trạng thái:** 🆕 Testcase mới — 🐞 bug (giữ TC_LS_28 cũ, chưa sửa)
-- **Kết quả đo được:** 09/11 trên kfsp.vn (và trước đó trên prev2 bản preprod) bấm đúp gửi 2 `POST /api/tradinglog/store` + 2 lượt đối soát.
-
-## Kết quả mong đợi (đo được)
-- [ ] Đúng 2 lệnh POST. Mong đợi đúng: chỉ 1 (khoá nút khi đang gửi).
-
----
-
 # [TC_NKGD_LS_28] Phí được nhớ
 - **Trạng thái:** 🆕 Testcase mới
 
@@ -301,17 +282,6 @@
 
 ## Kết quả mong đợi
 - [ ] Bấm ra nền: KHÔNG đóng (`closeOnBackdrop=false`). Esc, nút X, "Hủy": đều đóng; không gửi gì.
-
----
-
-# [TC_NKGD_LS_30] Chọn mã → lỗi JS trong callback giá
-- **Trạng thái:** 🆕 Testcase mới — 🐞 bug nghi vấn (mới)
-- **Nguyên nhân:** `onStockcodeFormAddChange` → `socket_send.emit("getlive", [mã], res => res["lastprice"][0] / 1000)`, không kiểm
-  tra `res.lastprice` → khi socket trả gói không có `lastprice` thì ném `TypeError: Cannot read properties of undefined (reading
-  '0')` (đo được mỗi lần chọn mã trên kfsp.vn 09/11, giá vẫn được điền ở lượt trả lời khác). Không thấy trên giao diện, chỉ ở console.
-
-## Kết quả mong đợi (đo được)
-- [ ] Trang phát sinh lỗi JS trên. Mong đợi đúng: không lỗi.
 
 ---
 
@@ -369,22 +339,6 @@
 
 ---
 
-# [TC_NKGD_LS_37] Sửa lỗi 422 — modal tự đóng
-- **Trạng thái:** ✅ Áp dụng — 🐞 (giữ TC_LS_36/37 cũ)
-
-## Kết quả mong đợi (đo được)
-- [ ] Toast "Giao dịch không hợp lệ! Vui lòng thử lại."; modal ĐÓNG (người dùng mất chỉnh sửa vừa nhập).
-
----
-
-# [TC_NKGD_LS_38] Sửa lỗi 500 — modal tự đóng
-- **Trạng thái:** ✅ Áp dụng — 🐞 (giữ TC_LS_37 cũ)
-
-## Kết quả mong đợi (đo được)
-- [ ] Toast "Có lỗi xảy ra, vui lòng thử lại"; modal đóng.
-
----
-
 # [TC_NKGD_LS_39] Modal "Chi tiết giao dịch"
 - **Trạng thái:** ✅ Áp dụng (thay TC_LS_40 "Xem giao dịch")
 
@@ -438,20 +392,17 @@
 
 ---
 
-## Tổng hợp trạng thái (44 testcase)
+## Tổng hợp trạng thái (39 testcase)
 
 Tự động hoá: [tests/nhat-ky-giao-dich-nhat-ky.spec.ts](../tests/nhat-ky-giao-dich-nhat-ky.spec.ts).
 
+**Cập nhật 10/11/2026:** xoá TC_NKGD_LS_21, TC_NKGD_LS_27, TC_NKGD_LS_30, TC_NKGD_LS_37, TC_NKGD_LS_38 (bug được user chấp nhận) — tổng 44 → 39.
+
 | Trạng thái | Số lượng | Testcase |
 |---|---|---|
-| ✅ Áp dụng | 28 | LS_01–03, 05, 06, 08–13, 15, 16, 22–26, 31–33, 35–41 |
-| 🆕 Mới (riêng web) | 15 | LS_04, 07, 14, 17–20, 27–30, 34, 42–44 |
-| ⚠️ Cần xác nhận thêm | 1 | LS_21 |
+| ✅ Áp dụng | 26 | LS_01–03, 05, 06, 08–13, 15, 16, 22–26, 31–33, 35, 36, 39–41 |
+| 🆕 Mới (riêng web) | 13 | LS_04, 07, 14, 17–20, 28, 29, 34, 42–44 |
 
 **Phát hiện đáng chú ý:**
-1. 🐞 **LS_27** bấm đúp gửi 2 lệnh (chưa sửa từ 20/08).
-2. 🐞 **LS_37/38** sửa lỗi thì modal tự đóng, mất chỉnh sửa (chưa sửa).
-3. 🐞 **LS_30 (mới)** lỗi JS trong callback socket `getlive` khi chọn mã.
-4. ⚠️ **LS_21** giá 0 bị từ chối trái với thông báo "≥ 0".
-5. ✅ Bug TC_LS_44 cũ (mất `this` khi xoá lỗi) đã được sửa.
-6. ⚠️ An toàn: pattern chặn ghi của spec 20/08 không khớp endpoint NestJS mới — đã thay bằng máy chủ giả + lưới an toàn.
+1. ✅ Bug TC_LS_44 cũ (mất `this` khi xoá lỗi) đã được sửa.
+2. ⚠️ An toàn: pattern chặn ghi của spec 20/08 không khớp endpoint NestJS mới — đã thay bằng máy chủ giả + lưới an toàn.
